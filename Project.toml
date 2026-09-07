@@ -1,0 +1,7 @@
+[deps]
+BorrowChecker = "7bdcaa52-c310-4bb0-bf54-d941056ed284"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+Serde = "db9b398d-9517-45f8-9a95-92af99003e0e"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+XXhash = "137af188-b1ec-11e9-0b40-31ed9142ae64"
