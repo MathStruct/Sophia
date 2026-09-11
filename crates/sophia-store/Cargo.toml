@@ -1,0 +1,15 @@
+# Graph schema and storage backends. See src/sophia_store.md.
+[package]
+name = "sophia-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+# Explicit path so that no file in the repo is named lib.rs: Obsidian resolves
+# [[wikilinks]] by filename, and every code file has a same-named .md sibling.
+path = "src/sophia_store.rs"
+
+[dependencies]
+sophia-hash = { path = "../sophia-hash" }
+sophia-core = { path = "../sophia-core" }

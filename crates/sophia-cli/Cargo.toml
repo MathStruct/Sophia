@@ -1,0 +1,17 @@
+# The `sophia` command-line driver. See src/main.md.
+[package]
+name = "sophia-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sophia"
+path = "src/main.rs"
+
+[dependencies]
+sophia-core = { path = "../sophia-core" }
+sophia-store = { path = "../sophia-store" }
+sophia-equiv = { path = "../sophia-equiv" }
+sophia-emit = { path = "../sophia-emit" }
+sophia-frontend-metamath = { path = "../sophia-frontend-metamath" }

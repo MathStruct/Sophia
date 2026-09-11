@@ -1,6 +1,41 @@
-[package]
-name = "Sophia"
+# Sophia — Rust workspace manifest.
+#
+# The repository is simultaneously a Rust workspace, a Julia package and an
+# Obsidian vault. Julia hard-requires `src/Sophia.jl`, so `src/` belongs to
+# Julia and all Rust code lives under `crates/`. See markdown/Design/Repository
+# Layout.md for the full rationale.
+#
+# NOTE: every source file in this workspace is currently comments only. Nothing
+# here is meant to build into anything that runs yet; the crates exist to fix
+# the module boundaries while the design in markdown/Design/ is settled.
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/sophia-hash",               # canonicalisation + content hashing
+    "crates/sophia-core",               # Sophia Core calculus, kernel, elaboration
+    "crates/sophia-store",              # graph schema + storage backends
+    "crates/sophia-equiv",              # e-graph, equivalence edges, witness checking
+    "crates/sophia-emit",               # MLIR / LLVM emission
+    "crates/sophia-frontend-metamath",  # first frontend (see Roadmap M0)
+    "crates/sophia-cli",                # the `sophia` binary
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 
-[dependencies]
+# Intended third-party dependencies, recorded but not yet enabled so that the
+# workspace stays resolvable offline while it is still comments-only:
+#
+#   blake3        content hashing                    -> sophia-hash
+#   xxhash-rust   in-memory interning only           -> sophia-hash
+#   smallvec      term children without heap churn   -> sophia-core
+#   egg           e-graphs and equality saturation   -> sophia-equiv
+#   duckdb        first storage backend              -> sophia-store
+#   rusqlite      Turso/SQLite backend               -> sophia-store
+#   melior        MLIR bindings                      -> sophia-emit
+#   inkwell       LLVM bindings                      -> sophia-emit
+#   clap          CLI                                -> sophia-cli
+[workspace.dependencies]

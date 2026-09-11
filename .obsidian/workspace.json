@@ -1,0 +1,230 @@
+{
+  "main": {
+    "id": "be56d23fd8599c73",
+    "type": "split",
+    "children": [
+      {
+        "id": "17457385f9c09640",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "663e8d64b0578088",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "markdown/Wiki/Type Theory/Linear and Affine Types.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Linear and Affine Types"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "4b35ba94c91a8bbd",
+    "type": "split",
+    "children": [
+      {
+        "id": "9caffec36ffe9b69",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b9a073d0c33c3adf",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "67be7b913aa57e7d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "0cce6c0dc4c4dc00",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "f5e7cfd687235205",
+    "type": "split",
+    "children": [
+      {
+        "id": "a7a1fda43c31c8ce",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "71fb49d55fcce334",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "markdown/Wiki/LLVM/LLVM Bitcode.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "9699a37bd8be3829",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "markdown/Wiki/LLVM/LLVM Bitcode.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "e90cc1f12b746a3a",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "d43ba525af4523e9",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "fa167a720166e56e",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "markdown/Wiki/LLVM/LLVM Bitcode.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "663e8d64b0578088",
+  "lastOpenFiles": [
+    "markdown/Design/Compilation as Query.md",
+    "markdown/Design/Code Map.md",
+    "markdown/Design/Equivalence and Witnesses.md",
+    "markdown/Design/Naming and Change Propagation.md",
+    "markdown/Design/Open Problems and Risks.md",
+    "README.md",
+    "markdown/Wiki/Wiki Home.md",
+    "markdown/Prompt2.md",
+    "markdown/Prompt.md",
+    "markdown/Start Here.md",
+    "markdown/Wiki/Julia/Multiple Dispatch.md",
+    "markdown/Wiki/Julia/Julia Lowered IR.md",
+    "markdown/Wiki/Hashing/Merkle DAG.md",
+    "markdown/Wiki/Databases/Datalog.md",
+    "markdown/Wiki/Databases/Property Graph.md",
+    "markdown/Wiki/Category Theory/Category Theory and Programming Languages.md",
+    "crates/sophia-core/src/sophia_core.md",
+    "markdown/State of the Art/State of the Art - Cross-Language Interoperability.md",
+    "markdown/Wiki/MLIR/MLIR Operation.md",
+    "markdown/Wiki/MLIR/MLIR Lowering.md",
+    "markdown/Wiki/MLIR/MLIR.md",
+    "markdown/Wiki/LLVM/SSA Form.md",
+    "markdown/Wiki/LLVM/LLVM Pass.md",
+    "markdown/Wiki/LLVM/LLVM IR.md",
+    "markdown/Wiki/LLVM/LLVM Bitcode.md",
+    "markdown/Wiki/Category Theory/Functor.md",
+    "markdown/Wiki/Unison/Unison.md.tmp.902744.2d46d62ed1a9",
+    "markdown/Wiki/MLIR/MLIR vs LLVM IR.md.tmp.902744.a70ca349caf9",
+    "markdown/Wiki/MLIR/MLIR Lowering.md.tmp.902744.7483c2dba008",
+    "markdown/Wiki/MLIR/MLIR Operation.md.tmp.902744.88a0ac344a39",
+    "markdown/Wiki/MLIR/MLIR Dialect.md.tmp.902744.04267e6903c5",
+    "markdown/Wiki/MLIR/MLIR.md.tmp.902744.6da69e6f4f2e",
+    "markdown/Wiki/LLVM/LLVM Bitcode.md.tmp.902744.bf01180679d2",
+    "markdown/Wiki/LLVM/SSA Form.md.tmp.902744.66adf52f0f06",
+    "markdown/Wiki/LLVM/LLVM IR.md.tmp.902744.a852d0b02308",
+    "markdown/Wiki/LLVM/LLVM.md.tmp.902744.e9ac7fec2bd6"
+  ]
+}

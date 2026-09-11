@@ -1,0 +1,14 @@
+# Canonicalisation and content hashing. See src/sophia_hash.md.
+[package]
+name = "sophia-hash"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+# Explicit path so that no file in the repo is named lib.rs: Obsidian resolves
+# [[wikilinks]] by filename, and every code file has a same-named .md sibling.
+path = "src/sophia_hash.rs"
+
+[dependencies]
+

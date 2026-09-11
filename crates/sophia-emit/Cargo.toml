@@ -1,0 +1,15 @@
+# MLIR and LLVM emission. See src/sophia_emit.md.
+[package]
+name = "sophia-emit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+# Explicit path so that no file in the repo is named lib.rs: Obsidian resolves
+# [[wikilinks]] by filename, and every code file has a same-named .md sibling.
+path = "src/sophia_emit.rs"
+
+[dependencies]
+sophia-core = { path = "../sophia-core" }
+sophia-store = { path = "../sophia-store" }

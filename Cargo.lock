@@ -3,5 +3,55 @@
 version = 4
 
 [[package]]
-name = "Sophia"
+name = "sophia-cli"
 version = "0.1.0"
+dependencies = [
+ "sophia-core",
+ "sophia-emit",
+ "sophia-equiv",
+ "sophia-frontend-metamath",
+ "sophia-store",
+]
+
+[[package]]
+name = "sophia-core"
+version = "0.1.0"
+dependencies = [
+ "sophia-hash",
+]
+
+[[package]]
+name = "sophia-emit"
+version = "0.1.0"
+dependencies = [
+ "sophia-core",
+ "sophia-store",
+]
+
+[[package]]
+name = "sophia-equiv"
+version = "0.1.0"
+dependencies = [
+ "sophia-core",
+ "sophia-store",
+]
+
+[[package]]
+name = "sophia-frontend-metamath"
+version = "0.1.0"
+dependencies = [
+ "sophia-core",
+ "sophia-store",
+]
+
+[[package]]
+name = "sophia-hash"
+version = "0.1.0"
+
+[[package]]
+name = "sophia-store"
+version = "0.1.0"
+dependencies = [
+ "sophia-core",
+ "sophia-hash",
+]
