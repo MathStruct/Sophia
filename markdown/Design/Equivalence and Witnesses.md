@@ -25,7 +25,7 @@ The line between `observational` and `tested` is the line between a proof and ev
 
 Within one language with one semantics, the standard definition is contextual equivalence:
 
-$ t ≃_"ctx" u quad ⟺ quad ∀ C[dot]. space (C[t] ⇓ v ⟺ C[u] ⇓ v) $
+$$ t ≃_"ctx" u quad ⟺ quad ∀ C[dot]. space (C[t] ⇓ v ⟺ C[u] ⇓ v) $$
 
 quantified over all well-typed contexts `C`. This is the right notion and it is also famously impossible to prove directly, because of the quantification over all contexts. The standard workaround is a [[Logical Relations|logical relation]] — a type-indexed relation proved to be a congruence by construction, which implies contextual equivalence without quantifying over contexts. For stateful/effectful fragments the analogous tool is [[Bisimulation|applicative or environmental bisimulation]].
 
@@ -33,11 +33,11 @@ quantified over all well-typed contexts `C`. This is the right notion and it is 
 
 Here it gets harder, and the difficulty is usually skipped over in informal statements of this idea. Given two languages with semantics
 
-$ ⟦dot⟧_1 : "Term"_1 → cal(D)_1 quad "and" quad ⟦dot⟧_2 : "Term"_2 → cal(D)_2 $
+$$ ⟦dot⟧_1 : "Term"_1 → cal(D)_1 quad "and" quad ⟦dot⟧_2 : "Term"_2 → cal(D)_2 $$
 
 the sentence "`t_1` does the same thing as `t_2`" is **not well-formed** until you supply a correspondence between the two observation universes:
 
-$ R ⊆ cal(D)_1 × cal(D)_2 $
+$$ R ⊆ cal(D)_1 × cal(D)_2 $$
 
 and then the claim is $⟦t_1⟧_1 space R space ⟦t_2⟧_2$. `R` is not a technicality — it is the entire content of the claim. Concretely, for Julia ↔ C++ you must pin down:
 
@@ -105,7 +105,7 @@ A `Witness` node is a tagged union, and the checker for each is a separate, smal
 
 Much of what one actually wants is not equality but **refinement**: `a` may be substituted for `b` because `a` is at least as defined and at least as deterministic.
 
-$ a ⊑ b quad ⟺ quad ∀ C. space (C[b] ⇓ v ⟹ C[a] ⇓ v) $
+$ a ⊑ b quad ⟺ quad ∀ C. space (C[b] ⇓ v ⟹ C[a] ⇓ v)  $
 
 This handles the common asymmetric cases cleanly — a version with fewer allowed behaviours, a total implementation of a partial specification, a checked implementation of an unchecked one. `REFINES` is a separate edge kind because it does not compose with `EQUIV` in the same direction, and conflating them is a classic source of unsoundness.
 

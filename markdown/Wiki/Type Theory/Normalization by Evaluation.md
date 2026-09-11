@@ -2,7 +2,7 @@
 
 NbE computes the normal form of a term without repeatedly rewriting syntax. Instead it goes through a semantic domain and comes back:
 
-$ "norm" = "quote" ∘ "eval" quad quad "Syntax" ⇄ "Value" $
+$$ "norm" = "quote" ∘ "eval" quad quad "Syntax" ⇄ "Value" $$
 
 `eval` interprets a term into host-language values, using host closures for lambdas, so β-reduction is just function application in the implementing language. `quote` (or *reify*) reads a semantic value back into syntax, generating fresh variables when it descends under a binder. Getting stuck on a free variable is handled by *neutral* terms, which is the mechanism that makes the round trip total rather than diverging on open terms.
 
