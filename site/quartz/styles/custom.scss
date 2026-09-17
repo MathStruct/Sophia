@@ -1,0 +1,104 @@
+@use "./base.scss";
+
+// Obsidian "Markdown Tabs" blocks
+.obsidian-tabs {
+  margin: 1rem 0;
+  border: 1px solid var(--lightgray);
+  border-radius: 5px;
+  overflow: hidden;
+  .tab-nav {
+    display: flex;
+    flex-wrap: wrap;
+    background: var(--lightgray);
+    .tab-button {
+      border: none;
+      background: transparent;
+      color: var(--darkgray);
+      font-family: var(--bodyFont);
+      font-size: 0.9rem;
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+      &.active {
+        background: var(--light);
+        color: var(--dark);
+        font-weight: 600;
+      }
+    }
+  }
+  .tab-panel {
+    display: none;
+    padding: 0 0.75rem;
+    &.active {
+      display: block;
+    }
+    pre {
+      margin: 0.75rem 0;
+    }
+  }
+}
+
+// TikZ diagrams rendered to SVG at build time
+figure.tikz {
+  margin: 1.5rem auto;
+  text-align: center;
+  overflow-x: auto;
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
+[saved-theme="dark"] figure.tikz svg {
+  filter: invert(0.88) hue-rotate(180deg);
+}
+pre.tikz-error {
+  border-left: 3px solid #c33;
+}
+
+// Typst formulas rendered to SVG at build time. Typst bakes black into the
+// glyphs, so hand them back to the theme instead of filtering the whole SVG.
+.typst-doc {
+  max-width: 100%;
+  // Typst lays out at 1em while KaTeX sets math at 1.21em. Without this, a note
+  // that mixes the two shows visibly different sizes in the same sentence.
+  font-size: 1.21em;
+
+  [fill="#000"] {
+    fill: currentColor;
+  }
+  [stroke="#000"] {
+    stroke: currentColor;
+  }
+}
+// display-mode formulas, sized in em by Typst, centred like a `$$…$$` block
+.typst-doc.typst-display {
+  display: block;
+  height: auto;
+  margin: 1.2rem auto;
+}
+.typst-error {
+  font-family: var(--codeFont);
+}
+
+// blog bylines: "by Author" next to the date
+.content-meta .authors,
+.meta .byline {
+  white-space: nowrap;
+
+  a {
+    background-color: transparent;
+  }
+}
+.recent-notes .meta .byline {
+  margin-left: 0.4rem;
+}
+
+// a formula that no engine could render
+.math-error {
+  font-family: var(--codeFont);
+  color: #c33;
+  border-bottom: 1px dotted #c33;
+}
+pre.math-error {
+  border-left: 3px solid #c33;
+  padding-left: 0.6rem;
+}

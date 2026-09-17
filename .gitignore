@@ -4,3 +4,12 @@
 /docs/Manifest.toml
 /docs/build/
 
+# Quartz site (site/ is a vendored copy of Quartz; see README)
+/site/node_modules/
+/site/public/
+/site/quartz/.quartz-cache/
+/site/tsconfig.tsbuildinfo
+.DS_Store
+
+# /site/.tikz-cache is deliberately tracked: it keeps CI from recompiling every
+# diagram on each build

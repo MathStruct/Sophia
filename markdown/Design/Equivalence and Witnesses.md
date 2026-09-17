@@ -50,6 +50,8 @@ This is precisely the setup of a **relational logical relation** between two lan
 
 ```tikz
 \usepackage{tikz-cd}
+\newcommand{\llbracket}{[\![}
+\newcommand{\rrbracket}{]\!]}
 \begin{document}
 \begin{tikzcd}[column sep=huge, row sep=large]
 t_1 \arrow[r, "\llbracket\cdot\rrbracket_1"] \arrow[d, dashed, "\approx"'] & \mathcal{D}_1 \arrow[d, "R", dashed] \\
