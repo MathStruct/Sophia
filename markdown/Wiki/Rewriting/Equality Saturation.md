@@ -9,7 +9,7 @@ The point is that it dissolves the **phase-ordering problem**. A traditional pip
 
 Extraction is the hard half. As an integer program with $x_n = 1$ iff e-node `n` is chosen:
 
-$ min sum_n c(n) x_n quad "s.t." quad ∀ "class" C: sum_(n ∈ C) x_n ≥ 1, quad x_n ≤ x_m ∀ m ∈ "children"(n) $
+$$ min sum_n c(n) x_n quad "s.t." quad ∀ "class" C: sum_(n ∈ C) x_n ≥ 1, quad x_n ≤ x_m ∀ m ∈ "children"(n) $$
 
 plus an acyclicity constraint on the extracted DAG, which is what makes the problem NP-hard in general. Greedy bottom-up extraction is the practical default, with ILP reserved for small hot regions.
 

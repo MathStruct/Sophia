@@ -9,7 +9,7 @@ An institution (Goguen and Burstall, 1984) is a formalisation of "a logic", abst
 
 subject to the **satisfaction condition**: for any signature morphism $sigma : Sigma → Sigma'$, any $Sigma'$-model `M'` and any $Sigma$-sentence `φ`,
 
-$ M' ⊨_(Sigma') "Sen"(sigma)(phi) quad ⟺ quad "Mod"(sigma)(M') ⊨_Sigma phi $
+$$ M' ⊨_(Sigma') "Sen"(sigma)(phi) quad ⟺ quad "Mod"(sigma)(M') ⊨_Sigma phi $$
 
 In words: **truth is invariant under change of notation.**
 

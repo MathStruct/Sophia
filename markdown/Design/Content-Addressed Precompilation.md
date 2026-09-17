@@ -15,7 +15,7 @@ Julia compiles per *method specialisation* — one native implementation per con
 
 Define the code cache as a pure function
 
-$ "compile" : (h_"run", h_"target", h_"opts") ↦ "machine code" $
+$$ "compile" : (h_"run", h_"target", h_"opts") ↦ "machine code" $$
 
 where `h_run` is the erased-term hash from [[Hashing and Identity]], `h_target` identifies the triple/CPU features/datalayout, and `h_opts` the optimisation settings. Because all three are content hashes, the result is:
 
@@ -29,7 +29,7 @@ The word "erased" is doing real work. Changes to type-level information that doe
 
 Julia's dynamism means a specialisation's correctness depends on the method table it was compiled against: if a more specific method appears, previously devirtualised call sites become wrong. That dependency is real and must be part of the key. The honest formulation makes it explicit:
 
-$ h_"run" "depends on" quad ("the term") ⊕ ("the set of dispatch decisions it baked in") $
+$$ h_"run" "depends on" quad ("the term") ⊕ ("the set of dispatch decisions it baked in") $$
 
 i.e. each specialisation records the *method-table queries it relied on* — "for this call site with these argument types, the applicable method was `m`" — as `DEPENDS_ON` edges to a `DispatchFact` node. Adding a method invalidates exactly the specialisations whose recorded dispatch facts it contradicts, rather than everything that transitively touched the function. This is a graph query, and it is strictly more precise than what Julia's backedge mechanism can express today, because the facts are persisted and inspectable rather than being in-memory backedges discarded at process exit.
 

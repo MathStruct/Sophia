@@ -2,7 +2,7 @@
 
 A Merkle DAG is a directed acyclic graph in which every node is identified by a hash of its own contents *together with the hashes of its children*:
 
-$ h(n) = H("tag"(n) ‖ "attrs"(n) ‖ h(c_1) ‖ … ‖ h(c_k)) $
+$$ h(n) = H("tag"(n) ‖ "attrs"(n) ‖ h(c_1) ‖ … ‖ h(c_k)) $$
 
 The consequences follow immediately from the definition: a node's hash transitively commits to its entire reachable subgraph, identical subgraphs are automatically shared (deduplication is free), and any change anywhere propagates to the hashes of all ancestors and *only* to those ancestors.
 

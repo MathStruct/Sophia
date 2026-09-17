@@ -47,7 +47,7 @@ The available responses, in increasing order of cost:
 
 Rather than a binary, every artifact carries a computed trust label derived from the weakest link in its derivation:
 
-$ "trust"("artifact") = min{ "level"(e) : e ∈ "derivation"("artifact") } $
+$$ "trust"("artifact") = min{ "level"(e) : e ∈ "derivation"("artifact") } $$
 
 with the `modulo` sets unioned along the way ([[Equivalence and Witnesses]]). A build can then be *policy-constrained*: "produce this binary using only `defeq` and `rewrite` equivalences, modulo at most `{alloc}`". Builds that required an `asserted` edge are still possible but are labelled, and the label names the asserting author.
 

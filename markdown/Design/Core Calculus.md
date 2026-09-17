@@ -4,35 +4,35 @@ Every frontend elaborates into one common language, **Sophia Core (SC)**. Withou
 
 ## Grammar
 
-$ t, A ::= x | c | cal(U)_i | Pi (x : A). B | lambda x. t | t space u $
-$ | Sigma (x : A). B | (t, u) | pi_1 t | pi_2 t $
-$ | "data" D | "con"_k | "elim"_D $
-$ | "let" x = t "in" u | mu x. t | "prim"_iota | t^epsilon $
+$$ t, A ::= x | c | cal(U)_i | Pi (x : A). B | lambda x. t | t space u $$
+$$ | Sigma (x : A). B | (t, u) | pi_1 t | pi_2 t $$
+$$ | "data" D | "con"_k | "elim"_D $$
+$$ | "let" x = t "in" u | mu x. t | "prim"_iota | t^epsilon $$
 
 Terms and types live in one syntactic category (types *are* terms), which is what [[Dependent Types|dependency]] requires. `μ` is general recursion, `prim` are machine primitives, and the superscript `ε` is an effect row ([[Effects Memory and Resources]]).
 
 ## Judgement forms
 
-$ Gamma ⊢ t : A ! epsilon $
+$$ Gamma ⊢ t : A ! epsilon $$
 
 read "in context Γ, term `t` has type `A` and may perform effects `ε`". Two auxiliary judgements matter enormously for this project:
 
-$ Gamma ⊢ A ≡ B quad ("definitional equality — decidable, silent") $
-$ Gamma ⊢ p : A =_B C quad ("propositional equality — witnessed, stored") $
+$$ Gamma ⊢ A ≡ B quad ("definitional equality — decidable, silent") $$
+$$ Gamma ⊢ p : A =_B C quad ("propositional equality — witnessed, stored") $$
 
 The first is decided by the kernel via [[Normalization by Evaluation]] and **is folded into the hash**: definitionally equal terms normalise to the same canonical form and therefore get the same identity. The second is a *proposition with a proof term*, and is exactly what an equivalence edge in the graph carries. The whole architecture hinges on this split — see [[Definitional vs Propositional Equality]].
 
 ## Selected rules
 
-$ (Gamma ⊢ A : cal(U)_i quad Gamma, x : A ⊢ B : cal(U)_j) / (Gamma ⊢ Pi (x:A). B : cal(U)_(max(i,j))) $
+$$ (Gamma ⊢ A : cal(U)_i quad Gamma, x : A ⊢ B : cal(U)_j) / (Gamma ⊢ Pi (x:A). B : cal(U)_(max(i,j))) $$
 
-$ (Gamma, x : A ⊢ t : B ! epsilon) / (Gamma ⊢ lambda x. t : Pi (x:A). B ! ∅) $
+$$ (Gamma, x : A ⊢ t : B ! epsilon) / (Gamma ⊢ lambda x. t : Pi (x:A). B ! ∅) $$
 
 Note the effect on the abstraction is empty: building a closure performs no effects, *calling* it does. That distinction is the reason effects are on the judgement rather than on the type alone.
 
-$ (Gamma ⊢ t : Pi (x:A).B ! epsilon_1 quad Gamma ⊢ u : A ! epsilon_2) / (Gamma ⊢ t space u : B[u slash x] ! epsilon_1 ∪ epsilon_2 ∪ "eff"(Pi)) $
+$$ (Gamma ⊢ t : Pi (x:A).B ! epsilon_1 quad Gamma ⊢ u : A ! epsilon_2) / (Gamma ⊢ t space u : B[u slash x] ! epsilon_1 ∪ epsilon_2 ∪ "eff"(Pi)) $$
 
-$ (Gamma ⊢ t : A ! epsilon quad Gamma ⊢ A ≡ B) / (Gamma ⊢ t : B ! epsilon) quad ("conversion") $
+$$ (Gamma ⊢ t : A ! epsilon quad Gamma ⊢ A ≡ B) / (Gamma ⊢ t : B ! epsilon) quad ("conversion") $$
 
 The conversion rule is where a typechecker is forced to decide equality of arbitrary terms, and hence where the cost of dependent types actually lands.
 

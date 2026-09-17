@@ -4,7 +4,7 @@ A definition of what a program *does*, given as inference rules describing execu
 
 **Small-step** (structural, Plotkin): a relation $t → t'$ on configurations, one reduction at a time.
 
-$ ((t_1 → t_1')) / (t_1 space t_2 → t_1' space t_2) quad quad (lambda x. t) space v → t[v slash x] $
+$$ ((t_1 → t_1')) / (t_1 space t_2 → t_1' space t_2) quad quad (lambda x. t) space v → t[v slash x] $$
 
 **Big-step** (natural, Kahn): a relation $t ⇓ v$ directly relating a term to its final value.
 

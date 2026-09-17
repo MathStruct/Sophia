@@ -22,7 +22,7 @@ All of these are content-addressed like everything else, which produces a proper
 
 A test result is a fact about a *hash*, not about a file at a point in time:
 
-$ "result" : (h_"test", h_"subject", h_"target", "seed") → {"pass", "fail", "error"} $
+$$ "result" : (h_"test", h_"subject", h_"target", "seed") → {"pass", "fail", "error"} $$
 
 This function is pure, so the result can be cached forever. The consequences are large:
 

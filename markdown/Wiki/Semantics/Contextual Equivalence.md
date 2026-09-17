@@ -2,7 +2,7 @@
 
 Two program fragments are contextually (observationally) equivalent if no surrounding program can tell them apart:
 
-$ t ≃_"ctx" u quad ⟺ quad ∀ C[dot]. space (C[t] ⇓ ⟺ C[u] ⇓) $
+$$ t ≃_"ctx" u quad ⟺ quad ∀ C[dot]. space (C[t] ⇓ ⟺ C[u] ⇓) $$
 
 where `C` ranges over all well-typed contexts and `⇓` is the chosen *observation* — usually termination, sometimes termination-with-a-particular-value, sometimes a trace of I/O.
 

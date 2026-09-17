@@ -86,7 +86,7 @@ Suppose $a approx_({"fp_assoc"}) b$ and $b approx_({"alloc"}) c$. Composing give
 
 For an equivalence to license substitution, it must be a **congruence**:
 
-$ t approx u quad ⟹ quad C[t] approx C[u] quad ∀ C $
+$$ t approx u quad ⟹ quad C[t] approx C[u] quad ∀ C $$
 
 `defeq` and sound `rewrite` rules are congruences by construction. `asserted` and `tested` are emphatically not: two sorting functions that agree on every test may differ on stability, and a context that observes stability will distinguish them. This is why the substitutability column above is what it is, and it is the single most likely way for this system to silently produce wrong programs.
 
@@ -105,7 +105,7 @@ A `Witness` node is a tagged union, and the checker for each is a separate, smal
 
 Much of what one actually wants is not equality but **refinement**: `a` may be substituted for `b` because `a` is at least as defined and at least as deterministic.
 
-$ a ⊑ b quad ⟺ quad ∀ C. space (C[b] ⇓ v ⟹ C[a] ⇓ v)  $
+$$ a ⊑ b quad ⟺ quad ∀ C. space (C[b] ⇓ v ⟹ C[a] ⇓ v)  $$
 
 This handles the common asymmetric cases cleanly — a version with fewer allowed behaviours, a total implementation of a partial specification, a checked implementation of an unchecked one. `REFINES` is a separate edge kind because it does not compose with `EQUIV` in the same direction, and conflating them is a classic source of unsoundness.
 

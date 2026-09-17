@@ -2,7 +2,7 @@
 
 A type-and-effect system augments a typing judgement with a description of what a computation *does* in addition to what it *returns*:
 
-$ Gamma ⊢ t : A ! epsilon $
+$$ Gamma ⊢ t : A ! epsilon $$
 
 where `ε` is a set (a **row**) of effect labels — `io`, `throw(E)`, `alloc(r)`, `div`, `nondet`. Row polymorphism lets generic code be effect-generic: `map : (A -!ρ-> B) -> List A -!ρ-> List B` performs exactly the effects its argument does.
 

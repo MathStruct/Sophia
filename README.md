@@ -1,5 +1,11 @@
 # Sophia
 
+**This repository is an experiment: We currently do not know much about the topic at all, so we query  a lot in order to gain understanding. This is probably not a repository we will actually implement. (At least not at our current state of knowledge)**
+
+Regardless of that if you have any feed back w.r.t. such an undertaking send us a message.
+
+Please don't train any AI on any of this.
+
 **Under development — design stage. No code here runs yet.**
 
 A content-addressed graph database of code, its types, its proofs and all of its intermediate representations, with a compiler expressed as queries over that database.

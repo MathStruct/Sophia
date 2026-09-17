@@ -1,0 +1,625 @@
+/* Document Comments — all styling lives here (no hardcoded styles in code,
+   per Obsidian guidelines). Colors use Obsidian CSS variables so themes apply. */
+
+/* On body so the variables reach both the editor and the reading view. */
+body {
+	--dc-margin-width: 320px;
+	--dc-card-pad: 16px;
+	--dc-card-gap: 8px;
+	--dc-highlight-color: var(--text-normal);
+	--dc-highlight-bg: color-mix(in srgb, var(--dc-highlight-color) 18%, transparent);
+	--dc-highlight-bg-active: color-mix(in srgb, var(--dc-highlight-color) 38%, transparent);
+	--dc-highlight-border: color-mix(in srgb, var(--dc-highlight-color) 70%, transparent);
+}
+
+.dc-author-color-setting {
+	align-items: center;
+	padding-block: 10px;
+}
+
+/* Layout is keyed on a `dc-has` class set on the editor / reading-view container.
+   In the editor that class rides on `.cm-editor` via CodeMirror's editorAttributes
+   facet (CM owns that element's className and would strip a raw classList.add); in
+   reading view it's written straight onto `.markdown-reading-view`. Keeping the
+   state on the container — rather than our own child element — lets the body cap
+   and column position use plain descendant selectors, with no parent-from-child
+   matching. The min()/calc clamps keep body and column adjacent (no JS width gate). */
+.cm-editor.dc-has {
+	position: relative;
+}
+
+/* Cap the body at its readable width and center the [text + column] block as a
+   unit: an equal computed margin on the far left and to the right of the column.
+   Scoped under `.markdown-source-view.mod-cm6` so it out-specifies Obsidian's own
+   readable-line-width rule (.markdown-source-view.mod-cm6.is-readable-line-width
+   .cm-sizer, four classes) — five classes here win on specificity alone. */
+.markdown-source-view.mod-cm6 .cm-editor.dc-has .cm-sizer {
+	max-width: min(var(--file-line-width, 50rem), calc(100% - var(--dc-margin-width)));
+	margin-left: max(0px, calc((100% - var(--file-line-width, 50rem) - var(--dc-margin-width)) / 2));
+	margin-right: auto;
+}
+
+/* Same treatment for the reading view (separate render path, same math). The extra
+   `.markdown-preview-view` step out-specifies core's three-class readable-line rule
+   (.markdown-preview-view.is-readable-line-width .markdown-preview-sizer). */
+/* `dc-margin` (present whenever the floating column renders, including a lone draft
+   composer) establishes the containing block for the absolutely positioned margin.
+   Kept separate from `dc-has` (the sizer cap) so opening a draft doesn't reflow the
+   text — see issue #15. The editor doesn't need this: CodeMirror already forces
+   `.cm-editor` to position: relative. */
+.markdown-reading-view.dc-margin {
+	position: relative;
+}
+.markdown-reading-view.dc-has .markdown-preview-view .markdown-preview-sizer {
+	max-width: min(var(--file-line-width, 50rem), calc(100% - var(--dc-margin-width)));
+	margin-left: max(0px, calc((100% - var(--file-line-width, 50rem) - var(--dc-margin-width)) / 2));
+	margin-right: auto;
+}
+
+/* The highlighted span in the text. */
+.doc-comment-span {
+	--dc-highlight-bg: color-mix(in srgb, var(--dc-highlight-color) 18%, transparent);
+	--dc-highlight-bg-active: color-mix(in srgb, var(--dc-highlight-color) 38%, transparent);
+	--dc-highlight-border: color-mix(in srgb, var(--dc-highlight-color) 70%, transparent);
+	background-color: var(--dc-highlight-bg);
+	border-bottom: 2px solid var(--dc-highlight-border);
+	border-radius: 2px;
+	cursor: text;
+	transition: background-color 120ms ease;
+}
+/* When comments are toggled off, drop the highlight entirely so the prose reads
+   clean. Keyed on `dc-highlights` (which follows the master toggle), NOT on
+   `dc-has` (the inline column) — so highlights persist when the sidebar panel
+   hosts the cards and the inline column has stepped aside. */
+.cm-editor:not(.dc-highlights) .doc-comment-span,
+.markdown-reading-view:not(.dc-highlights) .doc-comment-span {
+	background-color: transparent;
+	border-bottom-color: transparent;
+	cursor: text;
+	pointer-events: none;
+}
+/* Likewise drop resolved highlights when resolved comments are hidden. */
+.cm-editor.dc-hide-resolved .doc-comment-span.is-resolved,
+.markdown-reading-view.dc-hide-resolved .doc-comment-span.is-resolved {
+	background-color: transparent;
+	border-bottom-color: transparent;
+	cursor: text;
+	pointer-events: none;
+}
+.doc-comment-span.is-active {
+	background-color: var(--dc-highlight-bg-active);
+}
+.doc-comment-span.is-resolved {
+	background-color: transparent;
+	border-bottom: 1px dashed var(--dc-highlight-border);
+}
+/* Live Preview table rules are generated per owner document because CSS Custom
+   Highlight ranges cannot carry per-range custom properties. */
+/* A selected no-space marker needs distinct caret endpoints, but the raw HTML
+   comment must never become visible or take layout width (especially in tables). */
+.dc-comment-marker {
+	display: inline-block;
+	inline-size: 1px;
+	block-size: 1em;
+	margin-inline-end: -1px;
+	overflow: hidden;
+	opacity: 0;
+	pointer-events: none;
+	user-select: none;
+	vertical-align: text-bottom;
+}
+.doc-comment-span.dc-flash {
+	animation: dc-flash 900ms ease;
+}
+@keyframes dc-flash {
+	0%, 100% { background-color: var(--dc-highlight-bg); }
+	30% { background-color: var(--dc-highlight-bg-active); }
+}
+.doc-comment-card.dc-flash {
+	animation: dc-card-flash 1000ms ease;
+}
+@keyframes dc-card-flash {
+	0%, 100% { box-shadow: var(--shadow-s); }
+	25% { box-shadow: 0 0 0 2px var(--interactive-accent); }
+}
+
+/* The floating margin column. Overlay inside the editor; clipped to viewport. */
+.doc-comment-margin {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: var(--dc-margin-width);
+	overflow: hidden;
+	pointer-events: none;
+	z-index: var(--layer-popover, 30);
+}
+/* Pin the column right after the readable-width text (CSS-only, so it never
+   jumps on focus). Clamped so it can't push off the right edge on narrow panes.
+   Keyed on the container's dc-has (set on .cm-editor / .markdown-reading-view). */
+.cm-editor.dc-has .doc-comment-margin,
+.markdown-reading-view.dc-has .doc-comment-margin {
+	/* Mirror of the sizer's centering math: column begins right where the
+	   centered text ends. Clamped so it never runs off the right edge. */
+	left: min(
+		calc((100% + var(--file-line-width, 50rem) - var(--dc-margin-width)) / 2),
+		calc(100% - var(--dc-margin-width))
+	);
+	right: auto;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.doc-comment-card {
+	position: absolute;
+	left: var(--dc-card-pad);
+	right: var(--dc-card-pad);
+	box-sizing: border-box;
+	padding: 10px 12px;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+	color: var(--text-normal);
+	pointer-events: auto;
+	/* No transition on `top`: cards must track the scroll exactly. Animating top
+	   makes them lag/swim behind the scroll (and restacks snap instantly, which is
+	   fine). Keep transitions for hover transform + shadow only. */
+	transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.doc-comment-card:hover,
+.doc-comment-card.is-active,
+.doc-comment-card.is-open {
+	/* No colored border on the card itself (that's reserved for the text fields).
+	   Just a very subtle background lift (half-strength overlay) and a 2px nudge
+	   to the left, like Notion. */
+	box-shadow: inset 0 0 0 999px color-mix(in srgb, transparent, var(--background-modifier-hover) 50%),
+		var(--shadow-l);
+	transform: translateX(-2px);
+	z-index: 2;
+}
+.doc-comment-card.is-resolved {
+	opacity: 0.65;
+}
+.cm-editor.dc-hide-resolved .doc-comment-card.is-resolved,
+.markdown-reading-view.dc-hide-resolved .doc-comment-card.is-resolved,
+.doc-comment-card.dc-offscreen {
+	display: none;
+}
+
+/* ── Collapse a long card (Notion-style "Show more") ───────────────────── */
+.dc-card-clip {
+	position: relative;
+}
+.dc-card-clip.dc-clamped {
+	/* Keep in sync with CLAMP_HEIGHT in card.ts. */
+	max-height: 220px;
+	overflow: hidden;
+	/* Fade the truncated text to transparent by MASKING it (not overlaying a colored
+	   gradient), so the card's real background shows through and the fade matches the
+	   card in any state — hover or not — with no color to keep in sync. */
+	-webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent);
+	mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
+.dc-card-foot {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	margin-top: 6px;
+}
+.dc-card-foot.is-empty {
+	display: none;
+}
+/* Collapsed "Show more": a centered overlay pinned to the card's bottom edge, over
+   the faded text, so the fade reads as reaching the bottom of the card. */
+.dc-card-foot.dc-foot-overlay {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	margin: 0;
+	padding-top: 28px;
+}
+.dc-foot-btn {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	cursor: pointer;
+}
+.dc-foot-btn:hover {
+	color: var(--text-normal);
+	text-decoration: underline;
+}
+
+/* ── Thread entries ────────────────────────────────────────────────────── */
+.dc-thread {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+.dc-entry {
+	position: relative;
+}
+.dc-entry__head {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	margin-bottom: 2px;
+}
+.dc-entry__author {
+	font-weight: var(--font-semibold);
+	color: color-mix(in srgb, var(--dc-author-color, var(--text-normal)) 40%, var(--text-normal));
+}
+.theme-dark .dc-entry__author {
+	color: color-mix(in srgb, var(--dc-author-color, var(--text-normal)) 70%, var(--text-normal));
+}
+.dc-entry__time {
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
+}
+.dc-entry__text {
+	overflow-wrap: anywhere;
+	color: var(--text-normal);
+}
+.dc-entry__text--empty {
+	display: block;
+	width: 100%;
+	height: auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	font: inherit;
+	font-style: italic;
+	line-height: inherit;
+	text-align: left;
+	cursor: text;
+}
+.dc-entry__text--empty:hover,
+.dc-entry__text--empty:focus,
+.dc-entry__text--empty:focus-visible,
+.dc-entry__text--empty:active {
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+}
+/* Comment text is Markdown-rendered: tighten block spacing so a one-line comment
+   reads like plain text, and keep code / lists / quotes legible inside the card. */
+.dc-entry__text > :first-child {
+	margin-top: 0;
+}
+.dc-entry__text > :last-child {
+	margin-bottom: 0;
+}
+.dc-entry__text p {
+	margin: 0 0 0.4em;
+}
+.dc-entry__text ul,
+.dc-entry__text ol {
+	margin: 0.2em 0;
+	padding-left: 1.4em;
+}
+.dc-entry__text pre {
+	margin: 0.4em 0;
+	padding: 8px;
+	overflow-x: auto;
+}
+.dc-entry__text blockquote {
+	margin: 0.3em 0;
+	padding-left: 0.8em;
+	border-left: 2px solid var(--background-modifier-border);
+}
+
+/* ── Hover action bar ──────────────────────────────────────────────────── */
+.dc-entry__bar {
+	position: absolute;
+	top: -4px;
+	right: 0;
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: var(--shadow-s);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 100ms ease;
+}
+.dc-entry:hover .dc-entry__bar {
+	opacity: 1;
+	pointer-events: auto;
+}
+.dc-act {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	/* Concentric with the bar: inner radius = outer radius − bar padding (2px). */
+	border-radius: calc(var(--radius-m, 8px) - 2px);
+	background: transparent;
+	color: var(--text-muted);
+	box-shadow: none;
+	cursor: pointer;
+}
+.dc-act:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.dc-act .svg-icon {
+	width: 16px;
+	height: 16px;
+}
+
+/* ── Reactions ─────────────────────────────────────────────────────────── */
+.dc-entry__reactions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+.dc-reaction {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 7px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 11px;
+	background-color: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
+	box-shadow: none;
+	cursor: pointer;
+}
+.dc-reaction:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+.dc-reaction.is-mine {
+	background-color: var(--background-modifier-hover);
+	border-color: var(--interactive-accent);
+	color: var(--text-normal);
+}
+.dc-reaction__emoji {
+	font-size: 13px;
+	line-height: 1;
+}
+.dc-reaction__count {
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── Composer + edit field (boxed, Notion-style) ───────────────────────── */
+.dc-field {
+	margin-top: 12px;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-modifier-form-field);
+	transition: border-color 100ms ease;
+}
+.dc-field:focus-within {
+	border-color: var(--interactive-accent);
+}
+.dc-field--edit {
+	margin-top: 4px;
+}
+.is-draft .dc-field {
+	margin-top: 0;
+}
+.dc-field__input {
+	width: 100%;
+	resize: none;
+	overflow: hidden;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--text-normal);
+	font-family: inherit;
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+.dc-field__input:focus {
+	box-shadow: none;
+	outline: none;
+}
+.dc-field__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+	margin-top: 6px;
+}
+.dc-round {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 50%;
+	box-shadow: none;
+	cursor: pointer;
+}
+.dc-round .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+.dc-round--cancel {
+	background-color: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+.dc-round--cancel:hover {
+	background-color: var(--background-modifier-border-hover);
+	color: var(--text-normal);
+}
+.dc-round--confirm {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.dc-round--confirm:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+/* ── Emoji picker popover ──────────────────────────────────────────────── */
+.dc-pop {
+	position: fixed;
+	z-index: var(--layer-menu, 50);
+	display: flex;
+	gap: 2px;
+	padding: 4px;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: var(--shadow-l);
+}
+.dc-pop__emoji {
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	border: none;
+	/* Concentric with the popover: inner radius = outer radius − popover padding (4px). */
+	border-radius: calc(var(--radius-m, 8px) - 4px);
+	background: transparent;
+	font-size: 17px;
+	line-height: 1;
+	box-shadow: none;
+	cursor: pointer;
+}
+.dc-pop__emoji:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* ── New-comment draft (the inline composer that replaces the modal) ────── */
+.doc-comment-card.is-draft {
+	border-color: var(--interactive-accent);
+	box-shadow: var(--shadow-l);
+	z-index: 3;
+}
+.doc-comment-card.is-draft .dc-field {
+	margin-top: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+}
+.doc-comment-card.is-draft .dc-field__input {
+	min-height: 48px;
+}
+/* The text being commented on, highlighted while the draft is open. */
+.doc-comment-span.dc-draft {
+	--dc-highlight-color: var(--dc-draft-highlight-color, var(--text-normal));
+	background-color: var(--dc-highlight-bg-active);
+	border-bottom-color: var(--dc-highlight-border);
+}
+
+/* ── "All discussions" sidebar panel ───────────────────────────────────── */
+.dc-sidebar__header {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.dc-sidebar__title {
+	overflow: hidden;
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* Segmented Open / Resolved / All status filter. */
+.dc-sidebar__tabs {
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-secondary);
+}
+.dc-sidebar__tab {
+	display: inline-flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 6px;
+	border: none;
+	/* Concentric with the track: inner radius = outer radius − track padding (2px). */
+	border-radius: calc(var(--radius-m, 8px) - 2px);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
+	line-height: 1;
+	box-shadow: none;
+	cursor: pointer;
+}
+.dc-sidebar__tab:hover {
+	color: var(--text-normal);
+}
+.dc-sidebar__tab.is-active {
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
+}
+.dc-sidebar__tab-count {
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+.dc-sidebar__tab.is-active .dc-sidebar__tab-count {
+	color: var(--text-muted);
+}
+
+.dc-sidebar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--dc-card-gap, 8px);
+	/* Generous bottom room so the LAST card's reply field can scroll up clear of the
+	   bottom edge / status bar, with space to grow as you type. */
+	padding: 8px 0 50vh;
+}
+/* The cards are the same component as the margin, just laid out in normal flow
+   (the margin pins them with an absolute `top`; here they stack). */
+.dc-sidebar .doc-comment-card {
+	position: static;
+	left: auto;
+	right: auto;
+	width: 100%;
+}
+
+.dc-sidebar__empty {
+	padding: 24px 8px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-align: center;
+}
+.dc-sidebar__empty.is-hidden {
+	display: none;
+}
+
+/* ── Mobile "Add comment" modal ────────────────────────────────────────────
+   Used where there's no floating margin composer (mobile). */
+.dc-modal-quote {
+	margin-bottom: 10px;
+	padding: 6px 10px;
+	border-left: 2px solid var(--dc-highlight-border);
+	border-radius: 4px;
+	background-color: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	max-height: 6em;
+	overflow-y: auto;
+}
+.dc-modal-input {
+	width: 100%;
+	min-height: 5em;
+	resize: vertical;
+}

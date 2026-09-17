@@ -55,7 +55,7 @@ commutes. In plain terms: *if you claim `jl_sort ≈ cpp_sort` and `jl_map ≈ c
 
 There is an existing formalism for exactly this situation — Goguen and Burstall's [[Institution|institutions]], developed for algebraic specification across multiple logics. An institution provides signatures, models, sentences and satisfaction, plus the **satisfaction condition**: for a signature morphism $sigma : Sigma → Sigma'$,
 
-$ M' ⊨_(Sigma') sigma(phi) quad ⟺ quad sigma(M') ⊨_Sigma phi $
+$$ M' ⊨_(Sigma') sigma(phi) quad ⟺ quad sigma(M') ⊨_Sigma phi $$
 
 "truth is invariant under change of notation." An *institution comorphism* is precisely a semantics-preserving translation from one language into another, which is what a Sophia frontend is supposed to be. The Hets toolset already implements this for dozens of logics. Whether this buys the project anything practical is uncertain, but it means the design space has been mapped before, and it supplies the correct vocabulary for what a frontend must guarantee.
 

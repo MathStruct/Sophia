@@ -1,0 +1,14 @@
+{
+  "author": "",
+  "showComments": true,
+  "showResolved": false,
+  "allowEmptyComments": false,
+  "authorColorsEnabled": false,
+  "authorColors": {
+    "me": {
+      "color": "#0090ff",
+      "mode": "generated"
+    }
+  },
+  "excludedAuthorColors": []
+}

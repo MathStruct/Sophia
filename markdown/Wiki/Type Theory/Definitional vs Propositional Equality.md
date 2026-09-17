@@ -4,7 +4,7 @@ Type theory has two distinct notions of "equal", and confusing them is one of th
 
 **Definitional (judgemental) equality**, $Gamma ⊢ t ≡ u$, is a *judgement*: the typechecker decides it silently, by normalising both sides ([[Normalization by Evaluation]]) and comparing. `2 + 2 ≡ 4` holds definitionally because both reduce to the same numeral. It is decidable (in a normalising theory), it requires no evidence, and it is used automatically by the conversion rule:
 
-$ ((Gamma ⊢ t : A) quad (Gamma ⊢ A ≡ B)) / (Gamma ⊢ t : B) $
+$$ ((Gamma ⊢ t : A) quad (Gamma ⊢ A ≡ B)) / (Gamma ⊢ t : B) $$
 
 **Propositional equality**, $t =_A u$, is a *type*. Inhabiting it requires a proof term, obtained by `refl` when the two sides happen to be definitionally equal, and otherwise by actual reasoning (induction, rewriting, a tactic). `n + 0 = n` for a variable `n` is propositional, not definitional, if `+` recurses on its first argument — the canonical example of the two notions coming apart.
 

@@ -38,8 +38,8 @@ Note what the rule emits: not a *replacement* but an **equivalence**. Nothing is
 3. **Extract.** Choose one representative per equivalence class, minimising cost. As an integer program, with `x_n = 1` iff node `n` is selected:
 
 $$ min sum_n c(n) dot x_n $$
-$ "s.t." quad ∀ "class" C : sum_(n ∈ C) x_n ≥ 1 $
-$ ∀ n "selected", ∀ m ∈ "children"(n) : x_n ≤ x_m $
+$$ "s.t." quad ∀ "class" C : sum_(n ∈ C) x_n ≥ 1 $$
+$$ ∀ n "selected", ∀ m ∈ "children"(n) : x_n ≤ x_m $$
 
   Cost `c` is target-dependent (instruction count, estimated latency, code size) and comes from the `Target` node. The acyclicity requirement — the extracted DAG must not contain a cycle through e-classes — is what makes extraction NP-hard in general; the standard practical answer is greedy bottom-up extraction with a cycle check, escalating to ILP only for small hot regions.
 4. **Lower.** Emit [[MLIR Operation|MLIR ops]] for the extracted DAG, write them back as nodes with `LOWERS_TO` edges, then hand off to `mlir-opt` / LLVM for the parts we are explicitly not reimplementing ([[MLIR Lowering]]).
@@ -51,7 +51,7 @@ Because every input is content-addressed, every query result can be memoised on 
 
 Formally, a compiler becomes a function
 
-$ "build" : (h_"root", h_"rules", h_"target") → h_"artifact" $
+$$ "build" : (h_"root", h_"rules", h_"target") → h_"artifact" $$
 
 that is pure and total, which is the same property Nix gets for packages and Unison gets for definitions, at statement granularity.
 

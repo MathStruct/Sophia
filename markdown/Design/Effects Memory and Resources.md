@@ -8,7 +8,7 @@
 
 [[Core Calculus|SC]]'s typing judgement is $Gamma ⊢ t : A ! epsilon$ where `ε` is an **effect row** — an unordered set of effect constructors, with row polymorphism so that generic code can be effect-generic:
 
-$ epsilon ::= ∅ | l, epsilon | rho $
+$$ epsilon ::= ∅ | l, epsilon | rho $$
 
 where `ρ` is a row variable. The effect labels that matter for this project:
 

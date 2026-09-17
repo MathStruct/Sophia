@@ -6,7 +6,7 @@
 
 For a node `n` with ordered children `c_1 … c_k`:
 
-$ h(n) = H("ver" ‖ "tag"(n) ‖ "attrs"(n) ‖ h(c_1) ‖ … ‖ h(c_k)) $
+$$ h(n) = H("ver" ‖ "tag"(n) ‖ "attrs"(n) ‖ h(c_1) ‖ … ‖ h(c_k)) $$
 
 where `H` is [[BLAKE3]], `‖` is length-prefixed concatenation (never naive concatenation — otherwise `("ab","c")` and `("a","bc")` collide), `tag` is the node kind, and `ver` is the *hash schema version* (see below). This is a [[Merkle DAG]] in exactly the sense Git and Nix use one, applied at statement granularity rather than file or package granularity.
 
@@ -16,7 +16,7 @@ Because children are folded in by hash rather than by name, the identity of a de
 
 Names of bound variables are not semantically meaningful, so they must not reach `H`. Before hashing, terms are converted to a **locally nameless** representation: bound occurrences become [[De Bruijn Index|de Bruijn indices]], free occurrences remain named (by hash of their definition). This gives
 
-$ t ≡_alpha u ⟹ h(t) = h(u) $
+$$ t ≡_alpha u ⟹ h(t) = h(u) $$
 
 which is the minimum bar. Note the converse is *not* claimed and does not hold in general — see the normalisation step below for how much further we push it.
 

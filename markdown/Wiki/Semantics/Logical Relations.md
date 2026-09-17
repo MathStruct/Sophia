@@ -4,8 +4,8 @@ A proof technique for establishing properties of typed programs that are not pro
 
 The idea is to define a relation **by recursion on types** rather than on terms. For a binary relation on closed terms:
 
-$ (t, u) ∈ cal(R)_"Int" quad ⟺ quad t ⇓ n "and" u ⇓ n "for the same" n $
-$ (t, u) ∈ cal(R)_(A → B) quad ⟺ quad ∀ (a, b) ∈ cal(R)_A. space (t space a, u space b) ∈ cal(R)_B $
+$$ (t, u) ∈ cal(R)_"Int" quad ⟺ quad t ⇓ n "and" u ⇓ n "for the same" n $$
+$$ (t, u) ∈ cal(R)_(A → B) quad ⟺ quad ∀ (a, b) ∈ cal(R)_A. space (t space a, u space b) ∈ cal(R)_B $$
 
 The function case is the crux: two functions are related when they map related arguments to related results. This makes the relation a **congruence by construction**, which is what sidesteps the impossible quantification over all contexts in the definition of contextual equivalence. The *fundamental theorem* — every well-typed term is related to itself — then does the real work.
 

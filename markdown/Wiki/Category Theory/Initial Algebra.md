@@ -4,7 +4,7 @@ Given an endofunctor $F : cal(C) → cal(C)$, an **F-algebra** is an object `A` 
 
 This is the categorical account of a recursive data type — and therefore of an abstract syntax tree. Take
 
-$ F(X) = "Lit" × bb(Z) + "Add" × X × X + "Mul" × X × X $
+$$ F(X) = "Lit" × bb(Z) + "Add" × X × X + "Mul" × X × X $$
 
 Its initial algebra is exactly the type of arithmetic expression trees, and the unique morphism out of it is the **catamorphism** (`fold`): giving an interpretation of each constructor uniquely determines an interpretation of every tree. Lambek's lemma adds that the structure map of an initial algebra is an isomorphism, $F(mu F) ≅ mu F$ — the formal statement of "an AST is exactly one layer of constructors wrapped around more ASTs".
 
