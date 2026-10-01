@@ -1,13 +1,13 @@
 //! Witness formats and their checkers.
 //!
-//! Design notes: `witness.md`, `markdown/Design/Equivalence and Witnesses.md`.
+//! Design notes: `witness.md`, `vault/Design/Equivalence and Witnesses.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! A witness turns a CLAIM into a LICENCE. The checkers are the part of the
 //! system that has to be right; keeping each one small and separate is the
 //! whole design, because a single monolithic "verifier" would be both
 //! unauditable and a single point of failure.
-//! See markdown/Design/Trusted Computing Base.md.
+//! See vault/Design/Trusted Computing Base.md.
 //!
 //! ## The formats
 //!
@@ -58,7 +58,7 @@
 //!
 //! ## Where the witnesses will actually come from
 //!
-//! The worry in markdown/Design/Open Problems and Risks.md is that nobody
+//! The worry in vault/Design/Open Problems and Risks.md is that nobody
 //! writes proofs. Three answers that need no human:
 //!
 //!   1. RewriteChain, free, from the e-graph, for every rewrite it applies.
@@ -76,7 +76,7 @@
 //! An Attestation can turn out to be false. Since nothing is ever deleted, a
 //! revocation is a new node asserting that a witness is withdrawn, plus a
 //! query-time filter. Anything built while trusting it must be findable —
-//! which is what the trust audit query is for (markdown/Design/Query Cookbook.md).
+//! which is what the trust audit query is for (vault/Design/Query Cookbook.md).
 //!
 //! ## Adversarial notes
 //!

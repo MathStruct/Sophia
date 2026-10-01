@@ -1,4 +1,8 @@
-# sophia_equiv
+#implementation
+
+> Sources: code: `sophia_equiv.rs`
+>
+> Theory (CT-ML wiki): [Congruence](https://mathstruct.org/CategoryTheory-ML-Wiki/Congruence) · [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence) · [Logical Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations)
 
 Equivalence claims, their strength, and their checking. Source: `sophia_equiv.rs` (comments only).
 
@@ -6,7 +10,7 @@ Full design: [[Equivalence and Witnesses]].
 
 ## What this crate is
 
-The home of [[Start Here]]'s central claim — that code from different languages can interoperate through inserted equivalence proofs rather than an FFI. It is also the crate most likely to produce a silently wrong program, so most of its design is about *refusing* things rather than enabling them.
+The home of [[The Original Idea]]'s central claim — that code from different languages can interoperate through inserted equivalence proofs rather than an FFI. It is also the crate most likely to produce a silently wrong program, so most of its design is about *refusing* things rather than enabling them.
 
 ## The free case comes first
 
@@ -14,7 +18,7 @@ If two definitions elaborate to the same core term they have the same hash and a
 
 ## Defaults are the design
 
-`EquivPolicy` defaults to `min_level = Rewrite`, empty `allowed_modulo`, `max_chain = 3`. Everything weaker requires an explicit opt-in that taints the artifact's provenance ([[Trusted Computing Base]]). The reason is the **congruence rule**: substitution is only licensed when `t ≈ u ⟹ C[t] ≈ C[u]` for every context, and `Tested`/`Asserted` claims are not congruences ([[Contextual Equivalence]]). Two sort functions agreeing on every test may differ on stability.
+`EquivPolicy` defaults to `min_level = Rewrite`, empty `allowed_modulo`, `max_chain = 3`. Everything weaker requires an explicit opt-in that taints the artifact's provenance ([[Trusted Computing Base]]). The reason is the **congruence rule**: substitution is only licensed when `t ≈ u ⟹ C[t] ≈ C[u]` for every context, and `Tested`/`Asserted` claims are not congruences ([Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence)). Two sort functions agreeing on every test may differ on stability.
 
 ## Composition degrades monotonically
 
@@ -24,7 +28,7 @@ This degradation is not a flaw to engineer around — it is an accurate account 
 
 ## Cross-language claims need `R`
 
-"`t₁` does the same as `t₂`" is not well-formed until someone supplies a relation between the two observation universes. Elaborating both sides into [[Core Calculus|SC]] makes this tractable by reducing it to one semantics, but the residual relation — Julia `Int64` ↔ C++ `int64_t` *only where no overflow occurs*, `String` ↔ `std::string` only under stated invariants, `Array` ↔ `vector` only with an ownership story — is a reviewed artifact and part of the [[Trusted Computing Base]]. It is a [[Logical Relations|cross-language logical relation]], which is at least a well-studied kind of object.
+"`t₁` does the same as `t₂`" is not well-formed until someone supplies a relation between the two observation universes. Elaborating both sides into [[Core Calculus|SC]] makes this tractable by reducing it to one semantics, but the residual relation — Julia `Int64` ↔ C++ `int64_t` *only where no overflow occurs*, `String` ↔ `std::string` only under stated invariants, `Array` ↔ `vector` only with an ownership story — is a reviewed artifact and part of the [[Trusted Computing Base]]. It is a [cross-language logical relation](https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations), which is at least a well-studied kind of object.
 
 ## Refinement is the more useful primitive
 
@@ -38,5 +42,5 @@ This degradation is not a flaw to engineer around — it is an accurate account 
 ## Related
 
 - [[Equivalence and Witnesses]] · [[Cross-Language Semantic Hazards]]
-- [[Contextual Equivalence]] · [[Logical Relations]] · [[Bisimulation]]
-- [[E-Graph]] · [[Equality Saturation]]
+- [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence) · [Logical Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations) · [Bisimulation](https://mathstruct.org/CategoryTheory-ML-Wiki/Bisimulation)
+- [E-Graph](https://mathstruct.org/CategoryTheory-ML-Wiki/E-Graph) (equality saturation)

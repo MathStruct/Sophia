@@ -1,4 +1,8 @@
-# CoreIR
+#implementation
+
+> Sources: code: `CoreIR.jl`
+>
+> Theory (CT-ML wiki): [Category with Families](https://mathstruct.org/CategoryTheory-ML-Wiki/Category-with-Families)
 
 Julia-side mirror of the Sophia Core term language. Source: `CoreIR.jl` (comments only).
 

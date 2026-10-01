@@ -1,9 +1,9 @@
 //! `sophia-equiv` — equivalence claims, their strength, and their checking.
 //!
-//! Design notes: `sophia_equiv.md`, `markdown/Design/Equivalence and Witnesses.md`.
+//! Design notes: `sophia_equiv.md`, `vault/Design/Equivalence and Witnesses.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
-//! This crate is where markdown/Start Here.md's central claim lives: that code
+//! This crate is where vault/The Original Idea.md's central claim lives: that code
 //! from different languages can run together "with no use of FFI, just by
 //! means of parsing it into a graph database and inserting equivalency
 //! proofs". It is also the crate most likely to produce a wrong program if it
@@ -69,7 +69,7 @@
 //! DefEq and sound Rewrite chains are congruences by construction. Tested and
 //! Asserted are not. This is not a detail to revisit later — it is the
 //! difference between an optimisation and a miscompilation.
-//! See markdown/Wiki/Semantics/Contextual Equivalence.md.
+//! See https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence.
 //!
 //! ## Cross-language claims need a relation R, written down
 //!
@@ -79,7 +79,7 @@
 //! — but the residual R (Julia Int64 ↔ C++ int64_t only where no overflow,
 //! Julia String ↔ std::string only under stated invariants, Array ↔ vector
 //! only with an ownership story) is a reviewed artifact and part of the TCB.
-//! See markdown/Wiki/Semantics/Logical Relations.md.
+//! See https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations.
 //!
 //! ## Refinement is the more useful primitive
 //!

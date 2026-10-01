@@ -3,8 +3,8 @@
 
 Thin Julia client over the Rust store.
 
-Design notes: `Store.md`, `markdown/Design/Graph Schema.md`,
-`markdown/Design/Query Cookbook.md`.
+Design notes: `Store.md`, `vault/Design/Graph Schema.md`,
+`vault/Design/Query Cookbook.md`.
 COMMENTS ONLY — nothing here is implemented.
 
 Deliberately thin. The schema lives in `crates/sophia-store/src/schema.rs` and
@@ -44,7 +44,7 @@ the store is designed to prevent.
         benchmarks = [...],
     )
 
-This is the query `markdown/Start Here.md` predicts: "one could query the exact
+This is the query `vault/The Original Idea.md` predicts: "one could query the exact
 context of a piece of code". Today that answer needs an IDE, a test runner, a
 coverage tool and a doc generator, and still omits the alternative
 implementations because nothing records them. It depends on none of the risky
@@ -59,7 +59,7 @@ hang because someone typed a hash.
 
 `equivalents` must NEVER materialise the transitive closure: composition unions
 the `modulo` sets, so long chains are both enormous and worthless
-(`markdown/Design/Equivalence and Witnesses.md`). Search lazily against the
+(`vault/Design/Equivalence and Witnesses.md`). Search lazily against the
 caller's budget.
 
 # Tabular interface
@@ -67,14 +67,14 @@ caller's budget.
 `Tables.jl` conformance on query results makes the whole DataFrames/Plots
 ecosystem available for free, which matters because most of what anyone does
 with this store early on is measurement: node counts, query latencies, cache
-hit rates, store size (`markdown/Design/Roadmap.md`).
+hit rates, store size (`vault/Design/Roadmap.md`).
 
 # Verification
 
     verify(s::Store; sample=nothing) -> VerifyReport
 
 Rehash stored nodes and compare against their keys. The store is not trusted
-(`markdown/Design/Trusted Computing Base.md`), so this is a first-class
+(`vault/Design/Trusted Computing Base.md`), so this is a first-class
 operation rather than a debugging aid, and it should be cheap to run on a
 random sample.
 """

@@ -2,12 +2,12 @@
 #
 # The repository is simultaneously a Rust workspace, a Julia package and an
 # Obsidian vault. Julia hard-requires `src/Sophia.jl`, so `src/` belongs to
-# Julia and all Rust code lives under `crates/`. See markdown/Design/Repository
+# Julia and all Rust code lives under `crates/`. See vault/Design/Repository
 # Layout.md for the full rationale.
 #
 # NOTE: every source file in this workspace is currently comments only. Nothing
 # here is meant to build into anything that runs yet; the crates exist to fix
-# the module boundaries while the design in markdown/Design/ is settled.
+# the module boundaries while the design in vault/Design/ is settled.
 
 [workspace]
 resolver = "3"

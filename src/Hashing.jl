@@ -4,7 +4,7 @@
 Julia-side hashing, and the conformance suite that keeps it byte-identical to
 the Rust implementation.
 
-Design notes: `Hashing.md`, `markdown/Design/Hashing and Identity.md`.
+Design notes: `Hashing.md`, `vault/Design/Hashing and Identity.md`.
 COMMENTS ONLY — nothing here is implemented.
 
 # The contract
@@ -19,7 +19,7 @@ the specification is what the whole store depends on.
 
 `SHA` and `UUIDs` are already dependencies in `Project.toml`; BLAKE3 will need
 a binding or a JLL. `XXhash` is for the in-memory intern table only and must
-never reach a persisted digest (`markdown/Wiki/Hashing/Hash Consing.md`).
+never reach a persisted digest (`vault/Background/Hashing/Hash Consing.md`).
 
 # The conformance suite — the reason this module exists
 
@@ -37,7 +37,7 @@ The corpus should contain, at minimum:
   * terms differing ONLY in a primitive attribute (must NOT collide) —
     especially `Wrap` vs `Poison` overflow and `contract` true/false
   * mutually recursive groups of 2, 3 and 5 definitions, to exercise the SCC
-    construction (`markdown/Wiki/Hashing/Cycle Hashing.md`)
+    construction (`vault/Background/Hashing/Cycle Hashing.md`)
   * a symmetric SCC, where colour refinement cannot separate the members and
     the lexicographic tie-break has to fire
   * terms with 0.0 and -0.0, and with several NaN payloads (these must NOT
@@ -53,7 +53,7 @@ The corpus should contain, at minimum:
 
 The third is the one people forget to write, and it is the one that catches an
 over-eager canonicaliser — which is the failure mode with no other detector
-(`markdown/Design/Trusted Computing Base.md`).
+(`vault/Design/Trusted Computing Base.md`).
 
 # Cross-machine determinism
 
@@ -68,7 +68,7 @@ the encoding rules in `crates/sophia-hash/src/sophia_hash.rs`.
 
 Truncation for reading only. A 128-bit UUID may be derived via `UUIDs` for
 systems that demand one; it is never a key
-(`markdown/Wiki/Hashing/UUID.md`).
+(`vault/Background/Hashing/UUID.md`).
 """
 module Hashing
 end

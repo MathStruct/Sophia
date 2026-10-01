@@ -1,4 +1,8 @@
-# witness
+#implementation
+
+> Sources: code: `witness.rs`
+>
+> Theory (CT-ML wiki): [Logical Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations) · [Compiler Correctness](https://mathstruct.org/CategoryTheory-ML-Wiki/Compiler-Correctness)
 
 Witness formats and their checkers. Source: `witness.rs` (comments only).
 

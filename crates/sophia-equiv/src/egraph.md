@@ -1,8 +1,12 @@
-# egraph
+#implementation
+
+> Sources: code: `egraph.rs`
+>
+> Theory (CT-ML wiki): [E-Graph](https://mathstruct.org/CategoryTheory-ML-Wiki/E-Graph) · [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point)
 
 E-graph construction, saturation and extraction. Source: `egraph.rs` (comments only).
 
-Background: [[E-Graph]], [[Equality Saturation]]. How it fits the compiler: [[Compilation as Query]].
+Background: [E-Graph](https://mathstruct.org/CategoryTheory-ML-Wiki/E-Graph) (equality saturation). How it fits the compiler: [[Compilation as Query]].
 
 ## A thin layer, deliberately
 
@@ -42,6 +46,6 @@ It will find peepholes, algebraic simplification, strength reduction, constant f
 
 ## Related
 
-- [[E-Graph]] · [[Equality Saturation]] · [[Term Rewriting System]]
+- [E-Graph](https://mathstruct.org/CategoryTheory-ML-Wiki/E-Graph) (equality saturation) · [[Term Rewriting System]]
 - [[sophia_equiv]] · [[witness]] · [[Compilation as Query]]
 - [[State of the Art - Equality Saturation and E-Graphs]] · [[State of the Art - Superoptimization and Synthesis]]

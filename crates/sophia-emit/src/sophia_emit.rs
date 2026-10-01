@@ -1,9 +1,9 @@
 //! `sophia-emit` — lowering core terms into MLIR and LLVM IR.
 //!
-//! Design notes: `sophia_emit.md`, `markdown/Design/Compilation as Query.md`.
+//! Design notes: `sophia_emit.md`, `vault/Design/Compilation as Query.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
-//! markdown/Start Here.md is explicit that "the compilation goal should be
+//! vault/The Original Idea.md is explicit that "the compilation goal should be
 //! LLVM/MLIR as I do not want to get into the weeds of writing a compiler
 //! backend". Correct decision. This crate is therefore a TRANSLATOR, not a
 //! compiler: it gets core terms into a form that someone else optimises and
@@ -45,7 +45,7 @@
 //!
 //! ## Writing IR back into the store — the decision to measure
 //!
-//! markdown/Design/Graph Schema.md estimates 10^7..10^8 nodes per package if
+//! vault/Design/Graph Schema.md estimates 10^7..10^8 nodes per package if
 //! every IR layer is persisted. Three options, and M2 picks one with numbers:
 //!
 //!   A. persist everything            (queryable, huge)
@@ -68,13 +68,13 @@
 //!     lowering with no validation witness LOWERS the label rather than
 //!     silently inheriting the core term's
 //!
-//! See markdown/Design/Trusted Computing Base.md.
+//! See vault/Design/Trusted Computing Base.md.
 //!
 //! ## Target nodes
 //!
 //! Lowering is meaningless without a target: triple, datalayout, CPU features,
 //! ABI choices, float environment. All of it hashes into `h_target`, which is
-//! part of the codegen cache key (markdown/Design/Content-Addressed
+//! part of the codegen cache key (vault/Design/Content-Addressed
 //! Precompilation.md). Two builds differing only in `-mcpu` must not share
 //! compiled code, and making the target a node rather than a flag is what
 //! prevents that.

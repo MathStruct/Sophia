@@ -2,7 +2,7 @@
 //!
 //! Turns a Sophia Core term into the 256-bit identity that everything else in
 //! the system is keyed by. Design notes: `sophia_hash.md`, and
-//! `markdown/Design/Hashing and Identity.md`.
+//! `vault/Design/Hashing and Identity.md`.
 //!
 //! NOTHING IN THIS CRATE IS IMPLEMENTED YET. Every file is comments only.
 //! The point of the file is to fix a module boundary and record intent.
@@ -13,7 +13,7 @@
 //! the hash and every node in every store changes with it. So this crate is
 //! small, has no dependencies on the rest of the workspace, and is meant to be
 //! auditable in an afternoon. It is in the trusted computing base
-//! (`markdown/Design/Trusted Computing Base.md`); sophia-store is not.
+//! (`vault/Design/Trusted Computing Base.md`); sophia-store is not.
 //!
 //! ## Intended module layout
 //!
@@ -65,9 +65,9 @@
 //! ## Non-goals
 //!
 //! - No non-cryptographic hash is ever persisted. `xxhash` is for the in-memory
-//!   intern table only (`markdown/Wiki/Hashing/Hash Consing.md`).
+//!   intern table only (`vault/Background/Hashing/Hash Consing.md`).
 //! - No truncation. A 128-bit UUID may be derived for display; it is never the
-//!   key (`markdown/Wiki/Hashing/UUID.md`).
+//!   key (`vault/Background/Hashing/UUID.md`).
 //! - No salting, no per-machine state, no time. The function must be global.
 //!
 //! ## Test obligations (before anything else in the project is worth building)

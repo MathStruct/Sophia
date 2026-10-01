@@ -1,11 +1,11 @@
 //! The node/edge schema and its migrations.
 //!
-//! Design notes: `schema.md`, `markdown/Design/Graph Schema.md`.
+//! Design notes: `schema.md`, `vault/Design/Graph Schema.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! This file is the ONLY place that should know the concrete labels. Every
 //! other module talks to the schema through these types, so that the schema
-//! really is replaceable — which markdown/Start Here.md explicitly asks for.
+//! really is replaceable — which vault/The Original Idea.md explicitly asks for.
 //!
 //! ## Node kinds
 //!
@@ -28,7 +28,7 @@
 //! }
 //! ```
 //!
-//! The knowledge layer is the part markdown/Start Here.md calls "annotations":
+//! The knowledge layer is the part vault/The Original Idea.md calls "annotations":
 //! statements in the database that are not there for compilation.
 //!
 //! ## Edge kinds
@@ -69,7 +69,7 @@
 //! congruences — two sort functions agreeing on every test may differ on
 //! stability, and a context observing stability distinguishes them. Silently
 //! substituting on those levels is the most likely way this system produces a
-//! wrong program. See markdown/Design/Equivalence and Witnesses.md.
+//! wrong program. See vault/Design/Equivalence and Witnesses.md.
 //!
 //! ## Relational materialisation (first backend)
 //!

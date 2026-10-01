@@ -18,11 +18,13 @@ Every declaration, expression, MLIR operation, LLVM instruction, test, doc comme
 
 This repository is also an Obsidian vault (the vault root is the repository root, so every `.md` file in it is a note and `[[wikilinks]]` resolve across code and prose alike). The website is built from the vault with [Quartz](https://quartz.jzhao.xyz); see [Website](#website) below.
 
-- **[markdown/Start Here.md](markdown/Start%20Here.md)** — the original statement of the idea
-- **[markdown/Design/](markdown/Design/)** — what it becomes once made precise: core calculus, hashing scheme, graph schema, equivalence ladder, roadmap, and an honest risk list. Start at `Design Overview.md`.
-- **[markdown/Wiki/](markdown/Wiki/)** — background concept cards (LLVM, MLIR, Unison, hashing, rewriting, semantics, type theory, category theory, Julia internals)
-- **[markdown/State of the Art/](markdown/State%20of%20the%20Art/)** — survey of prior art, and a table of what exists versus what does not
-- **`Code Map.md`** in `markdown/Design/` — index of the per-file design notes
+- **[vault/Start Here.md](vault/Start%20Here.md)** — how the vault is organised and its conventions; **[vault/Map of Content.md](vault/Map%20of%20Content.md)** — every note in reading order
+- **[vault/The Original Idea.md](vault/The%20Original%20Idea.md)** — the original statement of the idea
+- **[vault/Design/](vault/Design/)** — what it becomes once made precise: core calculus, hashing scheme, graph schema, equivalence ladder, roadmap, and an honest risk list. Start at `Design Overview.md`.
+- **[vault/Background/](vault/Background/)** — background concept cards (LLVM, MLIR, Unison, hashing, rewriting, semantics, type theory, Julia internals)
+- **[vault/State of the Art/](vault/State%20of%20the%20Art/)** — survey of prior art, and a table of what exists versus what does not
+- **`Code Map.md`** in `vault/Design/` — index of the per-file design notes
+- **The mathematics** — categorical semantics, logical relations, e-graphs, conjunctive queries, Datalog, incremental computation — is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/) (Track F), which every design note links to.
 
 Formulas are Typst (`wypst`), diagrams are TikZ (`inline-tikz`).
 
@@ -33,12 +35,13 @@ Cargo.toml          Rust workspace manifest
 Project.toml        Julia package manifest
 crates/             Rust: hashing, core calculus, store, equivalence, emission, CLI
 src/                Julia: frontend, annotation macros, precompilation experiment
-markdown/           the vault
+vault/              the vault: design notes, surveys, background cards
+meta/               working material (authoring prompts), not published
 index.md            landing page of the website
 site/               vendored Quartz + plugins that build the website from the vault
 ```
 
-Julia requires `src/Sophia.jl`, so `src/` belongs to Julia and Rust lives in `crates/`. Every `.rs` and `.jl` file has a `.md` sibling of the same name explaining what it is meant to do. See `markdown/Design/Repository Layout.md`.
+Julia requires `src/Sophia.jl`, so `src/` belongs to Julia and Rust lives in `crates/`. Every `.rs` and `.jl` file has a `.md` sibling of the same name explaining what it is meant to do. See `vault/Design/Repository Layout.md`.
 
 **All source files currently contain comments only.** They exist to fix module boundaries while the design settles.
 
@@ -53,7 +56,7 @@ whose build-time plugins match the vault's Obsidian plugins:
 - `quartz/plugins/transformers/tabs.ts` — **Markdown Tabs** blocks.
 - `quartz/plugins/transformers/titleHeading.ts` — drops the `# Note Name` heading each note opens with, since Quartz renders the note name as the title.
 
-The content directory is the repository root, so `src/*.md` and `crates/**/*.md` are published next to `markdown/` and the `[[wikilinks]]` in `Code Map.md` resolve. `site/quartz.config.ts` lists what is *not* published: `site/`, `.obsidian/`, `markdown/Prompts/`, this README (the site has its own `index.md`), and the `.rs`/`.jl`/`.toml` sources themselves.
+The content directory is the repository root, so `src/*.md` and `crates/**/*.md` are published next to `vault/` and the `[[wikilinks]]` in `Code Map.md` resolve. `site/quartz.config.ts` lists what is *not* published: `site/`, `.obsidian/`, `meta/`, this README (the site has its own `index.md`), and the `.rs`/`.jl`/`.toml` sources themselves.
 
 Local preview:
 
@@ -82,7 +85,7 @@ To pull in upstream changes, merge them into `site/` and keep the four transform
 | M6 | one witnessed Julia ↔ C++ vertical slice | a cross-language relation can be written at all |
 | M7 | unified execution | — |
 
-Full version with rationale: `markdown/Design/Roadmap.md`.
+Full version with rationale: `vault/Design/Roadmap.md`.
 
 Note the ordering: **M3 is where the project justifies itself**, and it needs none of the cross-language machinery. Even total failure at M6 leaves a content-addressed, queryable code store with exact dependency tracking and exact test and compilation invalidation.
 
@@ -90,7 +93,7 @@ Note the ordering: **M3 is where the project justifies itself**, and it needs no
 
 Graph: LadybugDB, HelixDB, TypeDB, FalkorDB. Relational: DuckDB, TursoDB.
 
-Current leaning is DuckDB first — the schema is two tables wide and the hot queries are hash lookups and bounded traversals, which a columnar engine handles well without a server. The store sits behind a trait so the choice stays reversible; see `markdown/State of the Art/State of the Art - Graph Databases for Code.md`.
+Current leaning is DuckDB first — the schema is two tables wide and the hot queries are hash lookups and bounded traversals, which a columnar engine handles well without a server. The store sits behind a trait so the choice stays reversible; see `vault/State of the Art/State of the Art - Graph Databases for Code.md`.
 
 ## On disagreeing with any of this
 
@@ -98,4 +101,4 @@ The store is content-addressed, so it is not trusted: any node can be re-verifie
 
 ## Prior art
 
-The closest existing system is [Unison](https://www.unison-lang.org/), which content-addresses code by the hash of its syntax tree. Sophia borrows that and adds persisted IR layers, a multi-language frontend story, and equivalence edges carrying evidence. What is genuinely new — and genuinely risky — is the last of those; see `markdown/Design/Open Problems and Risks.md`.
+The closest existing system is [Unison](https://www.unison-lang.org/), which content-addresses code by the hash of its syntax tree. Sophia borrows that and adds persisted IR layers, a multi-language frontend story, and equivalence edges carrying evidence. What is genuinely new — and genuinely risky — is the last of those; see `vault/Design/Open Problems and Risks.md`.

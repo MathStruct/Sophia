@@ -1,4 +1,8 @@
-# schema
+#implementation
+
+> Sources: code: `schema.rs`
+>
+> Theory (CT-ML wiki): [Attributed C-Set](https://mathstruct.org/CategoryTheory-ML-Wiki/Attributed-C-Set) · [Algebraic Database](https://mathstruct.org/CategoryTheory-ML-Wiki/Algebraic-Database)
 
 Node and edge kinds, their storage mapping, and migrations. Source: `schema.rs` (comments only).
 
@@ -6,11 +10,11 @@ Full design: [[Graph Schema]].
 
 ## The encapsulation rule
 
-This file is the only place that should know the concrete labels. Every other module goes through these types, so that the schema really is replaceable — which is what [[Start Here]] explicitly invites ("all he needs to do is rewrite the core of the graph compiler and migrate the database to his own preferred schema"). An invitation like that is only credible if the code is arranged to honour it.
+This file is the only place that should know the concrete labels. Every other module goes through these types, so that the schema really is replaceable — which is what [[The Original Idea]] explicitly invites ("all he needs to do is rewrite the core of the graph compiler and migrate the database to his own preferred schema"). An invitation like that is only credible if the code is arranged to honour it.
 
 ## Four groups of node kinds
 
-Core (`Term`, `Type`, `Decl`, …), surface (`SurfaceNode`, `Span`, `Frontend`), IR (`Op`/`Region`/`Block` for [[MLIR Operation|MLIR]], `Instr`/`Func`/`Module` for [[LLVM IR]], plus `Target`), and the **knowledge layer** — `Witness`, `Prop`, `Test`, `Bench`, `Doc`. The last group is what [[Start Here]] calls annotations: statements in the database that are not there for compilation. See [[Tests and Documentation as Nodes]].
+Core (`Term`, `Type`, `Decl`, …), surface (`SurfaceNode`, `Span`, `Frontend`), IR (`Op`/`Region`/`Block` for [[MLIR Operation|MLIR]], `Instr`/`Func`/`Module` for [[LLVM IR]], plus `Target`), and the **knowledge layer** — `Witness`, `Prop`, `Test`, `Bench`, `Doc`. The last group is what [[The Original Idea]] calls annotations: statements in the database that are not there for compilation. See [[Tests and Documentation as Nodes]].
 
 `Method` and `DispatchFact` are Julia-specific and exist for [[Content-Addressed Precompilation]]'s exact-invalidation claim; see [[World Age]].
 
@@ -20,7 +24,7 @@ Core (`Term`, `Type`, `Decl`, …), surface (`SurfaceNode`, `Span`, `Frontend`),
 
 ## The EQUIV level ordering, and the line in the middle
 
-`Alpha`, `DefEq`, `Rewrite`, `Observational` are proofs. `Tested` and `Asserted` are evidence. **The line between them is the line between substitutable and not**, and it is drawn where it is because evidence is not a congruence: two sort functions agreeing on every test may differ on stability, and a context observing stability distinguishes them ([[Contextual Equivalence]]).
+`Alpha`, `DefEq`, `Rewrite`, `Observational` are proofs. `Tested` and `Asserted` are evidence. **The line between them is the line between substitutable and not**, and it is drawn where it is because evidence is not a congruence: two sort functions agreeing on every test may differ on stability, and a context observing stability distinguishes them ([Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence)).
 
 Silently substituting at the `Tested` or `Asserted` level is the most plausible route to this system producing a wrong program, which is why the enum comment says so and why the policy check lives at query time rather than being left to callers.
 

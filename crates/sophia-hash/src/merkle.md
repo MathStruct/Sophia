@@ -1,4 +1,8 @@
-# merkle
+#implementation
+
+> Sources: code: `merkle.rs`
+>
+> Theory (CT-ML wiki): [Initial Algebra](https://mathstruct.org/CategoryTheory-ML-Wiki/Initial-Algebra) · [Polynomial Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Polynomial-Functor)
 
 Merkle hashing over canonical terms. Source: `merkle.rs` (comments only).
 

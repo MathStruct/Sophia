@@ -1,4 +1,8 @@
-# sophia_store
+#implementation
+
+> Sources: code: `sophia_store.rs`
+>
+> Theory (CT-ML wiki): [Attributed C-Set](https://mathstruct.org/CategoryTheory-ML-Wiki/Attributed-C-Set)
 
 Persistence and querying of the code graph. Source: `sophia_store.rs` (comments only).
 
@@ -6,7 +10,7 @@ Full design: [[Graph Schema]], with worked queries in [[Query Cookbook]].
 
 ## The property that shapes the crate
 
-**The store is not trusted.** Every key is a hash of its own content, so anything can be re-verified by rehashing. A corrupt or hostile store can withhold data or return wrong data, but cannot substitute different content under an existing hash. This removes the largest component from the [[Trusted Computing Base]] at no cost, and it is what makes [[Start Here]]'s "rewrite the core and migrate the database to his own preferred schema" a reasonable invitation rather than a disclaimer.
+**The store is not trusted.** Every key is a hash of its own content, so anything can be re-verified by rehashing. A corrupt or hostile store can withhold data or return wrong data, but cannot substitute different content under an existing hash. This removes the largest component from the [[Trusted Computing Base]] at no cost, and it is what makes [[The Original Idea]]'s "rewrite the core and migrate the database to his own preferred schema" a reasonable invitation rather than a disclaimer.
 
 ## Two operations worth noting
 
@@ -24,7 +28,7 @@ The trait exists so the choice stays reversible. It will leak — query dialects
 
 Reconstructing one function's IR walks $10^4$–$10^6$ nodes. If that is an order of magnitude slower than re-running the frontend on source text, the architecture must retreat to "core terms persisted, IR regenerated". **This is the single most important empirical question in the project and it should be answered at [[Roadmap|M2]]**, not discovered at M6. Mitigations, in order: chunked subtree blobs (what Git does with packfiles), materialised dependency closure, in-memory hot tier, and finally treating the `Op`/`Instr` layers as an evictable cache.
 
-That last fallback is a genuine retreat from the most ambitious reading of [[Start Here]], and it still keeps everything that matters: core terms, types, equivalences, tests, provenance.
+That last fallback is a genuine retreat from the most ambitious reading of [[The Original Idea]], and it still keeps everything that matters: core terms, types, equivalences, tests, provenance.
 
 ## Related
 

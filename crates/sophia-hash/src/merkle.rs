@@ -1,6 +1,6 @@
 //! Merkle hashing over canonical terms, including the cyclic case.
 //!
-//! Design notes: `merkle.md`, `markdown/Wiki/Hashing/Cycle Hashing.md`.
+//! Design notes: `merkle.md`, `vault/Background/Hashing/Cycle Hashing.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! ## The acyclic case
@@ -56,7 +56,7 @@
 //! ```
 //!
 //! Edges are hashed too, because a witness has to be able to cite the specific
-//! EQUIV edge it justifies. See markdown/Design/Graph Schema.md.
+//! EQUIV edge it justifies. See vault/Design/Graph Schema.md.
 //!
 //! ## Erasure, for h_run
 //!
@@ -69,7 +69,7 @@
 //!
 //! Two definitions differing only in erased content share h_run and therefore
 //! share compiled code. That is where the precompilation win comes from; see
-//! markdown/Design/Content-Addressed Precompilation.md.
+//! vault/Design/Content-Addressed Precompilation.md.
 //!
 //! The erasure function is itself semantics-critical: erasing something that
 //! IS runtime-relevant silently unifies two different programs. Same warning

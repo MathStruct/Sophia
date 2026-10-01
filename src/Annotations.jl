@@ -2,13 +2,13 @@
     Sophia.Annotations
 
 Macros for attaching non-compiled statements to code: the "annotations" of
-`markdown/Start Here.md`.
+`vault/The Original Idea.md`.
 
-Design notes: `Annotations.md`, `markdown/Design/Tests and Documentation as
-Nodes.md`, `markdown/Design/Equivalence and Witnesses.md`.
+Design notes: `Annotations.md`, `vault/Design/Tests and Documentation as
+Nodes.md`, `vault/Design/Equivalence and Witnesses.md`.
 COMMENTS ONLY — nothing here is implemented.
 
-markdown/Start Here.md: "part of the statements in the graph database will not
+vault/The Original Idea.md: "part of the statements in the graph database will not
 be there for compilation, instead they prove equivalencies between codes […] or
 correctness or solve memory management. Or just contain comments, markdown."
 This module is the user-facing surface for all of that.
@@ -48,7 +48,7 @@ agreeing on every test may differ on stability, and a context that observes
 stability distinguishes them. Making `@equiv` feel powerful by defaulting to
 substitutable would be the single easiest way to turn this project into a
 miscompilation generator.
-See `markdown/Wiki/Semantics/Contextual Equivalence.md`.
+See https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence.
 
 # `@equiv` should refuse obviously false claims at macro time
 
@@ -56,7 +56,7 @@ Before recording anything, check what is cheaply checkable:
 
   * arity and type signatures compatible?
   * effect rows compatible, or is the difference covered by `modulo`?
-  * do the hazards in `markdown/Design/Cross-Language Semantic Hazards.md` that
+  * do the hazards in `vault/Design/Cross-Language Semantic Hazards.md` that
     apply to these two terms have corresponding `modulo` tags?
 
 A claim missing a required `modulo` tag should be an ERROR with the specific
@@ -76,7 +76,7 @@ which is pure and therefore cacheable forever. Consequences:
   * same inputs with different outcomes ⇒ the test is flaky, detected
     automatically rather than by folklore
 
-See `markdown/Design/Tests and Documentation as Nodes.md`.
+See `vault/Design/Tests and Documentation as Nodes.md`.
 
 # Where this fits in the roadmap
 

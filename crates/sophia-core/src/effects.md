@@ -1,4 +1,8 @@
-# effects
+#implementation
+
+> Sources: code: `effects.rs`
+>
+> Theory (CT-ML wiki): [Algebraic Effects and Handlers](https://mathstruct.org/CategoryTheory-ML-Wiki/Algebraic-Effects-and-Handlers) · [Graded Monad](https://mathstruct.org/CategoryTheory-ML-Wiki/Graded-Monad)
 
 Effect rows, regions and borrows. Source: `effects.rs` (comments only).
 
@@ -6,7 +10,7 @@ Full design: [[Effects Memory and Resources]].
 
 ## Why this is not an optional extra
 
-Effects are what an [[Equivalence and Witnesses|equivalence claim]] is about. [[Contextual Equivalence]] is defined relative to an *observation*, and effects are the observations. Two functions with different effect rows are not equivalent, and a system that cannot express the difference will assert that they are.
+Effects are what an [[Equivalence and Witnesses|equivalence claim]] is about. [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence) is defined relative to an *observation*, and effects are the observations. Two functions with different effect rows are not equivalent, and a system that cannot express the difference will assert that they are.
 
 Purity is also what licenses the valuable rewrites — CSE, reordering, memoisation, parallelisation. The effect row is the certificate that makes them sound, so [[sophia_equiv]] cannot do useful work without this module.
 
@@ -33,5 +37,5 @@ A full region-and-borrow system may not earn its complexity in the first cut. Fi
 ## Related
 
 - [[Effects Memory and Resources]] · [[Effect System]] · [[Unison Abilities]]
-- [[Linear and Affine Types]] · [[Contextual Equivalence]]
+- [[Linear and Affine Types]] · [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence)
 - [[sophia_core]] · [[sophia_equiv]]

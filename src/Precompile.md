@@ -1,4 +1,8 @@
-# Precompile
+#implementation
+
+> Sources: code: `Precompile.jl`
+>
+> Theory (CT-ML wiki): [Change Action](https://mathstruct.org/CategoryTheory-ML-Wiki/Change-Action)
 
 The content-addressed code cache. Source: `Precompile.jl` (comments only).
 
@@ -6,7 +10,7 @@ Full design: [[Content-Addressed Precompilation]]. Milestone: [[Roadmap|M3]].
 
 ## Why this module is the one to build first among the ambitious ones
 
-[[Start Here]] ends with it: "I wanted to improve precompilation for Julia. This I wanted to solve with a graph database." It has the clearest success criterion, the shortest path to being useful, and it needs **none** of the cross-language machinery, dependent types, or a new language. It can be validated entirely on its own — which makes it the part of the project that could justify the rest to someone who does not already believe in it.
+[[The Original Idea]] ends with it: "I wanted to improve precompilation for Julia. This I wanted to solve with a graph database." It has the clearest success criterion, the shortest path to being useful, and it needs **none** of the cross-language machinery, dependent types, or a new language. It can be validated entirely on its own — which makes it the part of the project that could justify the rest to someone who does not already believe in it.
 
 ## The actual claim, stated precisely
 

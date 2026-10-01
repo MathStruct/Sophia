@@ -8,7 +8,7 @@ import * as Plugin from "./quartz/plugins"
  *
  * The content directory is the repository root (`npx quartz build -d ..`):
  * the whole repository is the Obsidian vault, so the per-file design notes
- * next to the Rust and Julia sources are published alongside `markdown/`, and
+ * next to the Rust and Julia sources are published alongside `vault/`, and
  * `[[wikilinks]]` between them resolve exactly as they do in Obsidian.
  */
 const config: QuartzConfig = {
@@ -30,8 +30,8 @@ const config: QuartzConfig = {
       ".tikz-cache",
       // repository documentation; the site has its own landing page (index.md)
       "README.md",
-      // prompts used while drafting the vault, not part of the design
-      "markdown/Prompts",
+      // working material (the prompts used while drafting the vault), not part of the design
+      "meta",
       // sources and manifests: every .rs/.jl has a .md sibling that *is* published
       "**/*.rs",
       "**/*.jl",

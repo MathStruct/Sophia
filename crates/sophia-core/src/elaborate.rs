@@ -1,6 +1,6 @@
 //! Elaboration and normalisation: surface syntax -> Sophia Core.
 //!
-//! Design notes: `elaborate.md`, `markdown/Design/Core Calculus.md`.
+//! Design notes: `elaborate.md`, `vault/Design/Core Calculus.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! Elaboration is where every frontend's real work lands, and where all the
@@ -8,7 +8,7 @@
 //! (SC's) rather than n, and each frontend's obligation is to explain its
 //! language in terms of it. That obligation is unverified and is the de facto
 //! specification of the ingested subset.
-//! See markdown/State of the Art/State of the Art - Formal Semantics of Real Languages.md.
+//! See vault/State of the Art/State of the Art - Formal Semantics of Real Languages.md.
 //!
 //! ## Intended API
 //!
@@ -41,7 +41,7 @@
 //!
 //! Quote naturally produces de Bruijn LEVELS; convert to INDICES at the end.
 //! Mixing the two is the classic NbE bug.
-//! See markdown/Wiki/Type Theory/Normalization by Evaluation.md.
+//! See vault/Background/Type Theory/Normalization by Evaluation.md.
 //!
 //! ## What elaboration must make explicit
 //!
@@ -61,7 +61,7 @@
 //!
 //! ## Functoriality — the property test to write first
 //!
-//! A frontend is meant to be a functor (markdown/Design/Multi-AST Layering.md):
+//! A frontend is meant to be a functor (vault/Design/Multi-AST Layering.md):
 //!
 //! ```ignore
 //! elaborate(compose(f, g)) ≡ compose(elaborate(f), elaborate(g))
@@ -83,4 +83,4 @@
 //!
 //! Elaboration errors are the ones a user actually sees, so they need the
 //! surface span (kept on SurfaceNode, deliberately NOT part of the core hash —
-//! see markdown/Design/Hashing and Identity.md) and the elaboration context.
+//! see vault/Design/Hashing and Identity.md) and the elaboration context.

@@ -1,12 +1,12 @@
 //! Canonicalisation: Sophia Core term -> canonical form.
 //!
-//! Design notes: `canonical.md`, `markdown/Design/Hashing and Identity.md`.
+//! Design notes: `canonical.md`, `vault/Design/Hashing and Identity.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! This is the most dangerous file in the repository. Everything else fails
 //! loudly; this fails silently. An over-aggressive canonicaliser identifies two
 //! programs that are not the same, and the result is a wrong binary with no
-//! error anywhere. Read `markdown/Design/Trusted Computing Base.md` before
+//! error anywhere. Read `vault/Design/Trusted Computing Base.md` before
 //! touching it.
 //!
 //! ## The pipeline
@@ -20,7 +20,7 @@
 //! 1. LOCALLY NAMELESS CONVERSION
 //!    Bound variables -> de Bruijn indices; free variables -> the hash of the
 //!    definition they refer to. This is what makes hashing alpha-invariant.
-//!    See markdown/Wiki/Hashing/De Bruijn Index.md.
+//!    See vault/Background/Hashing/De Bruijn Index.md.
 //!
 //! 2. LET-FLOATING AND DEAD-BINDING ELIMINATION
 //!    `let x = e in b` with x unused in b  ==>  b, IF e is effect-free.
@@ -35,7 +35,7 @@
 //!    Definitional equality must be reflected in identity, or the kernel's
 //!    conversion rule and the hash disagree about what "the same" means — and
 //!    then the same term can enter the store under two identities.
-//!    See markdown/Wiki/Type Theory/Definitional vs Propositional Equality.md.
+//!    See vault/Background/Type Theory/Definitional vs Propositional Equality.md.
 //!
 //! 5. DETERMINISTIC ORDERING OF UNORDERED STRUCTURES
 //!    Record fields, module members, effect rows, independent let-groups.
@@ -47,7 +47,7 @@
 //!    Overflow discipline, rounding mode, contraction/reassociation permission,
 //!    alignment. These are made EXPLICIT, never defaulted away. A Julia `+`
 //!    (wrapping) and a C++ `+` (nsw) must not converge here.
-//!    See markdown/Design/Cross-Language Semantic Hazards.md.
+//!    See vault/Design/Cross-Language Semantic Hazards.md.
 //!
 //! ## What canonicalisation must NOT do
 //!

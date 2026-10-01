@@ -1,10 +1,14 @@
-# sophia_emit
+#implementation
+
+> Sources: code: `sophia_emit.rs`
+>
+> Theory (CT-ML wiki): [Compiler Correctness](https://mathstruct.org/CategoryTheory-ML-Wiki/Compiler-Correctness)
 
 Lowering core terms into [[MLIR]] and [[LLVM IR]]. Source: `sophia_emit.rs` (comments only).
 
 ## A translator, not a compiler
 
-[[Start Here]] is explicit: "the compilation goal should be LLVM/MLIR as I do not want to get into the weeds of writing a compiler backend." That is the right call and this crate honours it — it gets [[Core Calculus|SC]] terms into a form someone else optimises and codegens, and writes the result back into the store.
+[[The Original Idea]] is explicit: "the compilation goal should be LLVM/MLIR as I do not want to get into the weeds of writing a compiler backend." That is the right call and this crate honours it — it gets [[Core Calculus|SC]] terms into a form someone else optimises and codegens, and writes the result back into the store.
 
 ## Why a `sophia` dialect first
 

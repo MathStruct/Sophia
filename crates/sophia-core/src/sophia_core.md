@@ -1,4 +1,8 @@
-# sophia_core
+#implementation
+
+> Sources: code: `sophia_core.rs`
+>
+> Theory (CT-ML wiki): [Category with Families](https://mathstruct.org/CategoryTheory-ML-Wiki/Category-with-Families)
 
 The Sophia Core calculus, its kernel and its representation. Source: `sophia_core.rs` (comments only).
 

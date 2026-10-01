@@ -1,4 +1,8 @@
-# Store
+#implementation
+
+> Sources: code: `Store.jl`
+>
+> Theory (CT-ML wiki): [Attributed C-Set](https://mathstruct.org/CategoryTheory-ML-Wiki/Attributed-C-Set)
 
 Thin Julia client over the Rust store. Source: `Store.jl` (comments only).
 
@@ -10,7 +14,7 @@ The schema lives in [[schema]] and nowhere else. This module is a `@ccall` surfa
 
 ## `context` is the early demo
 
-The one query [[Start Here]] explicitly predicts: "one could query the exact context of a piece of code". It returns the declaration, its type and effects, its tests, its docs, its callers and callees, its benchmarks, every known alternative implementation with the strength of each claim, and the source span.
+The one query [[The Original Idea]] explicitly predicts: "one could query the exact context of a piece of code". It returns the declaration, its type and effects, its tests, its docs, its callers and callees, its benchmarks, every known alternative implementation with the strength of each claim, and the source span.
 
 Assembling that today takes an IDE, a test runner, a coverage tool and a documentation generator, and still omits the alternatives because nothing records them. It depends on none of the risky machinery — ingestion, hashing and storage only — which makes it the right thing to build early and the right thing to show people. See [[Tests and Documentation as Nodes]] and [[main]].
 

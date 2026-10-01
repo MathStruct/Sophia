@@ -1,4 +1,6 @@
-# main
+#implementation
+
+> Sources: code: `main.rs`
 
 The `sophia` command-line driver. Source: `main.rs` (comments only, plus an empty `fn main` so the workspace still builds).
 
@@ -10,7 +12,7 @@ It is how the graph becomes legible to a human before any editor integration exi
 
 ## The two subcommands that are the actual demos
 
-**`sophia context <hash>`** is the capability [[Start Here]] predicts: "one could query the exact context of a piece of code". It returns the definition, its type, its tests, its docs, its callers and callees, every known alternative implementation with the strength of each claim, and its source span. Assembling that today takes an IDE, a test runner, a coverage tool and a documentation generator — and still misses the alternatives, because nothing records them.
+**`sophia context <hash>`** is the capability [[The Original Idea]] predicts: "one could query the exact context of a piece of code". It returns the definition, its type, its tests, its docs, its callers and callees, every known alternative implementation with the strength of each claim, and its source span. Assembling that today takes an IDE, a test runner, a coverage tool and a documentation generator — and still misses the alternatives, because nothing records them.
 
 It is the most convincing thing to show someone early, and it depends on none of the risky machinery: just ingestion, hashing and storage. See [[Tests and Documentation as Nodes]].
 

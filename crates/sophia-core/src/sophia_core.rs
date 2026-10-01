@@ -1,6 +1,6 @@
 //! `sophia-core` — the Sophia Core calculus (SC), its kernel, and elaboration.
 //!
-//! Design notes: `sophia_core.md`, `markdown/Design/Core Calculus.md`.
+//! Design notes: `sophia_core.md`, `vault/Design/Core Calculus.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! Every frontend elaborates into this language. Without one common language
@@ -32,7 +32,7 @@
 //!
 //! `Rc` plus an intern table gives hash-consing: structural equality becomes
 //! pointer equality, which matters because the conversion checker compares
-//! terms constantly. See markdown/Wiki/Hashing/Hash Consing.md.
+//! terms constantly. See vault/Background/Hashing/Hash Consing.md.
 //!
 //! ## Primitives are part of the calculus, not a library
 //!
@@ -50,7 +50,7 @@
 //! wraps; C++'s signed `+` is UB and LLVM optimises on that assumption. They
 //! are DIFFERENT FUNCTIONS and must get different hashes, or the system will
 //! cheerfully prove a false equivalence.
-//! See markdown/Design/Cross-Language Semantic Hazards.md.
+//! See vault/Design/Cross-Language Semantic Hazards.md.
 //!
 //! ## Two fragments, one door
 //!

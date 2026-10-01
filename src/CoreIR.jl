@@ -3,7 +3,7 @@
 
 Julia-side mirror of the Sophia Core term language.
 
-Design notes: `CoreIR.md`, `markdown/Design/Core Calculus.md`.
+Design notes: `CoreIR.md`, `vault/Design/Core Calculus.md`.
 COMMENTS ONLY — nothing here is implemented.
 
 # Why mirror a type that already exists in Rust
@@ -15,7 +15,7 @@ Two reasons, and the second is the real one.
 2. **Differential testing.** A second, independent implementation of the term
    representation and its canonical serialisation is the cheapest available
    check on the first. The Rust side is in the trusted computing base
-   (`markdown/Design/Trusted Computing Base.md`); an independent Julia
+   (`vault/Design/Trusted Computing Base.md`); an independent Julia
    implementation that agrees on every digest over a large corpus is real
    evidence that the specification, not just the code, is what is being
    implemented.
@@ -62,7 +62,7 @@ append-only store and makes interning safe.
 
 Julia's `+` on `Int64` is `IntArith(:add, 64, true, Wrap)`. C++'s signed `+` is
 `IntArith(:add, 64, true, Poison)`. THEY ARE DIFFERENT NODES and must hash
-differently — see `markdown/Design/Cross-Language Semantic Hazards.md`. The
+differently — see `vault/Design/Cross-Language Semantic Hazards.md`. The
 frontend must never emit the wrong one out of convenience.
 
 # Fragments

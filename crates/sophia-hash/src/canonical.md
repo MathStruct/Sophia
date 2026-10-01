@@ -1,4 +1,8 @@
-# canonical
+#implementation
+
+> Sources: code: `canonical.rs`
+>
+> Theory (CT-ML wiki): [Abstract Syntax with Binding](https://mathstruct.org/CategoryTheory-ML-Wiki/Abstract-Syntax-with-Binding) · [Bisimulation](https://mathstruct.org/CategoryTheory-ML-Wiki/Bisimulation)
 
 Canonicalisation of Sophia Core terms. Source: `canonical.rs` (comments only).
 
@@ -19,7 +23,7 @@ This is also the component that has no analogue in Lean or Coq, whose identity i
 
 ## The hard rule
 
-**No algebraic laws.** No commutativity, associativity, distributivity or constant folding. Those are [[E-Graph|e-graph]] equivalences ([[sophia_equiv]]), not identity. The temptation to fold them in is strong — it would make more programs share hashes and improve cache hit rates — and it is precisely the path to needing a decision procedure for program equality, which does not exist ([[Term Rewriting System]], [[Confluence and Termination]]).
+**No algebraic laws.** No commutativity, associativity, distributivity or constant folding. Those are [e-graph](https://mathstruct.org/CategoryTheory-ML-Wiki/E-Graph) equivalences ([[sophia_equiv]]), not identity. The temptation to fold them in is strong — it would make more programs share hashes and improve cache hit rates — and it is precisely the path to needing a decision procedure for program equality, which does not exist ([[Term Rewriting System]], [[Confluence and Termination]]).
 
 The governing principle: **when in doubt, keep it.** Over-fine costs cache hits; over-coarse costs correctness. Those are not symmetric.
 

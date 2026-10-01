@@ -4,10 +4,10 @@
 The content-addressed code cache — the original motivation of the project.
 
 Design notes: `Precompile.md`,
-`markdown/Design/Content-Addressed Precompilation.md`.
+`vault/Design/Content-Addressed Precompilation.md`.
 COMMENTS ONLY — nothing here is implemented.
 
-markdown/Start Here.md ends with: "Also I wanted to improve precompilation for
+vault/The Original Idea.md ends with: "Also I wanted to improve precompilation for
 Julia. This I wanted to solve with a graph database." Of everything in the
 project this has the clearest success criterion, the shortest path to being
 useful, and — importantly — it needs NONE of the cross-language machinery,
@@ -22,10 +22,10 @@ All three inputs are content hashes, so the function is pure and the result is:
   * cacheable forever
   * shareable across projects, users and machines — with verification by
     rehashing rather than by trust
-    (`markdown/Design/Trusted Computing Base.md`)
+    (`vault/Design/Trusted Computing Base.md`)
   * invalidated EXACTLY: only entries whose `h_run` changed
 
-`h_run` is the ERASED-term hash (`markdown/Design/Hashing and Identity.md`).
+`h_run` is the ERASED-term hash (`vault/Design/Hashing and Identity.md`).
 That matters: changes that do not survive erasure — a docstring, a renamed type
 parameter, an annotation that was already inferred — do not change `h_run` and
 therefore do not invalidate compiled code. Today they do, because invalidation
@@ -35,7 +35,7 @@ is at file and package granularity.
 
 A specialisation's correctness depends on the method table it was compiled
 against: if a more specific method appears, devirtualised call sites are wrong
-(`markdown/Wiki/Julia/World Age.md`). So the key is honestly:
+(`vault/Background/Julia/World Age.md`). So the key is honestly:
 
     h_run = hash(erased term) ⊕ hash(the dispatch decisions it baked in)
 
@@ -46,7 +46,7 @@ instead of everything that transitively touched the function.
 
 THIS IS THE ACTUAL CLAIM OF THIS MODULE, and it is worth stating precisely:
 the win is not caching — `pkgimages` already cache
-(`markdown/Wiki/Julia/Pkgimage.md`) — the win is PRECISION OF INVALIDATION,
+(`vault/Background/Julia/Pkgimage.md`) — the win is PRECISION OF INVALIDATION,
 and precision requires persisting dependency facts that Julia currently holds
 only in memory as backedges and discards at process exit.
 

@@ -1,4 +1,8 @@
-# sophia_hash
+#implementation
+
+> Sources: code: `sophia_hash.rs`
+>
+> Theory (CT-ML wiki): [Abstract Syntax with Binding](https://mathstruct.org/CategoryTheory-ML-Wiki/Abstract-Syntax-with-Binding)
 
 Crate root of `sophia-hash`. Source: `sophia_hash.rs` (comments only — nothing is implemented).
 

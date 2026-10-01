@@ -1,4 +1,6 @@
-# Sophia
+#implementation
+
+> Sources: code: `Sophia.jl`
 
 Julia package entry point. Source: `Sophia.jl` (comments only; every `include` is commented out).
 
@@ -15,7 +17,7 @@ The split is set out in [[Repository Layout]]. Rust owns hashing, the core calcu
 
 The Rust/Julia boundary is a small C ABI (`@ccall` over `extern "C"`; `CBinding` and `Clang_jll` are already in `Project.toml`). So **a project about eliminating FFI is internally built on FFI**.
 
-That is not a contradiction worth being defensive about. The FFI is an implementation detail of the tool. The claim in [[Start Here]] is about how *user* code interoperates — through shared core terms and [[Equivalence and Witnesses|equivalence edges]] — not about how the compiler's own components talk to each other.
+That is not a contradiction worth being defensive about. The FFI is an implementation detail of the tool. The claim in [[The Original Idea]] is about how *user* code interoperates — through shared core terms and [[Equivalence and Witnesses|equivalence edges]] — not about how the compiler's own components talk to each other.
 
 ## Submodules
 

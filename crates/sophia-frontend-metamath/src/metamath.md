@@ -1,4 +1,8 @@
-# metamath
+#implementation
+
+> Sources: code: `metamath.rs`
+>
+> Theory (CT-ML wiki): [Institution](https://mathstruct.org/CategoryTheory-ML-Wiki/Institution)
 
 The Metamath frontend — the [[Roadmap|M0]] target. Source: `metamath.rs` (comments only).
 

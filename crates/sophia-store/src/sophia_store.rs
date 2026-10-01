@@ -1,7 +1,7 @@
 //! `sophia-store` — persistence and querying of the code graph.
 //!
-//! Design notes: `sophia_store.md`, `markdown/Design/Graph Schema.md`,
-//! `markdown/Design/Query Cookbook.md`.
+//! Design notes: `sophia_store.md`, `vault/Design/Graph Schema.md`,
+//! `vault/Design/Query Cookbook.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! ## The property that shapes this whole crate
@@ -12,9 +12,9 @@
 //! different content under an existing hash. That removes the largest
 //! component from the trusted computing base for free — and it means this
 //! crate can be swapped, rewritten or migrated without a security argument.
-//! See markdown/Design/Trusted Computing Base.md.
+//! See vault/Design/Trusted Computing Base.md.
 //!
-//! It is also what markdown/Start Here.md means by "if anyone disagrees with
+//! It is also what vault/The Original Idea.md means by "if anyone disagrees with
 //! our implementation, all he needs to do is rewrite the core and migrate the
 //! database to his own preferred schema".
 //!
@@ -43,7 +43,7 @@
 //! unchanged corpus must write zero new rows.
 //!
 //! `bind` is the only mutating operation in the system. Everything else is
-//! append-only. See markdown/Design/Naming and Change Propagation.md.
+//! append-only. See vault/Design/Naming and Change Propagation.md.
 //!
 //! ## Planned backends
 //!

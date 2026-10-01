@@ -3,7 +3,7 @@
 
 The Julia frontend: Julia code -> Sophia Core terms.
 
-Design notes: `Frontend.md`, `markdown/Design/Roadmap.md` (M3).
+Design notes: `Frontend.md`, `vault/Design/Roadmap.md` (M3).
 COMMENTS ONLY — nothing here is implemented.
 
 This module can only be written in Julia. `Meta.lower`, `code_typed`,
@@ -26,7 +26,7 @@ Julia offers several, and the choice matters:
 
 Lowered IR is the last representation that is still generic (not specialised to
 one argument-type tuple) and is produced by Julia itself rather than by a
-reimplementation. See `markdown/Wiki/Julia/Julia Lowered IR.md`.
+reimplementation. See `vault/Background/Julia/Julia Lowered IR.md`.
 
 Typed IR is ingested too, but as a DIFFERENT kind of node: one per
 specialisation, with its dispatch decisions recorded. It is not the definition;
@@ -46,7 +46,7 @@ Everything Julia leaves implicit, because the hash is taken on the result:
   * **Dispatch.** Which method a call site resolves to is a fact about the
     method table, not about the syntax. Record it as a `DispatchFact` node so
     invalidation can later be computed exactly
-    (`markdown/Design/Content-Addressed Precompilation.md`).
+    (`vault/Design/Content-Addressed Precompilation.md`).
   * **Promotion and conversion.** `1 + 1.0` inserts a `promote`; that becomes
     an explicit `Convert` node, never an implicit coercion.
   * **Overflow.** Julia's `+` on `Int64` WRAPS. Emit `Overflow.Wrap`. Getting
@@ -54,7 +54,7 @@ Everything Julia leaves implicit, because the hash is taken on the result:
   * **Bounds checks.** Present by default; `@inbounds` removes them. An
     `@inbounds` is an unattributable promise today; here it must become an
     explicit assumption node that someone signed for
-    (`markdown/Design/Effects Memory and Resources.md`).
+    (`vault/Design/Effects Memory and Resources.md`).
   * **Indexing and layout.** 1-based, column-major. Elaborate to explicit
     linear-index arithmetic, or no comparison with C code is meaningful.
   * **Effects.** Allocation, mutation, I/O, `ccall` (which is `Unsafe` and
@@ -69,7 +69,7 @@ Julia will not be covered. Things that are genuinely hard or out of scope:
   * `eval` and generated functions — code that does not exist until it runs
   * `ccall` into arbitrary C — model as `Unsafe`, do not pretend
   * tasks, `@async`, `Threads` — Julia has no formal memory model
-    (`markdown/State of the Art/State of the Art - Formal Semantics of Real Languages.md`)
+    (`vault/State of the Art/State of the Art - Formal Semantics of Real Languages.md`)
   * `unsafe_wrap`, `pointer`, `reinterpret` — aliasing becomes unknowable
   * finalizers, `atexit`, global mutable state, world-age-crossing `invokelatest`
 

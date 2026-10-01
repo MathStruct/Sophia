@@ -14,9 +14,11 @@ Every declaration, expression, MLIR operation, LLVM instruction, test, doc comme
 
 ## Where to start
 
-- [[Start Here]] — the original statement of the idea, as it was first written down.
+- [[Map of Content]] — every note, in reading order. [[Start Here]] explains how the vault is organised and its conventions.
+- [[The Original Idea]] — the original statement of the idea, as it was first written down.
 - [[Design Overview]] — what it becomes once made precise: [[Core Calculus]], [[Hashing and Identity]], [[Graph Schema]], [[Equivalence and Witnesses]], the [[Roadmap]], and an honest list of [[Open Problems and Risks]].
-- [[Wiki Home]] — background concept cards: LLVM, MLIR, Unison, hashing, rewriting, semantics, type theory, category theory, Julia internals.
+- [[Background Concepts]] — background concept cards: LLVM, MLIR, Unison, hashing, rewriting, semantics, type theory, Julia internals.
+- [CT-ML wiki, Track F](https://mathstruct.org/CategoryTheory-ML-Wiki/Start-Here) — the mathematics: categorical semantics, logical relations, e-graphs, conjunctive queries, Datalog fixed points, incremental computation. Every design note links to the concepts it uses.
 - [[State of the Art]] — a survey of prior art, and a table of what exists versus what does not.
 - [[Code Map]] — index of the per-file design notes. Every `.rs` and `.jl` file in the repository has a `.md` sibling of the same name explaining what it is meant to do, and those notes are published here too.
 

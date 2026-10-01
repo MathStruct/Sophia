@@ -1,12 +1,12 @@
 //! Effect rows, regions and borrows for Sophia Core.
 //!
-//! Design notes: `effects.md`, `markdown/Design/Effects Memory and Resources.md`.
+//! Design notes: `effects.md`, `vault/Design/Effects Memory and Resources.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! Effects are not a refinement to be added later. They are what an
 //! equivalence claim is ABOUT: two functions cannot be equivalent if they
 //! differ observably, and effects are the observations.
-//! See markdown/Wiki/Semantics/Contextual Equivalence.md.
+//! See https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence.
 //!
 //! ## Effect rows
 //!
@@ -50,7 +50,7 @@
 //! THE CONSEQUENCE THAT MATTERS: Rust's model forbids programs Julia allows,
 //! so Julia -> Rust is REFINEMENT, not equivalence. Emitting an EQUIV edge
 //! there instead of REFINES is a concrete route to an aliasing miscompilation.
-//! See markdown/Design/Equivalence and Witnesses.md.
+//! See vault/Design/Equivalence and Witnesses.md.
 //!
 //! ## Effect operations the kernel needs
 //!

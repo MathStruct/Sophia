@@ -1,4 +1,8 @@
-# Frontend
+#implementation
+
+> Sources: code: `Frontend.jl`
+>
+> Theory (CT-ML wiki): [Institution](https://mathstruct.org/CategoryTheory-ML-Wiki/Institution) · [Compiler Correctness](https://mathstruct.org/CategoryTheory-ML-Wiki/Compiler-Correctness)
 
 Julia code → Sophia Core terms. Source: `Frontend.jl` (comments only). Milestone: [[Roadmap|M3]].
 

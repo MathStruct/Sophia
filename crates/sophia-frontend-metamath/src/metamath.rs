@@ -1,6 +1,6 @@
 //! Metamath frontend — the Roadmap M0 target.
 //!
-//! Design notes: `metamath.md`, `markdown/Design/Roadmap.md`.
+//! Design notes: `metamath.md`, `vault/Design/Roadmap.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! ## Why Metamath is first, and why that is not obvious
@@ -52,7 +52,7 @@
 //!
 //! Note that this is already the knowledge layer in miniature: a theorem is a
 //! Decl, its statement is a Prop, its proof is a Witness. Metamath is a
-//! working example of the shape markdown/Design/Graph Schema.md proposes,
+//! working example of the shape vault/Design/Graph Schema.md proposes,
 //! which is a second reason to start here.
 //!
 //! ## Elaboration into SC

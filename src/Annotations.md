@@ -1,8 +1,12 @@
-# Annotations
+#implementation
+
+> Sources: code: `Annotations.jl`
+>
+> Theory (CT-ML wiki): [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence)
 
 Macros for attaching non-compiled statements to code. Source: `Annotations.jl` (comments only).
 
-This is the user-facing surface for what [[Start Here]] calls annotations: "part of the statements in the graph database will not be there for compilation, instead they prove equivalencies between codes […] or correctness or solve memory management. Or just contain comments, markdown."
+This is the user-facing surface for what [[The Original Idea]] calls annotations: "part of the statements in the graph database will not be there for compilation, instead they prove equivalencies between codes […] or correctness or solve memory management. Or just contain comments, markdown."
 
 They have to be macros because they must expand in the user's own session, beside the code they annotate, with access to the surrounding module.
 
@@ -10,7 +14,7 @@ They have to be macros because they must expand in the user's own session, besid
 
 `@equiv` with no `level` defaults to **`:asserted`** — attributed, revocable, and *not* substitutable by the compiler without an explicit policy opt-in, tainting the provenance of anything built with it.
 
-That is not excessive caution. Asserted claims are not congruences: two sort functions agreeing on every test may differ on stability, and a context observing stability distinguishes them ([[Contextual Equivalence]], [[Equivalence and Witnesses]]). Making `@equiv` *feel* powerful by defaulting to substitutable is the single easiest way to turn this project into a miscompilation generator, and it is the kind of decision that is very hard to walk back once users depend on it.
+That is not excessive caution. Asserted claims are not congruences: two sort functions agreeing on every test may differ on stability, and a context observing stability distinguishes them ([Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence), [[Equivalence and Witnesses]]). Making `@equiv` *feel* powerful by defaulting to substitutable is the single easiest way to turn this project into a miscompilation generator, and it is the kind of decision that is very hard to walk back once users depend on it.
 
 ## `@equiv` should refuse obviously false claims at macro time
 
@@ -29,5 +33,5 @@ Most false equivalences will be honest mistakes about integer overflow or floati
 ## Related
 
 - [[Tests and Documentation as Nodes]] · [[Equivalence and Witnesses]]
-- [[Contextual Equivalence]] · [[Cross-Language Semantic Hazards]]
+- [Contextual Equivalence](https://mathstruct.org/CategoryTheory-ML-Wiki/Contextual-Equivalence) · [[Cross-Language Semantic Hazards]]
 - [[Frontend]] · [[Store]] · [[sophia_equiv]]

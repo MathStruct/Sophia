@@ -4,7 +4,7 @@
 Julia side of the Sophia project: a content-addressed graph database of code,
 its types, its proofs and its intermediate representations.
 
-Design notes: `Sophia.md`, and `markdown/Design/Design Overview.md`.
+Design notes: `Sophia.md`, and `vault/Design/Design Overview.md`.
 
 COMMENTS ONLY — nothing in this package is implemented. Every `include` below
 is commented out and every submodule file contains comments describing what it
@@ -12,7 +12,7 @@ is meant to do. Do not expect anything here to run.
 
 # Why there is a Julia half at all
 
-The split is in `markdown/Design/Repository Layout.md`, and it is not
+The split is in `vault/Design/Repository Layout.md`, and it is not
 arbitrary. Rust owns hashing, the core calculus, the kernel, the store and
 code emission — hot loops over millions of small nodes, plus everything in the
 trusted computing base. Julia owns the parts that only Julia can do:

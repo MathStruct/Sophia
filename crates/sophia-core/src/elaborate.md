@@ -1,4 +1,8 @@
-# elaborate
+#implementation
+
+> Sources: code: `elaborate.rs`
+>
+> Theory (CT-ML wiki): [Category with Families](https://mathstruct.org/CategoryTheory-ML-Wiki/Category-with-Families) · [Institution](https://mathstruct.org/CategoryTheory-ML-Wiki/Institution)
 
 Surface syntax → Sophia Core, plus the normaliser. Source: `elaborate.rs` (comments only).
 
@@ -27,7 +31,7 @@ Every item here appears in [[Cross-Language Semantic Hazards]]; this file is whe
 
 ## The property test to write first
 
-Frontends are supposed to be [[Functor|functors]] ([[Multi-AST Layering]]):
+Frontends are supposed to be [functors](https://mathstruct.org/CategoryTheory-ML-Wiki/Functor) ([[Multi-AST Layering]]):
 
 ```
 elaborate(f ∘ g) ≡ elaborate(f) ∘ elaborate(g)

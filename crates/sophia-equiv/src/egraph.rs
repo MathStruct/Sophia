@@ -1,10 +1,10 @@
 //! E-graph construction, saturation and extraction.
 //!
-//! Design notes: `egraph.md`, `markdown/Design/Compilation as Query.md`.
+//! Design notes: `egraph.md`, `vault/Design/Compilation as Query.md`.
 //! COMMENTS ONLY — nothing here is implemented.
 //!
 //! Intended to be a thin layer over `egg` rather than a reimplementation. The
-//! e-graph literature is mature (see markdown/State of the Art/State of the
+//! e-graph literature is mature (see vault/State of the Art/State of the
 //! Art - Equality Saturation and E-Graphs.md) and Cranelift now ships e-graph
 //! based optimisation in production, so this is one of the lower-risk parts of
 //! the project.
@@ -79,4 +79,4 @@
 //! folding, loop-invariant motion expressed as rewrites.
 //! Will not: that a Julia sort and a C++ sort are equivalent. Superoptimisers
 //! run out of room at a handful of operations, and this is the same search.
-//! See markdown/State of the Art/State of the Art - Superoptimization and Synthesis.md.
+//! See vault/State of the Art/State of the Art - Superoptimization and Synthesis.md.

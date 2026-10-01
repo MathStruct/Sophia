@@ -1,4 +1,8 @@
-# Hashing
+#implementation
+
+> Sources: code: `Hashing.jl`
+>
+> Theory (CT-ML wiki): [Abstract Syntax with Binding](https://mathstruct.org/CategoryTheory-ML-Wiki/Abstract-Syntax-with-Binding) · [Bisimulation](https://mathstruct.org/CategoryTheory-ML-Wiki/Bisimulation)
 
 Julia-side hashing and the cross-implementation conformance suite. Source: `Hashing.jl` (comments only).
 
