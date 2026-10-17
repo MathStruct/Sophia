@@ -2,6 +2,18 @@
 
 > Every note of the Sophia vault, in reading order. How the vault is organised: [[Start Here]]. The mathematics behind the design is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/), Track F; links to it below are ordinary web links.
 
+## Now: the base Sophia (2026-10-17)
+
+The current work. Sophia's first job is to be the content-addressed code store that Moonkale edits. Start at [[Status]].
+
+- [[Requirements]]: Daniel's requirements (SR-01 to SR-22) and Moonkale's (SR-30 to SR-49), each with where it came from. Moonkale's questions are summarised in [[Moonkale Interface Needs]].
+- [[SPEC-001 Base Sophia v0]]: the draft specification (index: [[Specifications]]).
+- [[Decisions]]: S-ADR-0001 to S-ADR-0006, all proposed.
+- [[Theory of the v0 Store]]: why the identities are built this way.
+- [[Implementation Plan v0]]: the phases, not started.
+- [[Problem Log]]: SP-001 to SP-005.
+- [[Reading of the Earlier Vault]]: where the notes below may have misread Daniel. Until that is confirmed, read the sections below as ideas, not requirements.
+
 ## 0. The idea
 
 - [[The Original Idea]] — the project as it was first written down: one graph database for code in every language and all its IRs, equivalence proofs instead of an FFI, hashes instead of names

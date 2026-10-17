@@ -8,7 +8,14 @@ The vault is the whole repository. Its notes sit in four places:
 
 | where | what | example |
 |---|---|---|
-| `vault/Design/` | **design notes**: what Sophia is supposed to be, made precise | `vault/Design/Hashing and Identity.md` |
+| `vault/Requirements/` | **requirements**, numbered `SR-nn`, each with its origin | `vault/Requirements/Requirements.md` |
+| `vault/Specifications/` | **specifications**, numbered `SPEC-nnn`, drafts until Daniel accepts them | `SPEC-001 Base Sophia v0.md` |
+| `vault/Decisions/` | **decisions**, numbered `S-ADR-nnnn` (the `S-` keeps them apart from Moonkale's ADRs) | `S-ADR-0002 Hash the core term, not the text.md` |
+| `vault/Problems/` | **problems**, numbered `SP-nnn`, indexed in the Problem Log | `SP-002 Propagating an update to dependants.md` |
+| `vault/Plans/` | **implementation plans** | `Implementation Plan v0.md` |
+| `vault/Theory/` | **theory** specific to Sophia's decisions (general mathematics stays in the CT-ML wiki) | `Theory of the v0 Store.md` |
+| `vault/templates/` | templates for ADRs, problems and specifications | |
+| `vault/Design/` | **design notes** from the first version of the vault: ideas, not requirements (see *Reading of the Earlier Vault*): what Sophia is supposed to be, made precise | `vault/Design/Hashing and Identity.md` |
 | `vault/State of the Art/` | **surveys** of prior art, one area per note | `State of the Art - Equality Saturation and E-Graphs.md` |
 | `vault/Background/` | **background cards** on engineering topics: LLVM, MLIR, Julia internals, hashing, Unison | `vault/Background/Hashing/Merkle DAG.md` |
 | `crates/*/src/*.md`, `src/*.md` | **per-file design notes**, one beside each Rust or Julia file | `crates/sophia-hash/src/merkle.md` beside `merkle.rs` |
@@ -33,5 +40,8 @@ Formulas are written in **Typst** (the site renders Typst first and falls back t
 - **In Obsidian**: open the repository root as a vault; the *Inline TikZ* and *Wypst* plugins render diagrams and Typst.
 
 ## Adding to it
+
+**Requirements come from Daniel.** An agent records what Daniel said, with the date and place, in [[Requirements]]. An agent's own proposals are marked as such until Daniel confirms them. A specification cites the requirements it meets. A decision is `proposed` until Daniel accepts it. Problems go in the [[Problem Log]]. [[Status]] is kept current.
+
 
 A new design decision gets a note in `vault/Design/` and a line in [[Map of Content]]. A new source file gets a `.md` sibling of the same name saying what it is meant to do. A new *general* concept — something true of programming languages or databases in general, not of Sophia — goes into the CT-ML wiki first, and the Sophia note links to it.

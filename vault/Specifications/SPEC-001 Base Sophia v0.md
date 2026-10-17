@@ -1,0 +1,431 @@
+#design #definition
+
+> **Draft, 2026-10-17 (Claude). Reviewed by the Moonkale agent the same day, and its corrections are applied (§4.3, §6.2, §11, §12, §13, §14.4). Waiting for Daniel's review.** The base Sophia, which Moonkale calls WP-68: a small, partly non-functional content-addressed code store with its own minimal language. It is just enough for Moonkale to store, name, show, edit and query real Sophia definitions instead of designing against a Unison stand-in. This page answers Moonkale's questions 1a–1i and 2–4 ([[Moonkale Interface Needs]]) and cites the requirements it meets ([[Requirements]]). Every decision here is a **proposal** until Daniel accepts it; the open ones are collected in §15.
+>
+> Sources: Unison's codebase format (hashing, names over hashes, SCC cycles; [[Unison Codebase]]); Moonkale `markdown/architecture/Code Graph Schema.md` (WP-65/66/67), `ADR-0028`, `packages/core/src/source/`; contextual modal type theory for holes (Nanevski, Pfenning and Pientka, *Contextual Modal Type Theory*, ACM TOCL 9(3), 2008). code: `crates/sophia-core`, `crates/sophia-hash`, `crates/sophia-store`, `crates/sophia-syntax` (new), `crates/sophia-cli`; Moonkale-side adapter `sources/sophia` (Moonkale's to write).
+>
+> Theory (CT-ML wiki): [Abstract Syntax with Binding](https://mathstruct.org/CategoryTheory-ML-Wiki/Abstract-Syntax-with-Binding) · [Category with Families](https://mathstruct.org/CategoryTheory-ML-Wiki/Category-with-Families) · [Relational Lens](https://mathstruct.org/CategoryTheory-ML-Wiki/Relational-Lens) · [Conjunctive Query](https://mathstruct.org/CategoryTheory-ML-Wiki/Conjunctive-Query) · [Least Fixed Point](https://mathstruct.org/CategoryTheory-ML-Wiki/Least-Fixed-Point). The reasoning behind §4 and §5 is in [[Theory of the v0 Store]].
+
+## 0. Scope in one paragraph
+
+Sophia v0 is a **Rust library plus a SQLite file**. It stores definitions written in **Sophia Core v0**, a small dependently typed core with data types, functions, relations and rules. Each definition is keyed by a BLAKE3 hash of its canonical core term. Names are mutable labels in namespaces that point at those hashes. Every change to the names is appended to a log, which gives the change feed and the history. A definition is shown and edited as text through a **projection**: a printer, and a parser back into the core. v0 typechecks nothing, runs nothing and compiles nothing. Those are later layers that hang off the same identities. Moonkale wraps the library as a `truth: Store` source.
+
+**Non-goals for v0:** execution, a type checker (§8 says where one plugs in), MLIR/LLVM, e-graphs, proofs that get checked, other languages, servers, sync.
+
+## 1. Requirements met
+
+SR-01, 04, 05 (stored, not checked), 06 (stored, not run), 09, 12, 18, 21, 30–34, 37–43, 45, 48, 49 in v0. The shape of SR-07, 08, 13, 19, 35, 36, 44, 46, 47 is fixed now so that v0 does not close them off. [[Requirements]] has the full table.
+
+## 2. Layers: which ones Sophia owns (1f, SR-45)
+
+Moonkale's layers are L0 text, L1 syntax, L2 definitions, L3 elaborated and L4+ IR (Code Graph Schema §2). For Sophia:
+
+| Moonkale layer | In Sophia | Stored? |
+|---|---|---|
+| **L0 Text** | **none as truth.** Text is a projection printed on demand (§6). Two readers can see different text for the same definition. | no |
+| **L1 Syntax** | the **core term** itself. It is a typed tree with binders, and it is what gets stored and hashed. There is no separate concrete syntax tree, and no trivia. | yes: the truth |
+| **L2 Definitions** | definitions, names, namespaces, and the `References` edges derived from the terms | yes: the truth (names) plus a derived index (references) |
+| **L3 Elaborated** | typings by one or more checkers, inferred implicit arguments, solved holes | later; derived, with provenance (§8) |
+| **L4+ IR** | lowered forms (a Sophia IR, MLIR dialects, LLVM IR) | later; derived, with provenance (§10) |
+
+So for Sophia, **L1 and L2 are the truth**, L0 is a view, and L3 and L4 are caches with provenance. This is the inverse of file-backed code, where L0 is the truth. Answer to Moonkale's §11 question: a store-backed definition differs from a file-backed one in four ways. It has no `Defines` edge. Its `NodeId` *is* its content id. It may be `incomplete` (§4.4). It has a lineage (§5.3).
+
+## 3. Sophia Core v0: what a definition is (1c, SR-04, 05, 06, 09, 42)
+
+### 3.1 Definition kinds
+
+Shared Moonkale `def_kind` values are used wherever they fit, so the graph view treats Sophia like any other language. Sophia-only kinds are namespaced.
+
+| `def_kind` | What it is in Sophia | Moonkale kind |
+|---|---|---|
+| `function` | a named term with a declared type: `f : (x : A) → B x`, body a λ-term | shared |
+| `constant` | a named term of non-function type | shared |
+| `type` | an inductive data type, possibly indexed (`Vec A n`) | shared |
+| `variant` | a constructor of a `type`. It is **not** a separate definition in the hash: it is `(type content id, index)`, the same way Unison handles constructors | shared |
+| `test` | a closed term of type `Test`, plus the definitions it is about (`Tests` edges derived from its references) | shared |
+| `sophia:relation` | a predicate with an arity and argument types (`parent : Person → Person → Prop`). It is defined by its rules | namespaced |
+| `sophia:rule` | a Horn clause `head :- body₁, …, bodyₙ`, with logic variables bound like λ-binders, and an optional weight (for Lenticulum's statistical logic programs, LT-24 to LT-29) | namespaced |
+| `sophia:postulate` | a declared type with no body. This is the "partly non-functional" part: you can name and type something you have not written yet. It is also what an axiom is | namespaced |
+
+Not used in v0: `method`, `interface`, `macro`, `field`, `module`. Sophia has no methods yet; dispatch is a later design question (SR-05, "Julia-like"). Interfaces would be records of types later. Modules are namespaces (§5), which are not definitions.
+
+Later kinds, reserved now: `sophia:rewrite` (a rewrite rule `lhs ⇒ rhs` for e-graphs, §10), `sophia:checker` (a type system as a definition, §8), `sophia:dsl` (a syntax extension, §6).
+
+### 3.2 Terms
+
+A core term, written as an abstract grammar. The real definition is a Rust enum in `sophia-core`.
+
+```
+Term ::= Var(i)                    -- de Bruijn index
+       | Ref(content-id)           -- another definition
+       | Self(k)                   -- member k of this definition's recursive group (§4.3)
+       | Con(content-id, j)        -- constructor j of a data type
+       | Lam(Binder, Term)         | App(Term, Term)
+       | Pi(Binder, Term, Term)    -- dependent function type
+       | Let(Binder, Term, Term, Term)   -- type, value, body
+       | Match(Term, Motive, [Case])
+       | Type(level)               | Prop
+       | Lit(Int | Float | String | Bool)
+       | Prim(name)                -- a fixed, versioned list of primitive operations
+       | Hole(h, Term)             -- a hole with an expected type (§4.4)
+       | Unresolved(name path)     -- a name that did not resolve (§4.4)
+Binder ::= (display name, implicit?, usage?)   -- the display name is NOT hashed
+```
+
+Types are terms: `Pi`, `Type` and the data types are ordinary terms. **A declared type is part of the definition and is hashed** (§4.2). Relations and rules use the same terms: a rule is `Rule(binders, head, [body])`. Holes and unresolved names may appear anywhere.
+
+What v0 does *not* have: effects, mutation, arrays, numerical types beyond `Int` and `Float`, or modules as values. These are the "Julia" part of a dependently typed Julia, and they need their own design (SR-05). They are not needed to answer Moonkale's questions.
+
+## 4. Content identity (1a, 1i, SR-01, 40, 48)
+
+### 4.1 What is hashed
+
+**The canonical core term. Never surface text.** Surface text depends on the projection (§6, SR-19), so it cannot be the identity. Consequences:
+- reformatting, renaming locals and changing the projection settings change nothing;
+- two surface syntaxes that elaborate to the same core term give the same definition.
+
+The canonical bytes use the same tag-length-value framing as Moonkale's WP-66 normaliser v1: a little-endian u32 tag length, the tag, a little-endian u32 payload length, the payload. The stream starts with `sophia-core` and the **hash version** (`v0`).
+
+```
+content_digest = BLAKE3( "sophia-core" ‖ hash_version ‖ def_kind ‖ canonical(type) ‖ canonical(body) )
+NodeId         = NodeId::from_content(content_digest)      -- Moonkale's UUIDv5 over the digest
+```
+
+Rules:
+1. **Locals by position.** `Var` is a de Bruijn index, and binder display names are dropped. `f(x) = x` and `f(y) = y` hash the same.
+2. **The definition's own name is never hashed.** Names are labels (§5).
+3. **References by content.** `Ref(id)` hashes the referenced definition's full digest. A change to a dependency gives every dependant a new id. This is Unison's rule, and here it is Sophia's own rule, not a placeholder.
+4. **Constructors** hash as `(type digest, index)`.
+5. **Primitives** hash by name. The primitive table is versioned with the hash version.
+6. **Literals** hash by their exact value, with a type tag.
+
+### 4.2 What is not hashed: types, annotations, docs
+
+| Thing | Hashed? | Why |
+|---|---|---|
+| the **declared** type | **yes** | In a dependent core the type is part of the meaning. `id : Int → Int` and `id : (A : Type) → A → A` are different programs. |
+| an **inferred** type, or another system's typing | no | It is derived. It is an L3 node with provenance (§8). |
+| docs, comments, Markdown | no | They are annotations (§9). Editing a doc keeps the id. |
+| tests, proofs, equivalences | no | They are annotations or separate definitions *about* the definition. |
+| binder display names | no | They are kept as display metadata (§4.6). |
+| rule weights | **yes** | A weight is part of what a rule means. Learned weights that change during training are a later question (§15, Q8). |
+
+### 4.3 Recursive groups
+
+Mutually recursive definitions form a strongly connected component (SCC) of the reference graph, and they are hashed together:
+- Inside the group, references are `Self(k)`, not `Ref`.
+- The canonical order of the members is **the same algorithm as Moonkale's WP-66 v1**. For each possible root, a first-visit traversal assigns member indices. The lexicographically smallest complete serialisation wins. Its digest is the **component digest**.
+- A member's digest hashes the **tagged** component digest and the member's canonical index as a little-endian u32.
+- If several roots give the same minimal serialisation, each member takes its smallest index across those roots. Automorphic members, which are structurally indistinguishable, may therefore share a content id.
+- Root candidates share one work budget, so there is no unbounded search for graph isomorphisms.
+
+These are the exact rules of Moonkale's Code Graph Schema, section "WP-66 normalizer v1 → Recursive components". Where the two texts differ, that section is authoritative until Sophia's implementation pins its own.
+
+**Shared algorithm, never shared ids.** Sophia streams start with `sophia-core` and Moonkale's with a language and normaliser tag. A Sophia id and a Moonkale id are therefore never equal, even for "the same" function. Equality across languages is a proof (§9), never a hash collision. A shared crate for the canonical framing and the SCC ordering is a later option (§15, Q6).
+
+### 4.4 Holes and unresolved names
+
+Both are **allowed in the store**. A definition that contains either is marked `status = incomplete`.
+
+- `Hole(h, T)` is a hole with an expected type `T`. It hashes as its tag, its local index `h` (numbered in first-visit order within the definition) and the canonical `T`. Two definitions that differ only in where their holes are get different ids, which is right. Filling a hole is an ordinary edit: a new definition, with the name moved to it (§12.3). In type-theory terms a hole is a metavariable of contextual modal type theory: a term `?h : T` in the context where it occurs. That is what a checker will need later ([[Theory of the v0 Store]]).
+- `Unresolved(path)` is a name that did not resolve when the text was parsed. It hashes as `unresolved ‖ path`, so the id is never empty and is never mistaken for a real reference (this matches Code Graph Schema §4, "The content id", rule 5). When the name is defined later, the definition is **not** silently rewritten. Instead, `sophia resolve` (and an equivalent edit in Moonkale) creates a new, resolved definition and moves the name to it, as for any edit.
+
+Incomplete definitions can be named, drawn, printed and edited. Later, they cannot be lowered or run.
+
+### 4.5 Hash versioning and migration (SR-13)
+
+- The hash version is the first field of every canonical stream. A change to the core grammar, the primitive table or the canonical encoding bumps it. The same code never silently gets a different id under the same version.
+- **Migration** reads every definition under version *n*, re-encodes it under *n+1* in dependency order, and writes a `migrated_to(old_id, new_id, version)` table.
+- Names move to the new ids. Annotations are re-pointed through the table and marked stale, because a proof checked against the old term has to be checked again.
+- Old ids keep resolving through the table, so links and comments survive.
+- This is also how "replace the core and migrate" (SR-13) works: a different core is a different hash version with its own re-encoding.
+
+### 4.6 Display metadata
+
+Binder display names (and later, preferred notation per term) are stored beside the term, keyed by `(content id, binder path)`. They are not hashed.
+
+Two α-equivalent definitions written with different local names are **one** definition, with whichever display names were stored first. Unison behaves the same way. This is a known wart ([[SP-003 Display names of alpha-equivalent definitions]]).
+
+## 5. Names, namespaces and handles (1b, 1d, SR-41, 43)
+
+### 5.1 Names
+
+- A **name** is a path in a namespace: `lenticulum.factor.gaussian`. It points at **one** definition by content id.
+- A **namespace** is the set of names under a prefix. It is not a definition and has no hash in v0.
+- **Aliases**: several names may point at the same definition. That is normal, and none of them is special.
+- **Re-exports** are aliases with a `visibility` (`public`, `private`). Visibility only affects name resolution in the parser (§6.2) and the printer's choice of name.
+- **Rename** moves the name: delete the old path, add the new one, same target. The definition and its id do not change, and nothing that references it by content changes either. This is Unison's behaviour, adopted as Sophia's.
+- **Update** (an edit) points an existing name at a new definition. Dependants are **not** updated automatically in v0. They keep the old id, and the store reports how many still refer to it. Propagating updates is a later feature ([[SP-002 Propagating an update to dependants]]).
+- **Delete** removes a name. The definition stays in the store, immutable. Unnamed definitions are garbage-collected only by an explicit `sophia gc`.
+
+### 5.2 History and branches
+
+- Every change to a name is a row in an append-only **name log**: `seq, op, path, old target, new target, lineage, actor, time`. That log *is* v0's history, and it is the change feed (§7).
+- **Branches** (Unison-style namespace history as a hash DAG) are **later**. The shape is fixed now: a branch is a named log, and a namespace snapshot can be hashed as a Merkle tree of `(path, target)` pairs. Moonkale's Version Management can then treat it like any hash DAG.
+
+### 5.3 Handles: what stays stable while you edit (1b)
+
+Moonkale asked whether the content id is enough, or whether a store-backed definition needs a stable "slot", like a file location. **Proposal: three handles, each stable under different changes** ([[S-ADR-0003 Identity is content, names and lineage]]):
+
+| Handle | Stable under | Changes on | Moonkale uses it for |
+|---|---|---|---|
+| **content id** | moves, renames, reformatting, projection changes | any change in meaning | proofs, equivalences, caches, "is this the same thing" |
+| **name** (`NodeId::derive(source, "name:" + path)`) | edits (the name moves to the new content) | rename | navigation, links in prose, an open tab |
+| **lineage** (`NodeId::derive(source, "lineage:" + first content id)`) | edits and renames | never; a lineage only grows | comments, review threads, "the history of this function", a tab that survives a rename |
+
+- A **lineage** begins when a definition is created fresh. An edit of a definition adds the new content to the lineage of the one that was edited, with a `Supersedes(new → old)` edge. A rename keeps the lineage.
+- Copying a definition and changing the copy starts a new lineage that records `ForkedFrom`.
+- If two lineages arrive at the same content, that content belongs to both. Lineages are a many-to-many relation, not a tree.
+
+This is the store-backed analogue of a file location: it answers "the thing I was editing" without making identity depend on place.
+
+## 6. Text as a projection (SR-19, 34)
+
+### 6.1 The printer
+
+`print(definition, projection) → (text, source map)`. The **canonical projection** for v0 is a Julia-flavoured surface (the answer to SR-05, "a dependently typed Julia", needs Daniel: §15, Q2):
+
+```julia
+function add(x::Int, y::Int)::Int
+    x + y
+end
+
+data Vec(A::Type, n::Nat)
+    nil  :: Vec(A, 0)
+    cons(x::A, xs::Vec(A, n)) :: Vec(A, n + 1)
+end
+
+relation parent(::Person, ::Person)
+rule ancestor(X, Y) :- parent(X, Y)
+rule ancestor(X, Z) :- parent(X, Y), ancestor(Y, Z)
+
+postulate sort(xs::List(Int))::Sorted(xs)        # typed, not yet written
+
+test add_commutes = @test add(2, 3) == add(3, 2)
+```
+
+The source map relates each span of text to a term path (`definition id / child index / …`). Moonkale uses it to place annotations, diagnostics and selections.
+
+### 6.2 The parser
+
+`parse(text, projection, namespace) → Result<[Core definition], [Diagnostic]>`.
+- Names resolve against the current namespace. A name that fails becomes `Unresolved` with a warning, not an error, so you can save a definition before its dependencies exist (§4.4).
+- Syntax errors are diagnostics with ranges, and nothing is stored.
+- **The parser is bounded** (Moonkale Security.md, "bounded parsers"). It has an explicit limit on input size (default 512 KiB per text), nesting depth (default 128) and the number of definitions per text (default 4,096), matching Moonkale's WP-66 limits. Exceeding a limit is a diagnostic, never a crash or a partial store.
+- Nothing in the core records which projection wrote it. A definition parsed from a Rust-flavoured projection and one parsed from a Julia-flavoured projection are the same definition if they elaborate to the same term.
+
+### 6.3 The rules for projections (from North Star §11)
+
+1. **A projection never changes the store.** Changing a setting changes no id and no history.
+2. **Round trip.** For every editable projection `p`, `parse(print(d, p), p) = d` for every complete `d`. This is a property test in `sophia-syntax`, run over every stored definition.
+3. **Semantic, not textual.** Sugar is chosen per typed term node: a 1-based index is shown only where the term *is* an index into a sequence. v0 has no sequences, so the index-base case is designed but not built.
+4. v0 ships **one** projection, the canonical one above. The `[render]` settings of WP-30 map onto a `Projection` struct later. v0 only guarantees that nothing in the core prevents it: no keyword spelling, no index base and no layout is stored.
+
+## 7. The change feed (SR-37)
+
+- `changes_since(seq)` returns the name-log rows after `seq`, plus the ids of definitions and annotations added after `seq`. A new definition without a name is still a change, because Moonkale may be drawing an unnamed draft.
+- The `seq` is a u64 that increases per store. It is also the source's `Version` for namespaces.
+- v0 has no push channel. Moonkale polls, as it does today. A SQLite update hook can drive a push channel later.
+
+## 8. Typings and checkers (1e, SR-07, 35, 44)
+
+Not built in v0. The structure is fixed now:
+
+- A **typing** is an L3 node `sophia:Typing { system, checker, checker_version, subject, type, status, input, derived_at }`:
+  - `subject` is a content id, or a term path inside one;
+  - `type` is a core term, hashed and stored like any term;
+  - `status` is `ok`, `error(diagnostics)` or `unknown`;
+  - `input` is the subject's content id plus the content ids of everything the checker looked at.
+- **Several systems type the same term** (dependent, cubical, effects, …). Each one gives its own `Typing` nodes. They are never merged into one "type" field (North Star §5).
+- **Edge:** `TypeOf(definition → Typing)`, with provenance. This confirms Moonkale's assumption of "L3 nodes connected by `TypeOf` with provenance".
+- **Staleness:** a typing is stale when any id in its `input` is no longer what the subject's current names resolve to. Because subjects are content ids, a typing of an immutable term is never wrong. It can only be *irrelevant*, when no name points at that term any more.
+- The first checker (v0.x, [[Implementation Plan v0]] phase 4) is a bidirectional checker for the non-dependent fragment. Its job is to exercise this structure, not to be the real checker.
+
+## 9. Annotations and proofs (1h, SR-08, 47)
+
+**Moonkale's plan is confirmed:** proofs and docs are annotations that name their subjects by content id and go stale when the content changes. Sophia stores them in the same store, so they travel with the code.
+
+```
+sophia:Annotation {
+  id          -- content-addressed: BLAKE3 of (kind, subjects, payload, checker, checker_version)
+  kind        -- doc | comment | equivalence | implication | refines | memory_safe | race_free | terminates | …
+  subjects    -- ordered list of content ids or term paths (an equivalence has two)
+  payload     -- doc: Markdown text. proof: the evidence, by content id (a Sophia term, a Lean term hash, an SMT certificate blob, a rewrite chain)
+  checker, checker_version   -- who can check the evidence; absent for docs and for `asserted`
+  status      -- asserted | checked(at) | failed(diagnostics) | stale
+  input       -- the content ids the check depended on
+}
+```
+
+- A **doc** has no checker and never goes stale: a doc on an immutable term stays true of that term. When an edit moves a name to new content, the editor offers to carry the doc forward along the lineage. It does not do it silently.
+- An **equivalence** between two content ids is an annotation, not an edge of the code graph. This matches Code Graph Schema §6. Its strength comes from the evidence. The ladder from `alpha` to `asserted` in [[Equivalence and Witnesses]] is a good list of strengths, but the cross-language parts of that note are not v0.
+- v0 stores docs and `asserted` annotations. Checked proofs come later, with Moonkale's WP-19.
+
+## 10. E-graphs and IR: later (1f, 1g, SR-10, 11, 36, 46)
+
+These are sketched now so that v0 does not block them.
+
+- **E-graphs:**
+  - An **e-node** is a term node whose children are e-classes.
+  - An **e-class** is a node `sophia:EClass` with `Member` edges to term content ids. An equivalence annotation can name a content id, and an e-class can contain a definition's root term, so **yes, an equivalence can point at a content id**.
+  - **Derived, persisted as a cache**: an e-graph is the result of running a rule set to saturation over some terms. Its provenance is the rule set's ids, the input term ids and the iteration limits.
+  - A rewrite step is a `RewroteTo { rule }` edge. That is the "which rewrite produced which member" Moonkale wants to draw.
+  - Rewrite rules are definitions (`sophia:rewrite`), so they are content-addressed too.
+- **IR:**
+  - L4 nodes are content-addressed per unit: a lowered function, an MLIR region, an LLVM function.
+  - `LoweredTo(core term → IR unit)` edges carry the lowering tool and its version.
+  - Each layer's own kinds are namespaced (`mlir:`, `llvm:`).
+  - Whether IR is persisted or regenerated is an open measurement (the old Roadmap's M2 question, which still stands).
+
+## 11. Queries (SR-12, 32)
+
+- **v0: dialect `sql`, read-only**, over documented views. The result is a `Table`. Any column named `id` or ending in `_id` that holds a content id or a name id is *also* returned as nodes, so Moonkale can draw the result as a subgraph as well as show it as a table. The views:
+  - `definitions(id, kind, status, hash_version)`
+  - `names(name_id, path, target_id, visibility)`
+  - `refs(from_id, to_id)`: direct references, derived from the terms
+  - `lineage(lineage_id, id, seq)`
+  - `annotations(id, kind, subject_id, status)`
+  - `log(seq, op, path, old_id, new_id)`
+- **`sql` is enforced as read-only**, not just documented as such (Moonkale Security.md):
+  - a read-only SQLite connection, plus an authorizer that allows only `SELECT` on the documented views;
+  - no `ATTACH`, no `PRAGMA` writes, no functions that touch files;
+  - a row cap that sets `Table.truncated`;
+  - a step budget (SQLite's progress handler) that aborts long queries.
+- The adapter implements `Source::classify(dialect, text) → Risk`, so Moonkale's policy can gate queries written by agents.
+- **Later: dialect `datalog`.** It needs a new `TextDialect` variant, which is a change to Moonkale's core, made on Moonkale's side. Rules over the same relations, for example "every transitive dependant of `f`" or "every definition with a stale proof". It is evaluated by Sophia itself: semi-naive evaluation for recursive rules, compiled to SQL where the rules are not recursive.
+- **An idea to confirm (§15, Q4):** Sophia's own `relation`/`rule` definitions (§3.1) and the query dialect could be **the same Datalog**. A query would then just be a rule that has not been given a name, and the "Prolog-like elements" of the language (SR-06) would be the code graph's own query language. That would answer North Star §8 and SR-06 with one mechanism.
+
+## 12. The interface Moonkale wraps (SR-30, 31, 33, 38)
+
+### 12.1 Crates and the descriptor
+
+- Sophia provides `sophia-store` (the `Store` trait plus SQLite) and `sophia-syntax` (printer and parser). Neither depends on Moonkale.
+- Moonkale's adapter `sources/sophia` depends on them and implements `moonkale_core::Source`. That keeps Sophia usable from its own CLI and other tools, and keeps Moonkale's crate graph the way its `check-deps.py` wants it.
+- The descriptor: `truth: Store`, `family: Graph`, `capabilities { read: true, write: true, watch: true (polling), text_query: Some(TextDialect::Sql) }`, `root` = the root namespace node. A separate `Code` family would be a change to `moonkale-core` and is left out of v0.
+
+### 12.2 Nodes, edges and reads
+
+| Moonkale node | id | kind / properties |
+|---|---|---|
+| namespace | `derive(source, "ns:" + path)` | `sophia:Namespace` |
+| name | `derive(source, "name:" + path)` | `Name`; `visibility` |
+| definition | `from_content(digest)` | `Definition`; `def_kind`, `lang = sophia`, `frontend = sophia-syntax`, `frontend_version`, `content_id`, `hash_version`, `status` |
+| lineage | `derive(source, "lineage:" + first digest)` | `sophia:Lineage` |
+| annotation | `from_content(annotation digest)` | Moonkale's existing `NodeKind::Annotation`, with `sophia_kind` (`doc`, `equivalence`, …) and `status` as properties, so the annotation layer and badges work unchanged |
+| term (on demand) | `from_content(term digest)` | `sophia:Term`; `tag` |
+
+| Edge | From → to |
+|---|---|
+| `Contains` | namespace → namespace or name (lexical structure only) |
+| `Names` | name → definition |
+| `References` / `Calls` | definition → definition (`Calls` when the reference is in head position of an application) |
+| `Tests` | test → definition |
+| `Supersedes` | definition → definition it replaced (same lineage) |
+| `InLineage` | definition → lineage |
+| `Annotates` | annotation → subject (Moonkale's existing `EdgeKind::Annotates`) |
+| `sophia:Subterm` | definition or term → child term, with a `position` property. It is **not** `Contains`: shared subterms make a DAG, and `Contains` would put terms in the explorer tree, which the views treat as a tree |
+
+- `Query::Node`, `Children` and `Neighbours` are answered from these.
+- `Children(namespace)` gives its names and sub-namespaces.
+- `Children(definition)` gives nothing by default. The root term is returned only when terms are explicitly asked for (`Neighbours` over `sophia:Subterm`). Terms are fetched lazily, because the term DAG can be large and Moonkale draws definitions first.
+- `All { limit, kinds }` lists definitions and names.
+- **Names are primary here.** For file-backed code, Moonkale's graph panel hides `Name` nodes from its normal symbol filter, because there names are metadata. For a Sophia source the name is what you open and navigate, so the adapter or the filter has to show them. This is on Moonkale's side, noted so that the WP-68 acceptance test doesn't trip on it.
+- **Who owns which annotations:** proofs, docs and equivalences live in Sophia's store. Review comments made in Moonkale stay in Moonkale (`.moonkale/annotations.jsonl`), anchored to the **lineage** id, so they survive edits and renames.
+
+### 12.3 Edits through the existing `Op` set
+
+v0 needs **no new `Op` variants**. The file-shaped operations map onto the store:
+
+| Moonkale `Op` | On Sophia |
+|---|---|
+| `fetch_text(name or definition)` | print the definition with the canonical projection. `Version` = the store `seq` at which this name last changed (for a name), or 0 for a bare definition, which is immutable |
+| `WriteText { node: name, expected, patch }` | apply the patch to the printed text → parse → hash → store the new definition (or find that it already exists) → move the name → append to the lineage. It is refused if the name's `seq` ≠ `expected` (an optimistic check). It returns the name's new `Version`. The new content id is a property of the name's target |
+| `CreateText { parent: namespace, name, text }` | parse and store a new definition under `parent.name`. It starts a new lineage |
+| `Rename { node: name, to }` | move the name. The result's `node` is the new name id |
+| `Delete { node: name }` | remove the name. The definition stays |
+| `CreateDir { parent, name }` | create an empty namespace |
+| `WriteText` on a **definition** (not a name) | refused, because a definition is immutable. The error says to open it through a name |
+
+- **Re-ingest is a no-op.** If the new text hashes to the content the name already points at, nothing is written, and the unchanged `Version` is returned. If it hashes to a *different* existing definition, the name moves there and nothing new is stored.
+- **Opening a definition for editing resolves it to a name.** When a definition is clicked in the graph, `fetch_text(definition)` shows it read-only. To edit it, the adapter picks a name with this rule:
+  1. the public name with the lowest `seq` (the oldest);
+  2. if there is no public name, the private name with the lowest `seq`;
+  3. ties are broken by the shortest path, then lexicographically.
+
+  A definition with no name opens read-only, with an "add name" action, which is `CreateText` of its printed text under a chosen path. That writes nothing new and only adds the name.
+- **Path spelling.** Moonkale passes relative paths with `/`, and Sophia names use `.`. The adapter maps `a/b/c` ↔ `a.b.c`. A path segment must be non-empty, must not start with a digit, and may contain Unicode letters, digits, `_` and `!`, plus operator names in backquotes (`` `+` ``). It may not contain `/`, `.`, whitespace or control characters. A rejected path is a `SourceError` naming the offending segment.
+- Parse failures come back as `SourceError` with diagnostics (ranges in the printed text), and the name is left unchanged.
+- **Annotations** need one new op later (`Annotate`/`Unannotate`), or a pseudo-text node per annotation. That is Moonkale's choice ([[SP-004 Moonkale operations are file-shaped]]).
+- **Typecheck on demand** is a later `refresh(node)` that runs the configured checkers and adds `Typing` nodes.
+
+## 13. Storage (SR-17, 39)
+
+**SQLite, behind a `Store` trait** ([[S-ADR-0005 SQLite first behind a store trait]]):
+- it is embedded, and builds on Linux, macOS, Windows and Android;
+- Moonkale already ships it (ADR-0014);
+- transactional writes suit small edits;
+- any later tool (for example Julia analytics, SR-24) can open the same file.
+
+`sophia-store` uses `rusqlite` with the `bundled` feature, which also builds with the Android NDK. It does **not** need to build for `wasm32`: Moonkale's web client never opens the store, only its server does.
+
+The graph databases on Daniel's list stay candidates for a second backend once there are queries that need them. DuckDB is a candidate for analytical reads.
+
+Tables (v0):
+
+```sql
+term(digest BLOB PRIMARY KEY, tag TEXT, payload BLOB)            -- hash-consed core terms
+definition(digest BLOB PRIMARY KEY, kind TEXT, type_digest BLOB, body_digest BLOB,
+           component_digest BLOB, component_index INT, hash_version TEXT, status TEXT)
+display(digest BLOB, binder_path TEXT, name TEXT, PRIMARY KEY(digest, binder_path))
+ref(from_digest BLOB, to_digest BLOB, calls INT, PRIMARY KEY(from_digest, to_digest))   -- derived
+name(path TEXT PRIMARY KEY, target BLOB, visibility TEXT, seq INT)
+name_log(seq INTEGER PRIMARY KEY, op TEXT, path TEXT, old_target BLOB, new_target BLOB,
+         lineage BLOB, actor TEXT, at INT)
+lineage(lineage BLOB, digest BLOB, seq INT, supersedes BLOB, PRIMARY KEY(lineage, digest))
+annotation(digest BLOB PRIMARY KEY, kind TEXT, subjects BLOB, payload BLOB,
+           checker TEXT, checker_version TEXT, status TEXT, input BLOB)
+migrated_to(old BLOB, new BLOB, hash_version TEXT)
+meta(key TEXT PRIMARY KEY, value TEXT)                            -- store format version, created_at
+```
+
+## 14. Acceptance (SR-49, Moonkale WP-68)
+
+v0 is done when all of the following hold:
+
+1. **Fixture tests in `sophia-store`**, each one the store-backed twin of Code Graph Schema §9:
+   - renaming a local keeps the content id;
+   - renaming a definition keeps its content id and lineage, and changes the name;
+   - editing a doc keeps the content id;
+   - editing a body gives a new content id, keeps the lineage, and leaves dependants on the old id (reported);
+   - a mutually recursive pair shares a component digest;
+   - a hole and an unresolved name are stored, hashed and marked `incomplete`;
+   - re-ingesting the same text writes nothing new;
+   - print/parse round trip over every stored definition.
+2. **`sophia` CLI:** `init`, `add <file>`, `ls <ns>`, `show <name>`, `edit <name>`, `mv`, `rm`, `log`, `sql`, `resolve`.
+3. **A sample store** with about 20 definitions: Peano naturals, `Vec`, `add` with its test, an ancestor relation with its rules, a postulate, a mutually recursive `even`/`odd`, and a definition with a hole.
+4. **In Moonkale** (Moonkale's side):
+   - the sample store opens as a source;
+   - its namespaces, names and definitions draw in the graph view;
+   - one definition is edited as text, and its name moves to the new content id;
+   - a parse error during `WriteText` shows as diagnostics in the editor and leaves the name unchanged;
+   - a rename shows up through `changes_since`.
+
+## 15. Open questions for Daniel
+
+| # | Question | Proposal |
+|---|---|---|
+| Q1 | Is the base Sophia the right next step for Moonkale, and does it replace Moonkale's Unison source (WP-18) as the schema test? | **Answered by Daniel, 2026-10-17: keep both.** Moonkale builds the Unison source (WP-18) and the Sophia source (WP-68). "It should be little problem to do both." Each checks the store-backed schema independently (SR-23). |
+| Q2 | What should the canonical surface look like? Julia-flavoured as in §6.1, or something else? | Julia-flavoured, since the stated aim is "a dependently typed Julia". |
+| Q3 | Implementation language for v0 ([[S-ADR-0004 Rust for the store, Julia for experiments]]). | **Answered by Daniel, 2026-10-17: Rust only.** Julia maybe much later, for ML and analytics on the code graph (SR-24). |
+| Q4 | Should the language's relations/rules and the query dialect be one Datalog (§11)? | Yes, as the design target. v0 ships `sql` only. |
+| Q5 | Is the three-handle model (content, name, lineage) right, or is lineage over-engineering for v0? | Keep it. It is small, and Moonkale's comments and tabs need it. |
+| Q6 | Should Sophia and Moonkale share one crate for canonical framing and SCC ordering? | Later, once both are stable. Copy the algorithm for now. |
+| Q7 | Is the store per project, per user, or one big store (like Unison's codebase)? | One store per project directory in v0. |
+| Q8 | Are rule weights part of the hash? Learned weights change during training. | Declared weights are hashed. Learned weights are annotations with provenance (a training run). |
+| Q9 | Which of the old vault's goals still stand (cross-language equivalence, Julia precompilation, Metamath and Lisp milestones)? | See [[Reading of the Earlier Vault]]. |
+
+## Related
+
+- [[Requirements]] · [[Moonkale Interface Needs]] · [[Implementation Plan v0]] · [[Theory of the v0 Store]] · [[Problem Log]]
+- Decisions: [[S-ADR-0001 Sophia's first job is Moonkale's code store]] · [[S-ADR-0002 Hash the core term, not the text]] · [[S-ADR-0003 Identity is content, names and lineage]] · [[S-ADR-0004 Rust for the store, Julia for experiments]] · [[S-ADR-0005 SQLite first behind a store trait]] · [[S-ADR-0006 Edits through projections and the existing operations]]
+- The earlier design notes, read critically: [[Hashing and Identity]] · [[Graph Schema]] · [[Core Calculus]] · [[Naming and Change Propagation]]
