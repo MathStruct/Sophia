@@ -21,7 +21,7 @@ None of them is a Moonkale, driver or async type.
 | `Query::Node` | `node(key)` |
 | `Query::Children` | `children(key)`: sub-namespaces and names; the root also holds `sophia:Settings` |
 | `Query::Neighbours` | `neighbours(key, depth, dir, limit)` |
-| `Query::All` | `all(limit)` |
+| `Query::All` | `all(limit)`: namespaces, names, definitions and named nominal entities, with `Contains`, `Names` and the dependency edges among them; `truncated` when the cap cuts |
 | `Query::Text { "sql" }` | `sql(query, limits)` (SQLite): table plus subgraph |
 | `fetch_text` | `fetch_text(key)`: names print their whole recursive group in the reader's profile; definitions print read-only; settings print the reader's profile |
 | `apply(WriteText)` | `write_text(key, expected, text)` |

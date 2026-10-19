@@ -457,24 +457,86 @@ impl<B: Backend + Sync> Interface<B> {
         })
     }
 
-    /// Definitions and names, capped.
+    /// Everything, capped at `limit` nodes (Moonkale's `Query::All`):
+    /// namespaces, names, definitions and named nominal entities, with the
+    /// `Contains` and `Names` edges and the dependency edges (`References`,
+    /// `Calls`, `Tests`, `MethodOf`, `sophia:Supersedes`, `sophia:InLineage`
+    /// among returned nodes). `truncated` is set when the cap cuts.
     pub fn all(&self, limit: usize) -> Result<Subgraph> {
         self.store.read(|tx| {
             let mut g = Subgraph::default();
-            for n in tx.names_under("", limit)? {
-                if let Some(v) = self.node_in(tx, &Key::name(&n.path))? {
+            let mut keys: Vec<Key> = Vec::new();
+            let mut seen: HashSet<Key> = HashSet::new();
+            let mut push = |k: Key, keys: &mut Vec<Key>| {
+                if seen.insert(k.clone()) {
+                    keys.push(k);
+                }
+            };
+            let names = tx.names_under("", usize::MAX)?;
+            // Namespaces: every proper prefix of a name, and empty namespaces.
+            push(Key::ns(""), &mut keys);
+            let mut spaces = BTreeSet::new();
+            for n in &names {
+                let segs = sophialang_syntax::split_path(&n.path);
+                for i in 1..segs.len() {
+                    spaces.insert(segs[..i].join("."));
+                }
+            }
+            for (k, _) in tx.meta_prefix("ns/")? {
+                spaces.insert(k[3..].to_string());
+            }
+            for sp in &spaces {
+                push(Key::ns(sp), &mut keys);
+            }
+            for n in &names {
+                push(Key::name(&n.path), &mut keys);
+            }
+            for n in &names {
+                push(Key::Content(n.target.digest()), &mut keys);
+            }
+            for d in tx.records_of_kind(None, usize::MAX)? {
+                push(Key::Content(d), &mut keys);
+            }
+            if keys.len() > limit {
+                keys.truncate(limit);
+                g.truncated = true;
+            }
+            for k in &keys {
+                if let Some(v) = self.node_in(tx, k)? {
                     g.nodes.push(v);
                 }
-                g.edges.push(EdgeView { from: Key::name(&n.path), to: Key::Content(n.target.digest()), kind: "Names".into(), props: vec![] });
             }
-            for d in tx.records_of_kind(None, limit)? {
-                if let Some(v) = self.node_in(tx, &Key::Content(d))? {
-                    g.nodes.push(v);
-                }
-            }
-            g.truncated = g.nodes.len() >= limit;
             let present: HashSet<Key> = g.nodes.iter().map(|n| n.key.clone()).collect();
-            g.edges.retain(|e| present.contains(&e.from) && present.contains(&e.to));
+            // Contains: namespace → sub-namespace and namespace → name.
+            for k in &present {
+                if let Key::Derived(s) = k {
+                    let parent = |p: &str| Key::ns(parent_ns(p));
+                    let from = if let Some(p) = s.strip_prefix("ns:").filter(|p| !p.is_empty()) {
+                        Some(parent(p))
+                    } else {
+                        s.strip_prefix("name:").map(parent)
+                    };
+                    if let Some(from) = from.filter(|f| present.contains(f)) {
+                        g.edges.push(EdgeView { from, to: k.clone(), kind: "Contains".into(), props: vec![] });
+                    }
+                }
+            }
+            let dependency = ["Names", "References", "Calls", "Tests", "sophia:Supersedes", "sophia:InLineage"];
+            for k in &keys {
+                if !present.contains(k) {
+                    continue;
+                }
+                let dir = match k {
+                    Key::Content(d) if tx.record(d)?.is_none() => Direction::In, // nominal: MethodOf members
+                    _ => Direction::Out,
+                };
+                for e in self.edges_at(tx, k, dir)? {
+                    let wanted = dependency.contains(&e.kind.as_str()) || e.kind == "MethodOf";
+                    if wanted && present.contains(&e.from) && present.contains(&e.to) && !g.edges.contains(&e) {
+                        g.edges.push(e);
+                    }
+                }
+            }
             Ok(g)
         })
     }

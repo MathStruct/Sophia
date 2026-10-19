@@ -151,7 +151,23 @@ macro_rules! both {
     };
 }
 
-both!(browsing, editing, renaming_and_feed, profiles_switch, creating);
+fn all_draws_structure<B: Backend + Sync>(i: Interface<B>) {
+    let g = i.all(1000).unwrap();
+    assert!(!g.truncated);
+    let has = |from: &Key, to: &Key, kind: &str| g.edges.iter().any(|e| &e.from == from && &e.to == to && e.kind == kind);
+    let id = |p: &str| Key::Content(i.store().resolve(p).unwrap().unwrap().target.digest());
+    assert!(has(&Key::ns(""), &Key::ns("sample"), "Contains"));
+    assert!(has(&Key::ns("sample"), &Key::name("sample.add"), "Contains"));
+    assert!(has(&Key::name("sample.add"), &id("sample.add"), "Names"));
+    assert!(has(&id("sample.add"), &id("sample.Nat"), "References"));
+    assert!(has(&id("sample.add_test"), &id("sample.add"), "Tests"));
+    assert!(has(&id("sample.ancestor_base"), &id("sample.ancestor"), "MethodOf"));
+    assert!(g.nodes.iter().any(|n| n.kind == "Directory" && n.label == "sample"));
+    let small = i.all(5).unwrap();
+    assert!(small.truncated && small.nodes.len() == 5);
+}
+
+both!(all_draws_structure, browsing, editing, renaming_and_feed, profiles_switch, creating);
 
 trait OtherReader {
     fn open_existing_for_test(i: &Self, reader: &str) -> String;
