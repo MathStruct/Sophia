@@ -7,8 +7,12 @@
 //! - For each candidate root, a first-visit traversal over references in
 //!   stream order assigns member indices.
 //! - The lexicographically smallest complete serialisation wins.
-//! - If several roots tie, each member takes its smallest index across them,
-//!   so structurally indistinguishable members may share an index.
+//! - If several roots tie, each member takes its smallest index across them.
+//!   Members that share it are related by an automorphism of the group, so
+//!   they compute the same thing; they become **one class** (the quotient).
+//!   Classes are numbered densely in order of that index, and the component
+//!   is serialised over its classes: `f() = g(); g() = f()` is stored as one
+//!   member, identical to `h() = h()` (review of 2026-10-20, P0).
 //! - All candidates share one work budget.
 
 /// Strongly connected components of a graph with nodes `0..n`, in
@@ -114,15 +118,18 @@ pub enum OrderError {
 /// The canonical order of one component.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ordered {
-    /// The canonical index of each member, by position in the input slice.
-    /// Automorphic members may share an index.
+    /// The canonical class of each member, by position in the input slice.
+    /// Automorphic members share a class.
     pub index: Vec<u32>,
-    /// Each member's canonical bytes under the winning root's indexing, by
-    /// position in the input slice.
+    /// Each member's canonical bytes, with references to members written as
+    /// their classes, by position in the input slice. Members of one class
+    /// have identical bytes.
     pub bytes: Vec<Vec<u8>>,
-    /// The concatenation of the members' bytes in canonical order: the
-    /// component's serialisation.
+    /// The concatenation of one member's bytes per class, in class order:
+    /// the component's serialisation.
     pub serialisation: Vec<u8>,
+    /// The number of classes: the component's size as stored.
+    pub classes: u32,
 }
 
 /// Orders the members `0..n` of one component.
@@ -145,7 +152,7 @@ where
     if n == 1 {
         let bytes = encode(0, &[0]);
         budget.spend(bytes.len())?;
-        return Ok(Ordered { index: vec![0], serialisation: bytes.clone(), bytes: vec![bytes] });
+        return Ok(Ordered { index: vec![0], serialisation: bytes.clone(), bytes: vec![bytes], classes: 1 });
     }
 
     let refs: Vec<Vec<usize>> = (0..n).map(&refs).collect();
@@ -193,8 +200,24 @@ where
     }
 
     let (serialisation, bytes) = best.expect("n > 0");
-    let index = (0..n).map(|m| ties.iter().map(|ix| ix[m]).min().expect("one root")).collect();
-    Ok(Ordered { index, bytes, serialisation })
+    let min_index: Vec<u32> = (0..n).map(|m| ties.iter().map(|ix| ix[m]).min().expect("one root")).collect();
+    let mut distinct: Vec<u32> = min_index.clone();
+    distinct.sort_unstable();
+    distinct.dedup();
+    if distinct.len() == n {
+        // No symmetry: the winning traversal is the canonical order.
+        return Ok(Ordered { index: min_index, bytes, serialisation, classes: n as u32 });
+    }
+    // The quotient: dense class numbers, and the serialisation over classes.
+    let class: Vec<u32> = min_index.iter().map(|i| distinct.binary_search(i).unwrap() as u32).collect();
+    let bytes: Vec<Vec<u8>> = (0..n).map(|m| encode(m, &class)).collect();
+    let mut serialisation = Vec::new();
+    for c in 0..distinct.len() as u32 {
+        let rep = class.iter().position(|&k| k == c).expect("every class has a member");
+        serialisation.extend_from_slice(&bytes[rep]);
+    }
+    budget.spend(serialisation.len())?;
+    Ok(Ordered { index: class, bytes, serialisation, classes: distinct.len() as u32 })
 }
 
 #[cfg(test)]
@@ -249,10 +272,34 @@ mod tests {
     }
 
     #[test]
-    fn automorphic_members_share_an_index() {
-        // Two identical members referencing each other.
+    fn automorphic_members_form_one_class() {
+        // Two identical members referencing each other: the quotient is one
+        // member referencing itself.
         let o = order_of(&["f", "f"], &[vec![1], vec![0]]);
         assert_eq!(o.index, vec![0, 0]);
+        assert_eq!(o.classes, 1);
+        let alone = order_of(&["f"], &[vec![0]]);
+        assert_eq!(o.serialisation, alone.serialisation, "f→g→f is h→h");
+    }
+
+    #[test]
+    fn a_symmetric_triangle_collapses_and_an_asymmetric_one_does_not() {
+        let sym = order_of(&["f", "f", "f"], &[vec![1], vec![2], vec![0]]);
+        assert_eq!((sym.index.clone(), sym.classes), (vec![0, 0, 0], 1));
+        let asym = order_of(&["f", "g", "f"], &[vec![1], vec![2], vec![0]]);
+        assert_eq!(asym.classes, 3);
+        let mut seen = asym.index.clone();
+        seen.sort();
+        assert_eq!(seen, vec![0, 1, 2], "a permutation");
+    }
+
+    #[test]
+    fn partial_symmetry_keeps_the_rest_distinct() {
+        // a ↔ b symmetric, both calling c, c calling a: a and b are one class.
+        let o = order_of(&["s", "s", "c"], &[vec![1, 2], vec![0, 2], vec![0]]);
+        assert_eq!(o.classes, 3, "c reaches a but not b, so a and b differ structurally");
+        let o2 = order_of(&["s", "s"], &[vec![1, 1], vec![0, 0]]);
+        assert_eq!(o2.classes, 1);
     }
 
     #[test]

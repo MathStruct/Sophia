@@ -18,6 +18,7 @@
   - `ensure_nominal` registers built-ins idempotently;
   - `add_method` and `remove_method` change the relation and bump its `version`.
 - **Facts are stale** when a relation they recorded has a newer version (`is_stale`). Facts about immutable content are otherwise never wrong.
+- **World snapshots** (`snapshot_world`, `world_members`): a content-addressed snapshot of every nominal entity's member set, stored once under `world/<id>` (SPEC-006 §2). Nominal ids are indexed under `nominal-index/` so that every backend can enumerate them.
 - **`changes_since`** pages through the log.
 - **Path rules** (`validate_path`): dotted segments of letters, digits, `_` and `!`, not starting with a digit, or an operator in backquotes.
 

@@ -52,7 +52,7 @@ This is the most direct path to "seriously reuse code" (SR-73): the store can te
 
 A macro is a hand-made compression: a pattern with holes, expanded at compile time. In a store:
 - **A macro definition is a definition** (a term → term function, staged), and content-addressed.
-- **A macro use is stored as written** (the call with its arguments). The **expansion is a derived fact** keyed by (macro id, argument ids), cached once per distinct use. Hygiene comes from the de Bruijn core: expansions cannot capture names, because there are none.
+- **A macro use is stored as written** (the call with its arguments). The **expansion is a derived fact** keyed by (macro id, argument ids), cached once per distinct use. De Bruijn indices prevent accidental capture of *bound variables* in the core, but they do **not** solve hygienic macros by themselves: phases, quotation, scope introduction and the meaning of free names in a template need their own specification (SR-86; corrected 2026-10-20).
 - **Mining in reverse** finds code that *could* have been a macro use, and proposes the macro.
 
 Storing uses rather than expansions keeps the stored program small and shows the reader what was written. Moonkale can draw both, the use and its expansion, as layers.

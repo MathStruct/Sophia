@@ -755,6 +755,7 @@ dependencies = [
 name = "sophia-interface"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "sophia-hash",
  "sophia-store",
  "sophialang-core",

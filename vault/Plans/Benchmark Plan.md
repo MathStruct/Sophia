@@ -10,6 +10,8 @@
 - **Statistics, not anecdotes.** criterion's confidence intervals; at least 30 samples; outliers reported, not hidden; machine noise controlled (performance governor, no other heavy work), and the conditions written down.
 - **The same suite on every backend.** Backend benchmarks are generic over the `Backend` trait.
 - **Sizes from 10³ to 10⁶ definitions** for store benchmarks. 10⁷ when a backend gets that far.
+- **Real code, not only synthetic** (SR-83): see B-16.
+- **Distributions and memory:** latencies are reported as p50, p90 and p99 with cold and warm caches, together with allocations and resident memory, not only medians.
 - **Scripted.** `cargo bench -p sophia-bench` runs everything. `cargo run -p sophia-bench --bin sophia-bench-report` writes a Markdown table that is pasted into [[Benchmark Results]].
 
 ## The benchmarks
@@ -30,3 +32,5 @@
 | B-12 | interpreter speed on small kernels (fib, sum, nbody) | — | M4 |
 | B-13 | compiled code against C, Rust and Julia on the same kernels | SR-52: within 1.2× | M5 |
 | B-14 | GC pause times and throughput; marking on a separate core | SR-56 | M7 |
+| B-15 | **edit-to-updated-graph latency** through `sophia-interface`: fetch, edit, parse, normalise, store, the change feed, and Moonkale's refresh (measured on Moonkale's side). Cold and warm; p50/p90/p99 | Moonkale stays interactive: < 50 ms p99 for one definition on 10⁵ stores | review §7 |
+| B-16 | real corpora: a substantial Julia package, a Rust workspace, a theorem library (Metamath set.mm), and a code base with many tiny definitions. These need frontends or Moonkale's WP-66 normal forms | H1, H3, H4 on real code | review §7 |

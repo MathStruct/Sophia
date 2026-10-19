@@ -46,7 +46,7 @@ fn editing<B: Backend + Sync>(i: Interface<B>) {
 
     // 2. Edit as text: the name moves to new content.
     let w = i.write_text(&key, v0, "function double(x::Int64)::Int64\n    2 * x\nend\n").unwrap();
-    assert!(w.version > v0);
+    assert_ne!(w.version, v0, "the token changes when the name moves");
     let after = i.store().resolve("sample.double").unwrap().unwrap().target;
     assert_ne!(before, after);
     assert_eq!(i.fetch_text(&key).unwrap().0, "function double(x::Int64)::Int64\n    2 * x\nend\n");
@@ -167,7 +167,7 @@ fn all_draws_structure<B: Backend + Sync>(i: Interface<B>) {
     assert!(small.truncated && small.nodes.len() == 5);
 }
 
-both!(all_draws_structure, browsing, editing, renaming_and_feed, profiles_switch, creating);
+both!(all_draws_structure, group_members_cannot_be_overwritten_silently, browsing, editing, renaming_and_feed, profiles_switch, creating);
 
 trait OtherReader {
     fn open_existing_for_test(i: &Self, reader: &str) -> String;
@@ -182,4 +182,21 @@ impl<B: Backend + Sync> OtherReader for Interface<B> {
         assert_eq!(p.kw_function, "function");
         "function add".into()
     }
+}
+
+fn group_members_cannot_be_overwritten_silently<B: Backend + Sync>(i: Interface<B>) {
+    // Two views: one fetched `even` (which prints odd too), then someone edits `odd`.
+    let (even_text, token) = i.fetch_text(&Key::name("sample.even")).unwrap();
+    let (odd_text, odd_token) = i.fetch_text(&Key::name("sample.odd")).unwrap();
+    assert_eq!(token, i.fetch_text(&Key::name("sample.even")).unwrap().1, "tokens are stable");
+    i.write_text(&Key::name("sample.odd"), odd_token, &odd_text.replace("zero => false", "zero => false == false")).unwrap();
+    // The first view's save must not clobber the edit of `odd`.
+    let r = i.write_text(&Key::name("sample.even"), token, &even_text.replace("zero => true", "zero => true == true"));
+    assert!(matches!(r, Err(EditError::Conflict { .. })), "{r:?}");
+    // A profile switch alone does not invalidate a fetched text: it parses the same.
+    let (t, tok) = i.fetch_text(&Key::name("sample.add")).unwrap();
+    let (_, sv) = i.fetch_text(&Key::settings()).unwrap();
+    i.write_text(&Key::settings(), sv, "based_on = rust\n").unwrap();
+    let w = i.write_text(&Key::name("sample.add"), tok, &t).unwrap();
+    assert!(w.targets.iter().any(|(p, _)| p == "sample.add"));
 }

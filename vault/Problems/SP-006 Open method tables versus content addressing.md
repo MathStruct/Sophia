@@ -16,4 +16,6 @@ If a caller of `+` referred to "`+` with its current methods" by hash, then addi
 - **Per-environment method tables** (CLOSOS's multiple global environments, Operating Systems §4): a user's extra method should not affect others. The relation would then be versioned per environment.
 - **Method ambiguity** (two equally specific methods) must be detected when a method is added, not at call time. That needs the subtyping algorithm, which is Julia's hardest corner.
 
+**World snapshots** (SPEC-006 §2, implemented 2026-10-20) give every result a fixed world to be reproduced in. Minimal invalidation by signature overlap is still open (SR-85).
+
 **Why it might fail** (SR-73): if the overlap check is too coarse, every new method on a popular generic function still invalidates most facts. Measure it with B-09 (invalidation precision) once a Julia corpus is ingested.

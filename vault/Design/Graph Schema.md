@@ -138,4 +138,4 @@ Append-only stores grow. Reachability is from the `Name` table (the roots) plus 
 - [[Property Graph]]
 - [[Datalog]]
 - [[State of the Art - Graph Databases for Code]]
-- [[schema]] — the Rust module that would define this
+- `schema.rs`, the Rust module that would have defined this, was replaced by [[sophia_store]] and [[sqlite]] (2026-10-20)

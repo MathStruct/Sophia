@@ -7,10 +7,10 @@
 The current work. **Sophia** is the content-addressed store for code in every language; **sophialang** is its own language. The first priority is the interface to Moonkale. Start at [[Status]].
 
 - **Requirements and coordination:** [[Requirements]] (SR-nn, each with its origin) · [[Moonkale Interface Needs]]
-- **Specifications** ([[Specifications]]): [[SPEC-001 Sophia Store v0]] · [[SPEC-002 Sophialang Principles]] · [[SPEC-003 Sophialang Core v0]] · [[SPEC-004 Moonkale Interface]] · [[SPEC-005 Rendering Profiles]]
+- **Specifications** ([[Specifications]]): [[SPEC-001 Sophia Store v0]] · [[SPEC-002 Sophialang Principles]] · [[SPEC-003 Sophialang Core v0]] · [[SPEC-004 Moonkale Interface]] · [[SPEC-005 Rendering Profiles]] · [[SPEC-006 Worlds, Artifacts and Evidence]]
 - **Decisions:** [[Decisions]] (S-ADR-0001 to S-ADR-0008)
 - **Theory:** [[Theory of the v0 Store]] · [[Type Taxonomy]] · [[Computational Trinitarianism]]
-- **Research:** [[Compression and Canonical Form]] · [[Block Size and Hash Overhead]] · [[Adopting from Unison]] · [[Minimal Binaries]] · [[LLMs and Mixed-Language Code]] · [[Operating Systems and Sophia]] · [[Hardware for Sophia]] · [[Database Comparison]]
+- **Research:** [[Review 2026-10-20 (external)]] · [[Compression and Canonical Form]] · [[Block Size and Hash Overhead]] · [[Adopting from Unison]] · [[Minimal Binaries]] · [[LLMs and Mixed-Language Code]] · [[Operating Systems and Sophia]] · [[Hardware for Sophia]] · [[Database Comparison]]
 - **Plans and measurements:** [[Milestones]] · [[Benchmark Plan]] · [[Benchmark Results]]
 - **Problems:** [[Problem Log]] (SP-001 to SP-007)
 - [[Reading of the Earlier Vault]]: where the notes below may have misread Daniel. Read the sections below as ideas, not requirements.

@@ -76,7 +76,7 @@ Not in v0: effects in the type, arrays, mutation, `ccall`, macros. They need the
   - docs and comments;
   - inferred types, typings by any system, proofs;
   - test results;
-  - learned weights (they are derived facts from a training run).
+  - learned weights: they are parameter artifacts, data in their own right (SPEC-006 §4).
 - **Nominal entities** hash nothing about their body. Their id is fresh (SPEC-001 §4.3). A `struct` additionally has a content-addressed **layout** definition (its field types in order). The struct's nominal id is related to its layout by a relation, so that a change of fields is a new layout under the same nominal type. For a struct, that is what an edit means.
 
 The normaliser's name is `sophialang-core`, version `0`.
@@ -130,6 +130,27 @@ In the core:
 - `Circle` is `Nominal(Circle)` with layout `[Float64]`;
 - `Nat` is a content-addressed `data`;
 - `≈` is a generic function.
+
+## 7. Mandatory well-formedness and execution (SR-78)
+
+Every stored complete definition must satisfy these rules, whatever optional checker is or is not present:
+- **scoping:** every `Var(i)` is bound; `Member(k)` and `Ref` resolve;
+- **constructors:** with a known data type, constructor indices are in range;
+- **erasure:** a usage-0 variable occurs only in erased positions (types, proofs, other usage-0 arguments). Erasure changes the generated code, so this check is mandatory, not optional;
+- **arity:** `App` heads that are known definitions get at most as many arguments as their type has binders.
+
+Holes and unresolved names make a definition incomplete, which is allowed in the store but not executable (§4).
+
+**Execution** is call-by-value over the erased term, with the dispatch of the cited world. Without evidence, usage 1 means ω, an unproved `Unsafe` section runs exactly as written (its foot-guns included), and no property beyond these rules is assumed. These checks will run when an interpreter exists (M4). Until then they are the contract any implementation must meet.
+
+## 8. Effects boundary (SR-81)
+
+v0 has no effects in the core, but it reserves the boundary:
+- pure terms are what §2 describes;
+- effectful computation will be separated from values, in the style of call-by-push-value (values versus computations, with `thunk`/`force`), so that effect rows (Koka style) attach to computations only;
+- I/O, exceptions, state, nondeterminism, concurrency and staging are each algebraic effects with handlers ([[Computational Trinitarianism]] §4.4).
+
+Whether the core itself becomes call-by-push-value, or only an intermediate representation does, is to be evaluated before effects are added. Nothing in v0's encoding prevents either: new constructors get new tags.
 
 ## Implementation status (2026-10-20)
 

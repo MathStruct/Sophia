@@ -54,7 +54,7 @@ A **language** is registered with:
 - a **reference extractor**: the content ids and nominal ids the definition refers to;
 - a **display codec**: opaque, non-hashed display data, such as binder names and comments.
 
-The store never interprets canonical bytes beyond the tag-length-value framing. A language's crate (`sophialang-core`, later others) implements the `Language` trait. The store is generic over it.
+The store never interprets canonical bytes beyond the tag-length-value framing. **Status:** the `Language` trait is not implemented yet. sophialang is wired in directly (its normaliser produces `Record`s that the store keeps). The trait comes with the second language, so that it is designed from two real cases rather than one.
 
 ## 4. Content identity
 
@@ -74,6 +74,7 @@ content id        = member_digest(i)
 ```
 
 - The **canonical member order** is the WP-66 v1 algorithm. For each candidate root, a first-visit traversal over references in stream order assigns indices, and the lexicographically smallest complete serialisation wins. When several roots tie, each member takes its smallest index across them. Candidates share one work budget.
+- **Symmetric groups are quotiented** (2026-10-20, after the external review). Members related by an automorphism (structurally indistinguishable, like `f() = g(); g() = f()`) form one **class**. The component is serialised over its classes, and its stored size is the number of classes. Such members compute the same thing, so they are one definition: `f`, `g` and `h() = h()` share an id. Before this rule, the store kept one record for two "members" and verification failed. Regression tests run on both backends.
 - **Shared algorithm, never shared ids:** a Sophia id and a Moonkale id are never equal, because the prefixes differ.
 - References **outside** the group are encoded by the referenced content id, so the store is a Merkle DAG ([[Theory of the v0 Store]] §1).
 - References to **nominal entities** are encoded by their nominal id (§4.3).
@@ -184,7 +185,7 @@ annotation {                         derived fact {
 - **A derived fact is something a tool *computed***, reproducibly from its inputs: a typing (one per type system, SR-44), a dispatch resolution, an inferred effect row, a test result, a compiled specialisation.
 - **Staleness:** a derived fact is **stale** when one of its inputs no longer holds. Either a content id is no longer what the subject's names resolve to, or a relation's version moved and the change can affect it. A fact about immutable content is never *wrong*, only possibly irrelevant.
 - **Test results (SR-54):** a test re-runs only when its result is stale. The static case is free, because the test's content id covers its static dependencies. The dispatch case uses the recorded relation versions: a new method affects a test only if its signature overlaps a recorded call signature. The equivalence case uses proofs ([[SPEC-002 Sophialang Principles]] §8).
-- **Performance (SR-53):** annotations and derived facts never feed back into a definition's bytes. Compiled code depends only on definitions plus the facts the compiler itself consumes, such as dispatch resolutions.
+- **Performance and identity (SR-53, SR-79):** annotations and derived facts never feed back into a definition's bytes. Compiled **artifacts** may depend on facts and evidence, but each artifact records exactly which ones in its identity ([[SPEC-006 Worlds, Artifacts and Evidence]] §3).
 
 ## 9. Typings
 

@@ -8,4 +8,5 @@
 | [[SPEC-002 Sophialang Principles]] | what sophialang must be: autoresolve → unsafe → safe; zero overhead; multiple dispatch; memory, concurrency, JIT; tests; self-hosting | draft |
 | [[SPEC-003 Sophialang Core v0]] | the first core calculus and its normaliser | draft |
 | [[SPEC-004 Moonkale Interface]] | the boundary Moonkale wraps (WP-68); the first priority | draft; its 2026-10-17 form was reviewed by the Moonkale agent |
+| [[SPEC-006 Worlds, Artifacts and Evidence]] | world snapshots, artifact identity and evidence, parameter artifacts, proof trust, migration | draft (from the external review) |
 | [[SPEC-005 Rendering Profiles]] | display as user settings stored in the database; the Julia-flavoured default | draft |

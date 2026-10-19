@@ -21,6 +21,7 @@ sophia-store = { path = "../sophia-store", default-features = false }
 sophialang-core.workspace = true
 sophialang-syntax.workspace = true
 thiserror.workspace = true
+blake3.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

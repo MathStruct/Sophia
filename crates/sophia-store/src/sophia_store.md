@@ -12,7 +12,7 @@
 
 ## Tests
 
-`tests/conformance.rs` runs 14 behavioural tests on **every** backend (SPEC-001 §13), plus the SQL guard test. Adding a backend means adding one line to that file.
+`tests/conformance.rs` runs the behavioural tests on **every** backend (SPEC-001 §13): 14 core tests, settings, world snapshots, and the SQL guard test. `tests/symmetric.rs` is the regression test for symmetric recursive groups. Adding a backend means adding one line to each.
 
 ## What is not here yet
 

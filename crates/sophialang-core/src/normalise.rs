@@ -89,7 +89,7 @@ pub fn normalise_batch(defs: &[Definition], budget: &mut Budget) -> Result<Vec<R
                 kind: def.kind.as_str().into(),
                 component: cdigest,
                 index: ordered.index[p],
-                component_size: comp.len() as u32,
+                component_size: ordered.classes,
                 bytes: ordered.bytes[p].clone(),
                 display: display_of(def),
                 status: if def.is_incomplete() { Status::Incomplete } else { Status::Complete },

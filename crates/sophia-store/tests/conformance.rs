@@ -300,3 +300,38 @@ mod settings {
         settings_are_listed_and_logged(Store::new(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap()));
     }
 }
+
+/// Review demonstration 3 (store level): a method table changes, and an
+/// earlier world snapshot still gives the original members.
+fn worlds_are_reproducible<B: Backend>(s: Store<B>) {
+    let (_, records) = populated(&s);
+    let g = s.new_nominal("sophialang", "generic", "sample.area").unwrap();
+    s.add_method(&g, &records[11].id).unwrap();
+    let w1 = s.snapshot_world().unwrap();
+    assert_eq!(s.snapshot_world().unwrap(), w1, "same tables, same world");
+    s.add_method(&g, &records[1].id).unwrap();
+    let w2 = s.snapshot_world().unwrap();
+    assert_ne!(w1, w2);
+    assert_eq!(s.world_members(&w1, &g).unwrap(), vec![records[11].id]);
+    let mut now = s.world_members(&w2, &g).unwrap();
+    now.sort();
+    let mut expect = vec![records[11].id, records[1].id];
+    expect.sort();
+    assert_eq!(now, expect);
+    s.remove_method(&g, &records[1].id).unwrap();
+    assert_eq!(s.snapshot_world().unwrap(), w1, "back to the same tables, back to the same world");
+}
+
+mod worlds {
+    use super::*;
+    #[test]
+    fn sqlite() {
+        let d = tempfile::tempdir().unwrap();
+        worlds_are_reproducible(Store::new(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap()));
+    }
+    #[test]
+    fn redb() {
+        let d = tempfile::tempdir().unwrap();
+        worlds_are_reproducible(Store::new(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap()));
+    }
+}

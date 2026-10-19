@@ -202,6 +202,10 @@ impl<B: Backend + Sync> Interface<B> {
                         format!("the text must define `{short}`; rename it with a rename, not by editing the text"),
                     )]));
                 }
+                let found = self.text_token(&path)?;
+                if found != expected {
+                    return Err(EditError::Conflict { expected, found });
+                }
                 let target = self.store.resolve(&path)?.ok_or_else(|| StoreError::NoSuchName(path.clone()))?;
                 let mut group = HashSet::new();
                 if let Target::Content(d) = target.target {
@@ -213,7 +217,9 @@ impl<B: Backend + Sync> Interface<B> {
                         }
                     }
                 }
-                self.apply(&ns, items, warnings, Some((&path, expected)), &group)
+                let mut w = self.apply(&ns, items, warnings, Some((&path, target.seq)), &group)?;
+                w.version = self.text_token(&path)?;
+                Ok(w)
             }
             Key::Content(_) => Err(EditError::Refused("a definition is immutable: open it through a name to edit it".into())),
             _ => Err(EditError::Refused(format!("{key:?} cannot be written"))),

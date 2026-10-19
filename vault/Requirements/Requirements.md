@@ -90,6 +90,28 @@ From Daniel's message of 2026-10-20, which answers SPEC-001 Q2 and adds the lang
 | SR-73 | This is an experiment. Record **why things fail** as carefully as what works. The dream is to abolish programming languages, or at least to reuse code seriously, with few downsides. | D 10-20 | always | ongoing ([[Problem Log]], [[Open Problems and Risks]]) |
 | SR-74 | Sophia may later become Moonkale's main engine for parsing and storing code. | D 10-20 | long | open (SPEC-004 §8) |
 
+## From the external review, 2026-10-20
+
+An external review (ChatGPT) of commit `27cb3a7`, passed on by Daniel, who asked for more requirements and specifications to be drawn from it. Triage: [[Review 2026-10-20 (external)]]. In the Origin column, "Rev" means that review.
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-75 | A recursive group with structurally symmetric members is stored, reloaded and verified without loss, stable under renaming and member permutation, on every backend. | Rev §2, demonstration 1 | v0 | done (quotient; `tests/symmetric.rs`) |
+| SR-76 | Builds, tests, proofs and dispatch resolutions are evaluated against an **immutable, content-addressed world snapshot**, not the current mutable world. | Rev §3, demonstration 3 | v0 (store); M4 (use) | done in the store; use specified (SPEC-006 §2) |
+| SR-77 | An editable text carries a token covering everything its save would change. Two views cannot silently overwrite each other's work or an unintended alias. When a bare definition is opened for editing, the editor keeps the navigation context or asks which name to edit. | Rev §1, demonstration 2 | v0 | done on Sophia's side (SPEC-004 §3b); Moonkale's side open |
+| SR-78 | SophiaLang has a **mandatory** well-formedness and execution semantics independent of optional checkers, and a representation contract no optional type system may contradict. | Rev §4, §5.1 | v0 (spec) | specified (SPEC-002 §3a, SPEC-003 §7) |
+| SR-79 | Proofs never change a program's semantic identity, but may change **artifact identity**. The artifact records the evidence the compiler used. | Rev §4 | M5 | specified (SPEC-006 §3) |
+| SR-80 | Learned parameters are content-addressed **parameter artifacts**. A model instance is (program id, parameter artifact id). Training is a replayable derived fact. | Rev §5.2 | with execution (M4) | specified (SPEC-006 §4) |
+| SR-81 | The core distinguishes pure from effectful computation, with a reserved path for I/O, exceptions, state, nondeterminism, concurrency and staging. Call-by-push-value is evaluated. | Rev §5.3 | design now | specified as a boundary (SPEC-003 §8) |
+| SR-82 | Proof trust is recorded per proof: checker, trusted kernel, assumptions, certificate, versions, world. Policies say which checkers they trust. | Rev §8.4 | M4/M6 | specified (SPEC-006 §5) |
+| SR-83 | Benchmarks include real repositories and Moonkale's **edit-to-updated-graph latency**, with cold and warm caches, allocations, resident memory and latency distributions. | Rev §7 | M2/M3 | planned (B-15, B-16) |
+| SR-84 | Cross-system and cross-language claims go through explicit interpretations that state which properties they preserve, with proof obligations. | Rev §6 | later | specified ([[Computational Trinitarianism]] §0) |
+| SR-85 | Invalidation after a method-table change is minimal, by signature overlap, not "any change invalidates all". | Rev §3 | M4 | open (SP-006, B-09) |
+| SR-86 | Macro hygiene, phases and quotation are specified, not assumed from de Bruijn indices. | Rev §8.1 | with macros | open |
+| SR-87 | A closed-world contract governs standalone binaries: reflection, dynamic loading, foreign calls and generated code. | Rev §8.2 | M5 | specified (SPEC-006 §3) |
+| SR-88 | Migrations separate canonical identity (normaliser, hash) from physical encoding. | Rev §8.7 | later | specified (SPEC-006 §6) |
+| SR-89 | **P0 gate:** foundational invariants count as settled only after the three acceptance demonstrations pass: symmetric recursion, two-view editing, reproducible dispatch. | Rev §9, §10 | now | Sophia side: demonstrations 1 and 3 (store level) pass; 2 passes on Sophia's side, Moonkale's client side open |
+
 ## From Moonkale
 
 Each row cites the Moonkale page or section it comes from. Moonkale will cite these numbers back from its Code Graph Schema.
@@ -120,6 +142,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-75 to SR-89 added from the external review.
 - 2026-10-20: SR-25 to SR-29 and SR-51 to SR-74 added from Daniel's message of 2026-10-20 (the SR-25 to SR-29 block was still free).
 - 2026-10-17: SR-50 added from the Moonkale agent's review.
 - 2026-10-17: page created. Daniel's statements collected from the sources above; Moonkale's needs from its coordinator's list.

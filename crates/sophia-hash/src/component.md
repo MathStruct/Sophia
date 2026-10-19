@@ -16,7 +16,18 @@ For each member as a candidate root:
 1. A first-visit traversal assigns indices (breadth-first over members, stream order within a member).
 2. Every member is encoded with those indices, and the encodings are concatenated in index order.
 
-The smallest serialisation wins. When several roots tie, each member gets its smallest index across them, so structurally indistinguishable (automorphic) members may share an index, and with it an id. That is correct, because such members really are interchangeable. All candidates share one byte `Budget`, so a large recursive group fails with an error instead of taking unbounded time.
+The smallest serialisation wins. When several roots tie, each member gets its smallest index across them.
+
+**The quotient** (2026-10-20, after the external review):
+- Members that share that index are related by an automorphism of the group. If two minimal roots give the same serialisation, the map between their indexings preserves every member's bytes.
+- So they compute the same thing, and form **one class**.
+- Classes are numbered densely in order of their index. Every member is re-encoded with class numbers, and the component is serialised over one representative per class. `classes` is the stored size.
+
+So `f() = g(); g() = f()` is one class, with bytes identical to `h() = h()`.
+
+**The bug this fixed:** the first version gave symmetric members a shared index (and id) but still counted and serialised them as separate members. The store kept one record for a "two-member" component, and verification failed on both backends (`crates/sophia-store/tests/symmetric.rs` reproduces it).
+
+All candidates share one byte `Budget`, so a large recursive group fails with an error instead of taking unbounded time.
 
 ## Difficulties
 

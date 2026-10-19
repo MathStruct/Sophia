@@ -35,6 +35,16 @@ The old comment-only crates (`sophia-core`, `sophia-equiv`, `sophia-emit`, `soph
 | **M6** | **Self-hosting starts.** The printer for one profile, written in sophialang and run by the interpreter; the `compile` DSL (type stability); the dependent checker for the core | the sophialang printer reproduces the Rust printer's output on the sample store | — |
 | **M7** | **Other languages and research.** Moonkale's WP-66 normal forms for Rust, Julia and Python ingested; abstraction mining ([[Compression and Canonical Form]]); a GC and scheduler runtime; memory and concurrency DSLs; a Lisp or Metamath frontend if useful | each one is an experiment with a written result, whatever it is (SR-73) | B-07 corpus statistics and deduplication, B-08 compression |
 
+## The P0 gate (SR-89, from the external review)
+
+Foundational invariants (identity, worlds, editable projections) count as settled only once three demonstrations pass:
+
+| # | Demonstration | Status |
+|---|---|---|
+| 1 | **Symmetric recursion:** two symmetric mutually recursive definitions normalise, store, reload and verify without loss, on both backends, stable under renaming and permutation | **passes** (`crates/sophia-store/tests/symmetric.rs`, after the quotient fix) |
+| 2 | **Two-view editing:** two clients cannot silently overwrite each other or an unintended alias | **passes on Sophia's side** (edit tokens; `group_members_cannot_be_overwritten_silently`). Moonkale's client side (keeping the alias context) is open |
+| 3 | **Reproducible dispatch:** a method table changes, and an earlier world snapshot still reproduces the original | **passes at the store level** (`worlds_are_reproducible`). End-to-end dispatch needs the interpreter (M4) |
+
 ## Progress
 
 - **2026-10-20: M0 done.**

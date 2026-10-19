@@ -38,7 +38,7 @@ Every controllable aspect of execution (memory, concurrency, compilation, dispat
 
 Two consequences matter for the store:
 - **The level is a property of a *section* of code**, meaning a term path or a whole definition, not of a whole program. A query can list every undischarged `unsafe` section in the transitive closure of `main`. That is the audit Rust's `unsafe` keyword makes possible, but here it extends to memory, concurrency and JIT.
-- **Proofs are not part of the program's identity** (SR-53). Adding or removing a proof never changes a definition's content id, and so never changes the compiled code. It changes the annotation set and the `unsafe` report.
+- **Proofs are not part of the program's identity** (SR-53). Adding or removing a proof never changes a definition's content id. A proof **may** change the compiled code, for example by removing a check or a dynamic dispatch, but then the artifact records that it used the proof, and its identity includes it ([[SPEC-006 Worlds, Artifacts and Evidence]] §3). *Corrected 2026-10-20: the first version said proofs never change compiled code, which contradicted §5 to §7.*
 
 ## 3. Zero inherent overhead (SR-52, SR-53)
 
@@ -50,6 +50,14 @@ Sophialang may contain nothing that makes compiled code *inherently* slower than
 4. **No mandatory runtime.** The GC, the JIT and the scheduler are *libraries* that a program links only if it uses autoresolve for that aspect. A program that specifies everything explicitly compiles to a binary with no runtime beyond what C would need ([[Minimal Binaries]]).
 5. **The store is not in the hot path.** The compiled program never queries the store. All identities are resolved at build time ([[Minimal Binaries]] §2).
 
+## 3a. The mandatory contract (SR-78)
+
+Optional checkers may prove more, but none may contradict this:
+- **Representation** is fixed by the representation types, the erasure of usage-0 binders, and nominal layouts ([[Type Taxonomy]] §1). An optional type system cannot change a value's layout, its calling convention, or what is erased.
+- **Dispatch** is decided by the classification lattice (Type Taxonomy §2–§3) in the cited world (SPEC-006 §2), never by an optional typing.
+- **Execution** of unchecked code is defined (SPEC-003 §7). Stronger annotations without evidence are not exploited: a linear binder used twice runs as an unrestricted one, and an unproved "type-stable" method is dispatched dynamically.
+- **Optimisations** that rely on properties beyond the mandatory well-formedness rules require evidence, and the artifact records it.
+
 ## 4. Types and polymorphism: multiple dispatch (SR-59, SR-53)
 
 **Polymorphism is multiple dispatch,** as in Julia. A **generic function** is a set of **methods**. Each method has a signature, which is a tuple of types, and a call selects the most specific applicable method.
@@ -59,6 +67,7 @@ The interaction with content addressing is the hardest design question in this p
 - **A method is a content-addressed definition** (its signature and body).
 - **A generic function is a *nominal* entity**: a fresh identity created once, like a Julia `function f end` or a type in a nominal type system ([[Type Taxonomy]] §3). It is **not** the hash of its method set. Otherwise adding a method to `+` would change the identity of every function that calls `+`.
 - **A call refers to the generic function's nominal identity,** not to a method. The *method table* (which methods belong to which generic function) is a mutable relation in the store, versioned like names.
+- **Worlds:** results are computed in an immutable world snapshot, not in "the current state" (SPEC-006 §2).
 - **Dispatch resolution is derived (L3):** "at method-table version *v*, this call site with these argument types resolves to method *m*". The compiled artefact records the method-table versions it relied on: Julia's backedges and world age, made persistent. Adding a method invalidates exactly the compiled artefacts and test results whose recorded resolutions it changes.
 - **Static dispatch is the "safe" level of §2:** a proof that a call site's argument types are concrete enough to resolve at compile time. It removes the dynamic dispatch and its JIT trigger (§7).
 

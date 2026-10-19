@@ -9,6 +9,16 @@
 >
 > Theory (CT-ML wiki): [Curry-Howard-Lambek Correspondence](https://mathstruct.org/CategoryTheory-ML-Wiki/Curry-Howard-Lambek-Correspondence) · [Category with Families](https://mathstruct.org/CategoryTheory-ML-Wiki/Category-with-Families) · [Linear-Non-Linear Adjunction](https://mathstruct.org/CategoryTheory-ML-Wiki/Linear-Non-Linear-Adjunction) · [Algebraic Effects and Handlers](https://mathstruct.org/CategoryTheory-ML-Wiki/Algebraic-Effects-and-Handlers) · [Freyd Category](https://mathstruct.org/CategoryTheory-ML-Wiki/Freyd-Category) · [Logical Relations](https://mathstruct.org/CategoryTheory-ML-Wiki/Logical-Relations) · [Institution](https://mathstruct.org/CategoryTheory-ML-Wiki/Institution)
 
+## 0. Scope of the claims (added 2026-10-20)
+
+The correspondence is a family of theorems, each about **specific** structures:
+- the simply typed λ-calculus with products ↔ intuitionistic propositional logic ↔ cartesian closed categories;
+- linear logic ↔ symmetric monoidal (closed) categories;
+- dependent type theory ↔ locally cartesian closed categories and categories with families;
+- probabilistic programs ↔ Markov categories.
+
+These are **not** interchangeable, and no claim here means "every logic is every type system is every category". Where Sophia relates two systems (two type systems on one term, two languages, a language and its compiled form), it does so through an **explicit interpretation** `⟦−⟧ : S → M` that states which structure it preserves (typing, equality, effects, composition, resource use). Each such claim carries a **preservation obligation**, discharged by a proof (logical relations, simulation, a compiler-correctness theorem) or recorded as an assumption (SR-84, [[SPEC-006 Worlds, Artifacts and Evidence]] §5). The table below is a map of where to look, not a theorem.
+
 ## 1. The correspondence
 
 | Logic | Type theory | Category theory |

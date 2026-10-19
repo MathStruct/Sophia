@@ -17,6 +17,8 @@ binary(main) = compile( closure(main) ∪ dispatch_closure(main) )
 - **The static closure** is a graph walk over `refs`, with no guessing and no "include the whole package".
 - **The dispatch closure** consists of the methods reachable through generic functions, at the method-table versions the build pins. It is exact when every call site from `main` is statically resolved, which is the `compile` DSL's `Compiled(main, S)` proof ([[Computational Trinitarianism]] §4.3). Without that proof the build must include a dispatcher plus every method that *could* be called: a larger binary, but still no store.
 
+This holds under a **closed-world contract** (SR-87, SPEC-006 §3; added 2026-10-20). The binary is built against one world snapshot. Reflection over the store, dynamic loading of definitions outside the closure, run-time code generation and `eval` are unavailable unless the corresponding runtime is linked, which the build reports. Foreign calls name their libraries, which enter the artifact's identity. Without the contract, the closure is not exact. With it, it is.
+
 This is tree shaking without heuristics. Julia needs `--trim` and a closed-world analysis to get there. Here it is the default representation.
 
 ## 2. What the binary contains

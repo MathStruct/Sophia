@@ -292,6 +292,7 @@ impl<B: Backend> Store<B> {
             }
             let seq = self.log(tx, LogOp::NewNominal, path.into(), None, Some(id))?;
             tx.put_nominal(&Nominal { id, lang: lang.into(), kind: kind.into(), label: path.into(), created_seq: seq, version: seq })?;
+            tx.set_meta(&format!("nominal-index/{}", id.to_hex()), b"")?;
             let seq = self.log(tx, LogOp::AddName, path.into(), None, Some(id))?;
             tx.put_name(&NameEntry { path: path.into(), target: Target::Nominal(id), visibility: Visibility::Public, seq })?;
             Ok(id)
@@ -304,6 +305,7 @@ impl<B: Backend> Store<B> {
             if tx.nominal(&id)?.is_none() {
                 let seq = self.log(tx, LogOp::NewNominal, label.into(), None, Some(id))?;
                 tx.put_nominal(&Nominal { id, lang: lang.into(), kind: kind.into(), label: label.into(), created_seq: seq, version: seq })?;
+                tx.set_meta(&format!("nominal-index/{}", id.to_hex()), b"")?;
             }
             Ok(())
         })
@@ -415,6 +417,60 @@ impl<B: Backend> Store<B> {
 
     pub fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
         self.backend.read(|tx| tx.meta_prefix(prefix))
+    }
+
+    /// Takes an immutable, content-addressed snapshot of the world: every
+    /// nominal entity's current member set (SPEC-006 §2). The id depends only
+    /// on the member sets, so two stores with the same tables get the same
+    /// world. Builds, test results and proofs cite a world id, which keeps
+    /// them reproducible when method tables change later.
+    pub fn snapshot_world(&self) -> Result<Digest> {
+        self.backend.write(|tx| {
+            let mut entries: Vec<(Digest, Vec<Digest>)> = Vec::new();
+            for (k, _) in tx.meta_prefix("nominal-index/")? {
+                if let Ok(id) = k["nominal-index/".len()..].parse::<Digest>() {
+                    let mut members: Vec<Digest> = tx.relation(&id)?.into_iter().map(|e| e.member).collect();
+                    members.sort();
+                    entries.push((id, members));
+                }
+            }
+            entries.sort();
+            let mut w = sophia_hash::canonical::Writer::new();
+            w.str("sophia", "world-v0");
+            for (id, members) in &entries {
+                let o = w.open("nominal");
+                w.field("id", id.as_bytes());
+                for m in members {
+                    w.field("m", m.as_bytes());
+                }
+                w.close(o);
+            }
+            let bytes = w.finish();
+            let id = Digest::of(&bytes);
+            if tx.meta(&format!("world/{}", id.to_hex()))?.is_none() {
+                tx.set_meta(&format!("world/{}", id.to_hex()), &bytes)?;
+            }
+            Ok(id)
+        })
+    }
+
+    /// The members a nominal entity had in a world snapshot.
+    pub fn world_members(&self, world: &Digest, nominal: &NominalId) -> Result<Vec<Digest>> {
+        let bytes = self.meta(&format!("world/{}", world.to_hex()))?.ok_or_else(|| StoreError::NotFound(format!("world {}", world.to_hex())))?;
+        let mut r = sophia_hash::canonical::Reader::new(&bytes);
+        r.expect_str("sophia").map_err(|e| StoreError::Codec(e.to_string()))?;
+        while !r.is_empty() {
+            let mut n = r.enter("nominal").map_err(|e| StoreError::Codec(e.to_string()))?;
+            let id = Digest::from_slice(n.expect("id").map_err(|e| StoreError::Codec(e.to_string()))?).ok_or_else(|| StoreError::Codec("world".into()))?;
+            if id == *nominal {
+                let mut out = Vec::new();
+                while !n.is_empty() {
+                    out.push(Digest::from_slice(n.expect("m").map_err(|e| StoreError::Codec(e.to_string()))?).ok_or_else(|| StoreError::Codec("world".into()))?);
+                }
+                return Ok(out);
+            }
+        }
+        Ok(Vec::new())
     }
 
     /// Writes settings rows (key, Some(value)) or removes them (key, None)

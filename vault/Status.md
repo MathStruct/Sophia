@@ -38,4 +38,5 @@
   - [[LLMs and Mixed-Language Code]]
   - [[Database Comparison]]
 - **Benchmarks:** [[Benchmark Plan]]; [[Benchmark Results]] (no runs yet).
+- **External review (2026-10-20):** triaged in [[Review 2026-10-20 (external)]]. It found one real bug (symmetric recursion), which is fixed; and led to SR-75 to SR-89, SPEC-006, corrections to SPEC-001 to SPEC-004 and the theory notes, edit tokens, world snapshots, and the **P0 gate** in [[Milestones]].
 - **Coordination:** the Moonkale agent has the 2026-10-17 interface. It is to be told about the split into SPEC-001 to SPEC-005.

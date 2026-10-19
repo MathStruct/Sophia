@@ -553,7 +553,7 @@ impl<B: Backend + Sync> Interface<B> {
             Key::Derived(s) if s.starts_with("name:") => {
                 let path = &s[5..];
                 let n = self.store.resolve(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
-                Ok((self.print_target(n.target, path)?, n.seq))
+                Ok((self.print_target(n.target, path)?, self.text_token(path)?))
             }
             Key::Content(d) => {
                 let path = self.store.read(|tx| Ok(tx.names_of(d)?.first().map(|n| n.path.clone())))?;
@@ -613,6 +613,50 @@ impl<B: Backend + Sync> Interface<B> {
                 Ok(s)
             }
         }
+    }
+
+    /// The edit token of a name's text (SPEC-004 §3b): a hash of every name
+    /// the text covers (the name itself and the names of every member of its
+    /// recursive group, or of a nominal entity's members), with their versions
+    /// and targets, and the nominal entity's relation version. Saving
+    /// requires the same token, so no covered name can be overwritten
+    /// silently. The rendering profile is deliberately not part of it: the
+    /// parser reads every editable profile, so text fetched in one profile
+    /// means the same after a switch to another.
+    pub fn text_token(&self, path: &str) -> Result<u64> {
+        self.store.read(|tx| {
+            let n = tx.name(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
+            let mut covered: Vec<(String, u64, Digest)> = vec![(n.path.clone(), n.seq, n.target.digest())];
+            let mut h = blake3::Hasher::new();
+            h.update(b"sophia-text-token-v1");
+            match n.target {
+                Target::Content(d) => {
+                    if let Some(r) = tx.record(&d)? {
+                        for m in tx.component(&r.component)? {
+                            for alias in tx.names_of(&m.id)? {
+                                covered.push((alias.path, alias.seq, alias.target.digest()));
+                            }
+                        }
+                    }
+                }
+                Target::Nominal(id) => {
+                    if let Some(nom) = tx.nominal(&id)? {
+                        h.update(&nom.version.to_le_bytes());
+                    }
+                }
+            }
+            covered.sort();
+            covered.dedup();
+            for (p, seq, t) in &covered {
+                h.update(p.as_bytes());
+                h.update(&[0]);
+                h.update(&seq.to_le_bytes());
+                h.update(t.as_bytes());
+            }
+            let b = h.finalize();
+            let v = u64::from_le_bytes(b.as_bytes()[..8].try_into().unwrap()) >> 1;
+            Ok(v.max(1))
+        })
     }
 
     // ---- settings ----

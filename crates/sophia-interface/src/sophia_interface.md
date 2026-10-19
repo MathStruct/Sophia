@@ -32,6 +32,10 @@ None of them is a Moonkale, driver or async type.
 | `changes_since` | `changes_since(seq, limit)`, with the keys affected and `reprint_all` for profile changes |
 | `classify` | `Interface::classify(dialect)` |
 
+## Edit tokens
+
+`fetch_text` returns, as a name's version, the edit token from `text_token(path)`: a hash of every name the text covers, with versions and targets (SPEC-004 §3b). `write_text` requires the same token. The profile is deliberately not part of it, because the parser reads every editable profile.
+
 ## Tests
 
 `tests/acceptance.rs` covers SPEC-004 §9 item by item, on SQLite and redb (11 tests):

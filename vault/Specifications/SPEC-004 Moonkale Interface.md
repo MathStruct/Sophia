@@ -68,7 +68,7 @@ v0 needs **no new `Op` variants**. The file-shaped operations map onto the store
 | `WriteText` on a **definition** (not a name) | refused, because a definition is immutable. The error says to open it through a name |
 
 - **Re-ingest is a no-op.** If the new text hashes to the content the name already points at, nothing is written, and the unchanged `Version` is returned. If it hashes to a *different* existing definition, the name moves there and nothing new is stored.
-- **Opening a definition for editing resolves it to a name.** When a definition is clicked in the graph, `fetch_text(definition)` shows it read-only. To edit it, the adapter picks a name with this rule:
+- **Opening a definition for editing goes through a name, and the editor keeps the name it came from** (corrected 2026-10-20 after the external review: choosing a name automatically is unsafe when a definition has aliases in several namespaces). If the user navigated to the definition through a name, that name is the one edited. If there is no such context, the editor asks. The rule below is only a default *suggestion* for that question:
   1. the public name with the lowest `seq` (the oldest);
   2. if there is no public name, the private name with the lowest `seq`;
   3. ties are broken by the shortest path, then lexicographically.
@@ -88,6 +88,13 @@ v0 needs **no new `Op` variants**. The file-shaped operations map onto the store
 4. Moonkale depends on `sophia-interface` by **git revision** at first. Sophia announces the revision when the crate is dependable.
 
 Moonkale holds its own changes (Code Graph Schema §4/§5/§11 and WP-68 as the `sources/sophia` adapter) until these specifications are committed.
+
+## 3b. Edit tokens (SR-77)
+
+The `Version` returned with a name's text is an **edit token**: a hash over every name the text covers, with each one's version and target. That is the edited name, plus all names of every member of its recursive group (or the nominal entity's relation version).
+- Saving with a stale token is a conflict. So two views cannot silently overwrite each other, also not through another member of the group.
+- **The rendering profile is not part of the token**, by design. The parser reads every editable profile, so text fetched in one profile means the same after a switch to another. A display-only profile's text does not parse, and is refused with diagnostics.
+- Tokens are opaque u64s. Equal tokens mean nothing covered has changed, and they are not ordered.
 
 ## 4. Rendering profiles through the interface
 
