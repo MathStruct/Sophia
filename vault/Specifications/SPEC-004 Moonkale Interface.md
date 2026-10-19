@@ -33,10 +33,10 @@ Moonkale sees a Sophia store as **one `truth: Store` source** of family `Graph`.
 | `Names` | name → definition |
 | `References` / `Calls` | definition → definition (`Calls` when the reference is in head position of an application) |
 | `Tests` | test → definition |
-| `Supersedes` | definition → definition it replaced (same lineage) |
-| `MethodOf` | method → generic function (current method table) |
-| `TypeOf` | definition → typing fact (L3), with provenance |
-| `InLineage` | definition → lineage |
+| `sophia:Supersedes` | definition → definition it replaced (same lineage) |
+| `MethodOf` (shared) | method → generic function (current method table) |
+| `TypeOf` (shared) | definition → its type's node (a `Definition` or a nominal type). One edge per typing system. The typing fact's `system`, `status`, `by`, `by_version`, `inputs` and `derived_at` are edge properties. A type that is not itself a stored definition (an inferred compound type) is drawn as a `sophia:Type` node |
+| `sophia:InLineage` | definition → lineage |
 | `Annotates` | annotation → subject (Moonkale's existing `EdgeKind::Annotates`) |
 | `sophia:Subterm` | definition or term → child term, with a `position` property. It is **not** `Contains`: shared subterms make a DAG, and `Contains` would put terms in the explorer tree, which the views treat as a tree |
 
@@ -83,7 +83,7 @@ v0 needs **no new `Op` variants**. The file-shaped operations map onto the store
 ## 3a. Constraints from Moonkale (2026-10-20)
 
 1. The **reader id** is given once, when the adapter is opened or configured, not on every request.
-2. `MethodOf`, `TypeOf`, `Supersedes` and `InLineage` map to **`sophia:`-namespaced edge kinds** on Moonkale's side, the same treatment as `sophia:Subterm`.
+2. **Shared kinds stay shared:** `MethodOf`, `TypeOf`, `References`, `Calls`, `Tests`, `Contains`, `Names` and `Annotates` are Moonkale's shared edge kinds (Code Graph Schema §6), which the Unison source (WP-18) uses too. Only concepts specific to Sophia are namespaced: the edges `sophia:Subterm`, `sophia:Supersedes` and `sophia:InLineage`, and the nodes `sophia:Lineage`, `sophia:Term`, `sophia:Type` and `sophia:Settings`. (Corrected 2026-10-20 at the Moonkale agent's request; the first version of this item namespaced `MethodOf` and `TypeOf` by mistake.)
 3. `sophia-interface`'s public types contain **no async-runtime and no database-driver types**, so the adapter works with every backend Sophia compares. (`sophia-store` already keeps them out: transactions are closures over object-safe traits; see [[backend]].)
 4. Moonkale depends on `sophia-interface` by **git revision** at first. Sophia announces the revision when the crate is dependable.
 

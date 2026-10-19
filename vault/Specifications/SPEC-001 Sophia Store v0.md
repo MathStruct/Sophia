@@ -188,7 +188,7 @@ annotation {                         derived fact {
 
 ## 9. Typings
 
-Typings are derived facts of kind `typing`, carrying `system` (for example `sophialang-simple`, `sophialang-dependent`, `cubical`) and `status`. There are several per definition, never merged. Moonkale draws them as L3 nodes connected by `TypeOf` edges.
+Typings are derived facts of kind `typing`, carrying `system` (for example `sophialang-simple`, `sophialang-dependent`, `cubical`) and `status`. There are several per definition, never merged. Moonkale draws each one as a shared `TypeOf` edge from the definition to its type's node, with the fact's provenance as edge properties ([[SPEC-004 Moonkale Interface]] §2).
 
 ## 10. E-graphs and IR (later)
 
