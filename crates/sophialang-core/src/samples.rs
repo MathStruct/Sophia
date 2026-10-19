@@ -5,7 +5,7 @@
 
 use sophia_hash::{Digest, NominalId};
 
-use crate::definition::{Body, Constructor, Definition, Field, Kind};
+use crate::definition::{Body, Constructor, Definition, Field, Kind, NominalKind};
 use crate::term::{Aspect, Binder, Case, Lit, Term};
 
 /// The nominal id of a built-in entity (`Int64`, `+`, `==`, …). Built-ins
@@ -13,6 +13,10 @@ use crate::term::{Aspect, Binder, Case, Lit, Term};
 pub fn builtin(name: &str) -> NominalId {
     let nonce = *Digest::of(format!("sophialang-builtin:{name}").as_bytes()).as_bytes();
     sophia_hash::merkle::nominal_id(crate::LANG, "builtin", &nonce)
+}
+
+fn rel(path: &str) -> Term {
+    Term::Nominal(sample_nominal(path))
 }
 
 fn d(i: u32) -> Term {
@@ -24,7 +28,31 @@ fn con(ty: Term, index: u32) -> Term {
 }
 
 fn matching(scrutinee: Term, cases: Vec<Case>) -> Term {
-    Term::Match { scrutinee: Box::new(scrutinee), motive: None, cases }
+    Term::Match { scrutinee: Box::new(scrutinee), data: Some(Box::new(d(0))), motive: None, cases }
+}
+
+/// The nominal id of one of the sample's own nominal entities. Fixed, so
+/// that the sample is reproducible; the store normally draws fresh ids.
+pub fn sample_nominal(path: &str) -> NominalId {
+    let nonce = *Digest::of(format!("sophialang-sample:{path}").as_bytes()).as_bytes();
+    sophia_hash::merkle::nominal_id(crate::LANG, "relation", &nonce)
+}
+
+/// The sample's nominal entities: (name, kind, id).
+pub fn nominals() -> Vec<(&'static str, NominalKind, NominalId)> {
+    vec![
+        ("sample.parent", NominalKind::Relation, sample_nominal("sample.parent")),
+        ("sample.ancestor", NominalKind::Relation, sample_nominal("sample.ancestor")),
+    ]
+}
+
+/// Which definitions of [`program`] join which nominal entity's relation:
+/// (nominal id, index into `program()`). A relation's members are its
+/// signature and its rules (S-ADR-0009).
+pub fn memberships() -> Vec<(NominalId, usize)> {
+    let parent = sample_nominal("sample.parent");
+    let ancestor = sample_nominal("sample.ancestor");
+    vec![(parent, 6), (ancestor, 7), (ancestor, 8), (ancestor, 9)]
 }
 
 fn case(constructor: u32, binders: &[&str], body: Term) -> Case {
@@ -106,9 +134,9 @@ pub fn program() -> Vec<(&'static str, Definition)> {
                 Term::lam("x", Term::app(Term::Unresolved(vec!["math".into(), "sqrt".into()]), [Term::Var(0)])),
             ),
         ),
-        // 6, 7: relations
+        // 6, 7: the relations' signatures (the relations themselves are nominal)
         (
-            "sample.parent",
+            "sample.parent_sig",
             Definition {
                 kind: Kind::Relation,
                 ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))),
@@ -116,7 +144,7 @@ pub fn program() -> Vec<(&'static str, Definition)> {
             },
         ),
         (
-            "sample.ancestor",
+            "sample.ancestor_sig",
             Definition {
                 kind: Kind::Relation,
                 ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))),
@@ -131,8 +159,8 @@ pub fn program() -> Vec<(&'static str, Definition)> {
                 ty: None,
                 body: Body::Rule {
                     vars: vec![Binder::named("X"), Binder::named("Y")],
-                    head: Term::app(d(7), [Term::Var(1), Term::Var(0)]),
-                    premises: vec![Term::app(d(6), [Term::Var(1), Term::Var(0)])],
+                    head: Term::app(rel("sample.ancestor"), [Term::Var(1), Term::Var(0)]),
+                    premises: vec![Term::app(rel("sample.parent"), [Term::Var(1), Term::Var(0)])],
                     weight: None,
                 },
             },
@@ -145,10 +173,10 @@ pub fn program() -> Vec<(&'static str, Definition)> {
                 ty: None,
                 body: Body::Rule {
                     vars: vec![Binder::named("X"), Binder::named("Y"), Binder::named("Z")],
-                    head: Term::app(d(7), [Term::Var(2), Term::Var(0)]),
+                    head: Term::app(rel("sample.ancestor"), [Term::Var(2), Term::Var(0)]),
                     premises: vec![
-                        Term::app(d(6), [Term::Var(2), Term::Var(1)]),
-                        Term::app(d(7), [Term::Var(1), Term::Var(0)]),
+                        Term::app(rel("sample.parent"), [Term::Var(2), Term::Var(1)]),
+                        Term::app(rel("sample.ancestor"), [Term::Var(1), Term::Var(0)]),
                     ],
                     weight: Some(Lit::float(0.9)),
                 },

@@ -412,6 +412,25 @@ impl<B: Backend> Store<B> {
     pub fn meta(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.backend.read(|tx| tx.meta(key))
     }
+
+    pub fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
+        self.backend.read(|tx| tx.meta_prefix(prefix))
+    }
+
+    /// Writes settings rows (key, Some(value)) or removes them (key, None)
+    /// in one transaction, logged as one `setting` change, so readers see a
+    /// profile change through `changes_since` (SPEC-005 §2). Returns its seq.
+    pub fn set_settings(&self, subject: &str, rows: &[(String, Option<String>)]) -> Result<u64> {
+        self.backend.write(|tx| {
+            for (k, v) in rows {
+                match v {
+                    Some(v) => tx.set_meta(k, v.as_bytes())?,
+                    None => tx.remove_meta(k)?,
+                }
+            }
+            self.log(tx, LogOp::Setting, subject.into(), None, None)
+        })
+    }
 }
 
 #[cfg(test)]

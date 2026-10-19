@@ -138,6 +138,20 @@ Polling only in v0.
 5. Switching the reader's profile (for example from `function` to `fn`, SPEC-005) reprints an open definition, and no id changes.
 6. `sql` returns a table and a subgraph, and a write attempt is refused.
 
+## Implementation status (2026-10-20)
+
+`crates/sophia-interface` implements §1 to §6 and the acceptance list of §9 on Sophia's side ([[sophia_interface]]). It runs on SQLite and redb, with 11 tests. The adapter maps:
+- `Key::Content(d)` to `NodeId::from_content(d)`;
+- `Key::Derived(s)` to `NodeId::derive(source, s)`;
+- `Subgraph`, `NodeView` and `EdgeView` to `QueryResult`;
+- `EditError::Diagnostics` to a `SourceError` with ranges.
+
+What it does that this page did not spell out:
+- **The settings node** edits the reader's personal profile (`reader-<id>`: `based_on` plus overrides), and points the reader's default at it.
+- **A name in a recursive group** prints the whole group, and saving re-hashes the group together.
+- **Relations** are nominal entities with `MethodOf` members (S-ADR-0009).
+- **An edit spans several store transactions** ([[SP-008 Edits span several transactions]]).
+
 ## Related
 
 [[SPEC-001 Sophia Store v0]] · [[SPEC-005 Rendering Profiles]] · [[Moonkale Interface Needs]] · [[S-ADR-0006 Edits through projections and the existing operations]] · [[SP-004 Moonkale operations are file-shaped]]

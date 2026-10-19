@@ -1,0 +1,19 @@
+# Printer and parser of sophialang's rendering profiles. See
+# src/sophialang_syntax.md and vault/Specifications/SPEC-005 Rendering Profiles.md.
+[package]
+name = "sophialang-syntax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/sophialang_syntax.rs"
+
+[dependencies]
+sophia-hash.workspace = true
+sophialang-core.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

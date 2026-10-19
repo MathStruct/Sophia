@@ -97,6 +97,14 @@ rule ancestor(X, Z) :- parent(X, Y), ancestor(Y, Z)
 
 The same `add` in the `rust` profile is `fn add(x: Int64, y: Int64) -> Int64 { x + y }`, and in the `python` profile it is `def add(x: Int64, y: Int64) -> Int64:` followed by an indented `return x + y`. In the `python` profile a final expression prints as `return`, which is printing sugar and parses back to the same term.
 
+## Implementation status (2026-10-20)
+
+- **Profiles:** `julia` (default) and `rust` are editable and round-trip ([[sophialang_syntax]]: tested on the sample and on 20 000 random definitions). `python` is display-only, because its indentation blocks have no parser yet. `core` is a debug view.
+- **Storage:** profiles are stored as meta rows in the database (`profile/<name>/<key>`, `reader/<reader>/<scope>`), not in dedicated tables ([[profiles]]), so every backend has them without a schema change. Resolution follows §2.
+- **Keys honoured:** `kw.function`, `blocks`, `type.annotation`, `operators`.
+- **Not yet:** `type.show`, `implicit.show`, `generic.call`, `index.base`, and the `Index` type of §4 (no arrays yet).
+- **`let` and `match`** print with `end` in every profile, for now.
+
 ## Related
 
 [[SPEC-002 Sophialang Principles]] · [[SPEC-003 Sophialang Core v0]] · [[SPEC-004 Moonkale Interface]] · [[LLMs and Mixed-Language Code]]

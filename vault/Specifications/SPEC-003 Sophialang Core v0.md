@@ -17,7 +17,7 @@
 | `data` | a **structural** inductive type, possibly indexed (`Vec(A, n)`): two equal declarations are one type | content | shared `type` |
 | `abstract` | an abstract type in the Julia sense (`abstract type Number end`), with a supertype | nominal | shared `interface` |
 | `primitive` | a machine type with a bit width (`primitive type Int64 64 end`) | nominal, built in | shared `type` |
-| `relation` | a predicate with argument types | content | `sophialang:relation` |
+| `relation` | **nominal** since S-ADR-0009: a predicate. Its declared type is a content-addressed `relation` signature definition, which joins it like a method; its rules join it the same way | nominal, plus a content-addressed signature | `sophialang:relation` |
 | `rule` | a Horn clause with logic variables and an optional declared weight | content | `sophialang:rule` |
 | `test` | a closed term of type `Test` | content | shared `test` |
 | `postulate` | a declared type with no body: an axiom, or a function not yet written | content | `sophialang:postulate` |
@@ -36,7 +36,7 @@ Term ::= Var(i)                         -- de Bruijn index
        | Lam(Binder, Term)              | App(Term, [Term])         -- n-ary application (dispatch sees all arguments)
        | Pi(Binder, Term, Term)         -- dependent function type
        | Let(Binder, Term, Term, Term)  -- type, value, body
-       | Match(Term, Term?, [Case])     -- scrutinee, optional motive, cases
+       | Match(Term, Term?, Term?, [Case]) -- scrutinee, optional data type (names the constructors; hashed), optional motive, cases
        | Type(level) | Prop
        | Lit(Int64 | UInt64 | Float64 | String | Bool | Char)
        | Prim(op)                       -- a built-in operation from a versioned table (add_int, …)
@@ -130,6 +130,12 @@ In the core:
 - `Circle` is `Nominal(Circle)` with layout `[Float64]`;
 - `Nat` is a content-addressed `data`;
 - `≈` is a generic function.
+
+## Implementation status (2026-10-20)
+
+- Implemented in `crates/sophialang-core` ([[sophialang_core]]) and printed and parsed by `crates/sophialang-syntax` ([[sophialang_syntax]]).
+- **`Match` carries an optional data type.** Without it, a printed pattern cannot name its constructors (`zero`, `succ`), because a case holds only a constructor index.
+- **In M2, methods are referenced statically.** A `function` definition is a content-addressed method that callers refer to by its id. Attaching methods to nominal generic functions, and dispatching through method tables, comes with M4 (SP-006).
 
 ## Related
 

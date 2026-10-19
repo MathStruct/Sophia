@@ -28,6 +28,12 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `codec.rs`, `query.rs`, `error.rs` | [[codec]], [[query]], [[error]] | value encoding, query results, errors |
 | | `sqlite.rs` | [[sqlite]] | SQLite backend with the read-only guard |
 | | `redb_store.rs` | [[redb_store]] | redb backend |
+| `sophialang-syntax` | `sophialang_syntax.rs` | [[sophialang_syntax]] | profiles, printer, parser; the round-trip guarantee |
+| | `lexer.rs`, `parser.rs`, `ast.rs` | [[lexer]], [[parser]], [[ast]] | text → surface tree |
+| | `elab.rs`, `resolve.rs` | [[elab]], [[resolve]] | surface tree → core; shared name resolution |
+| | `print.rs`, `profile.rs`, `diagnostic.rs` | [[print]], [[profile]], [[diagnostic]] | core → text; profiles; diagnostics |
+| `sophia-interface` | `sophia_interface.rs` | [[sophia_interface]] | what Moonkale's adapter wraps (SPEC-004) |
+| | `edit.rs`, `profiles.rs` | [[edit]], [[profiles]] | edits through text; profiles in the database |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
 | `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 

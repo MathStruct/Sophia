@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b901eb687e282566b31de9da2408f6dd0b1663e2ba335b2da8b2c8f05807363e # shrinks to body = Match { scrutinee: Con { ty: Ref(#000000000000), index: 1 }, data: Some(Con { ty: Prop, index: 0 }), motive: None, cases: [Case { constructor: 1, binders: [Binder { name: "d", usage: Many, implicit: false }], body: App(Nominal(#fdf0d9cc571e), [Lit(Bool(true)), Ref(#adaa5af18799)]) }, Case { constructor: 0, binders: [Binder { name: "to", usage: Many, implicit: false }], body: Lit(UInt64(2529534505029012191)) }] }, ty = App(Nominal(#ba0f2660ba7a), [Lam { binder: Binder { name: "nyi", usage: Zero, implicit: true }, domain: Some(Prop), body: Nominal(#9e7dc36f66d1) }, Match { scrutinee: Pi { binder: Binder { name: "", usage: Zero, implicit: true }, domain: Lit(UInt64(15471488726875996510)), codomain: Nominal(#9e7dc36f66d1) }, data: Some(Let { binder: Binder { name: "ltq", usage: Zero, implicit: true }, ty: None, value: Var(1), body: Nominal(#b2d4fd2fb67d) }), motive: None, cases: [Case { constructor: 2, binders: [Binder { name: "k", usage: Many, implicit: false }], body: Type(1) }, Case { constructor: 0, binders: [Binder { name: "u", usage: Many, implicit: false }], body: Con { ty: Nominal(#6553e0d37749), index: 1 } }] }]), rust = true

@@ -106,7 +106,9 @@ pub enum Term {
     App(Box<Term>, Vec<Term>),
     Pi { binder: Binder, domain: Box<Term>, codomain: Box<Term> },
     Let { binder: Binder, ty: Option<Box<Term>>, value: Box<Term>, body: Box<Term> },
-    Match { scrutinee: Box<Term>, motive: Option<Box<Term>>, cases: Vec<Case> },
+    /// `data` is the data type being matched, when known: it names the
+    /// constructors in printed patterns, and it is hashed.
+    Match { scrutinee: Box<Term>, data: Option<Box<Term>>, motive: Option<Box<Term>>, cases: Vec<Case> },
     Type(u32),
     Prop,
     Lit(Lit),
@@ -186,8 +188,11 @@ impl Term {
                 value.walk(f);
                 body.walk(f);
             }
-            Term::Match { scrutinee, motive, cases } => {
+            Term::Match { scrutinee, data, motive, cases } => {
                 scrutinee.walk(f);
+                if let Some(d) = data {
+                    d.walk(f);
+                }
                 if let Some(m) = motive {
                     m.walk(f);
                 }
@@ -218,8 +223,9 @@ impl Term {
                 value: Box::new(value.map(f)),
                 body: Box::new(body.map(f)),
             },
-            Term::Match { scrutinee, motive, cases } => Term::Match {
+            Term::Match { scrutinee, data, motive, cases } => Term::Match {
                 scrutinee: Box::new(scrutinee.map(f)),
+                data: data.map(|d| Box::new(d.map(f))),
                 motive: motive.map(|m| Box::new(m.map(f))),
                 cases: cases.into_iter().map(|c| Case { body: c.body.map(f), ..c }).collect(),
             },

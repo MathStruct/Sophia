@@ -6,7 +6,11 @@
 //!   sample                    load the sample program (SPEC-004 §9)
 //!   gen N [SEED]              load N synthetic definitions
 //!   ls [PREFIX]               list names
-//!   show NAME|ID              show a definition (core form, until a printer exists)
+//!   text NAME                 a definition as text, in the reader's profile
+//!   edit NAME FILE            replace a definition with the text in FILE
+//!   add NAMESPACE FILE        add the definitions in FILE
+//!   profile [NAME]            show, or set, the reader's rendering profile
+//!   show NAME|ID              a definition's record and core form
 //!   deps NAME|ID              direct dependencies and dependants
 //!   log [SINCE] [LIMIT]       the change log
 //!   verify                    rehash every definition
@@ -19,12 +23,13 @@ use std::process::ExitCode;
 
 use sophia_hash::Digest;
 use sophia_store::query::{QueryLimits, Value};
-use sophia_store::{Backend, Store, Target, Visibility};
+use sophia_interface::{EditError, Interface, Key};
+use sophia_store::{Backend, Store, Target};
 
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb] <init|sample|gen N [SEED]|ls [PREFIX]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY>"
 }
 
 fn main() -> ExitCode {
@@ -60,11 +65,13 @@ fn main() -> ExitCode {
     }
     let result = match backend.as_str() {
         "sqlite" => sophia_store::sqlite::Sqlite::open(&path)
+            .and_then(|b| Interface::open(b, actor()))
             .map_err(Into::into)
-            .and_then(|b| run(Store::new(b).with_actor(actor()), &cmd, &args[1..], sql)),
+            .and_then(|i| run(&i, &cmd, &args[1..], sql)),
         "redb" => sophia_store::redb_store::Redb::open(&path)
+            .and_then(|b| Interface::open(b, actor()))
             .map_err(Into::into)
-            .and_then(|b| run(Store::new(b).with_actor(actor()), &cmd, &args[1..], |_, _| Err("sql needs the sqlite backend".into()))),
+            .and_then(|i| run(&i, &cmd, &args[1..], |_, _| Err("sql needs the sqlite backend".into()))),
         other => Err(format!("unknown backend {other:?}").into()),
     };
     match result {
@@ -120,38 +127,82 @@ fn lookup<B: Backend>(store: &Store<B>, what: &str) -> AnyResult<Target> {
     }
 }
 
-fn run<B: Backend>(
-    store: Store<B>,
+fn edit_error(e: EditError, text: &str) -> Box<dyn std::error::Error> {
+    match e {
+        EditError::Diagnostics(ds) => ds
+            .iter()
+            .map(|d| {
+                let (l, c) = d.line_col(text);
+                format!("{l}:{c}: {}", d.message)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .into(),
+        e => e.to_string().into(),
+    }
+}
+
+fn run<B: Backend + Sync>(
+    i: &Interface<B>,
     cmd: &str,
     args: &[String],
     sql: impl Fn(&Store<B>, &str) -> AnyResult<()>,
 ) -> AnyResult<()> {
+    let store = i.store();
     match cmd {
+        "text" => {
+            let name = args.first().ok_or("text NAME")?;
+            print!("{}", i.fetch_text(&Key::name(name))?.0);
+        }
+        "edit" => {
+            let (name, file) = (args.first().ok_or("edit NAME FILE")?, args.get(1).ok_or("edit NAME FILE")?);
+            let text = std::fs::read_to_string(file)?;
+            let (_, version) = i.fetch_text(&Key::name(name))?;
+            let w = i.write_text(&Key::name(name), version, &text).map_err(|e| edit_error(e, &text))?;
+            for d in &w.warnings {
+                let (l, c) = d.line_col(&text);
+                eprintln!("{l}:{c}: warning: {}", d.message);
+            }
+            for (p, id) in &w.targets {
+                println!("{p} -> {}", id.short(12));
+            }
+            if !w.stale_dependants.is_empty() {
+                println!("{} definitions still use the old version", w.stale_dependants.len());
+            }
+        }
+        "add" => {
+            let (ns, file) = (args.first().ok_or("add NAMESPACE FILE")?, args.get(1).ok_or("add NAMESPACE FILE")?);
+            let text = std::fs::read_to_string(file)?;
+            let first = text.split_whitespace().nth(1).unwrap_or("x").split(['(', ':']).next().unwrap_or("x").to_string();
+            let (_, w) = i.create_text(&Key::ns(ns), &first, &text).map_err(|e| edit_error(e, &text))?;
+            for (p, id) in &w.targets {
+                println!("{p} -> {}", id.short(12));
+            }
+        }
+        "profile" => match args.first() {
+            None => print!("{}", i.fetch_text(&Key::settings())?.0),
+            Some(p) => {
+                let (_, v) = i.fetch_text(&Key::settings())?;
+                i.write_text(&Key::settings(), v, &format!("based_on = {p}\n")).map_err(|e| edit_error(e, p))?;
+                println!("reader {} now uses a profile based on {p}", i.reader());
+            }
+        },
         "init" => {
             store.set_meta("format", b"sophia-store-v0")?;
             println!("initialised ({} backend)", store.backend().name());
         }
         "sample" => {
-            let (names, defs): (Vec<_>, Vec<_>) = sophialang_core::samples::program().into_iter().unzip();
-            let records = sophialang_core::normalise_batch(&defs, &mut Default::default())?;
-            let named: Vec<(String, usize, Visibility)> = names
-                .iter()
-                .enumerate()
-                .filter(|(_, n)| store.resolve(n).ok().flatten().is_none())
-                .map(|(i, n)| (n.to_string(), i, Visibility::Public))
-                .collect();
-            let rep = store.add(&records, &named)?;
-            for (name, kind) in [("Int64", "primitive"), ("Bool", "primitive"), ("Float64", "primitive"), ("Ptr", "primitive"), ("+", "generic"), ("==", "generic")] {
-                store.ensure_nominal(sophialang_core::samples::builtin(name), sophialang_core::LANG, kind, name)?;
-            }
-            println!("{} new definitions, {} names", rep.new_records, rep.name_seqs.len());
+            let before = store.read(|tx| tx.record_count())?;
+            i.load_sample()?;
+            let after = store.read(|tx| tx.record_count())?;
+            println!("{} new definitions", after - before);
         }
         "gen" => {
             let n: usize = args.first().ok_or("gen N [SEED]")?.parse()?;
             let seed: u64 = args.get(1).map(|s| s.parse()).transpose()?.unwrap_or(42);
             let program = sophia_bench::generate(seed, n, sophia_bench::Shape::default());
             let t = std::time::Instant::now();
-            let records = sophia_bench::ingest(&store, &program, 1000);
+            let records = sophia_bench::ingest(store, &program, 1000);
             println!("{} definitions in {:.2} s", records.len(), t.elapsed().as_secs_f64());
         }
         "ls" => {
@@ -166,7 +217,7 @@ fn run<B: Backend>(
         }
         "show" => {
             let what = args.first().ok_or("show NAME|ID")?;
-            match lookup(&store, what)? {
+            match lookup(store, what)? {
                 Target::Nominal(id) => {
                     let n = store.nominal(&id)?.ok_or("unknown nominal entity")?;
                     println!("nominal {} {:?} ({}), relation version {}", n.kind, n.label, id.short(12), n.version);
@@ -190,7 +241,7 @@ fn run<B: Backend>(
         }
         "deps" => {
             let what = args.first().ok_or("deps NAME|ID")?;
-            let id = lookup(&store, what)?.digest();
+            let id = lookup(store, what)?.digest();
             let (r, dependants) = store.read(|tx| Ok((tx.record(&id)?, tx.dependants(&id)?)))?;
             if let Some(r) = r {
                 for d in r.refs {
@@ -234,7 +285,7 @@ fn run<B: Backend>(
                 println!("on disk      {:.1} MiB", b as f64 / 1048576.0);
             }
         }
-        "sql" => sql(&store, args.first().ok_or("sql QUERY")?)?,
+        "sql" => sql(store, args.first().ok_or("sql QUERY")?)?,
         other => return Err(format!("unknown command {other:?}\n{}", usage()).into()),
     }
     Ok(())

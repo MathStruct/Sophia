@@ -10,7 +10,13 @@
   - 58 tests pass;
   - first benchmarks in [[Benchmark Results]].
   
-  **Next: M2, the Moonkale interface**: rendering profiles in the database, the `julia` printer and parser, `sophia-interface`, then DuckDB and LMDB.
+  **M2's interface is done (2026-10-20):**
+  - `sophialang-syntax` (the Julia and Rust profiles round-trip);
+  - rendering profiles in the database;
+  - `sophia-interface` (SPEC-004 §9 on both backends);
+  - Moonkale has been sent the revision.
+
+  **Next:** DuckDB and LMDB backends (the rest of M2), then M3 (MCP, Datalog).
 - **Specifications:** five drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first).
 - **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale.

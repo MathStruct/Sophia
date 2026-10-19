@@ -46,6 +46,14 @@ The old comment-only crates (`sophia-core`, `sophia-equiv`, `sophia-emit`, `soph
   - `sophia-bench-report`, with its first run in [[Benchmark Results]].
   - Two findings: the SQLite layout fix (4× faster lookups), and H3 refuted (the framing dominates, so a compact encoding matters more than local ids).
 
+- **2026-10-20: M2's Moonkale interface done.** DuckDB and LMDB are still open in M2.
+  - `sophialang-syntax`: the `julia` and `rust` profiles round-trip (5 tests, and 20 000 random definitions).
+  - Rendering profiles are stored in the database.
+  - `sophia-interface`: SPEC-004 §9 on both backends (11 tests).
+  - The CLI's `text`, `edit`, `add` and `profile` commands.
+  - Relations are nominal (S-ADR-0009).
+  - `Match` carries its data type.
+
 ## Order of work inside M0 to M2
 
 1. Workspace cleanup; `sophia-hash`: framing, `Digest`, component ordering, with tests.

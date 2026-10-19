@@ -540,6 +540,15 @@ impl ReadTx for SqliteTx<'_> {
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.tx.query_row("SELECT value FROM t_meta WHERE key = ?1", [key], |r| r.get(0)).optional().map_err(be)
     }
+
+    fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
+        let mut st = self
+            .tx
+            .prepare_cached("SELECT key, value FROM t_meta WHERE substr(key, 1, length(?1)) = ?1 ORDER BY key")
+            .map_err(be)?;
+        let v: Vec<_> = st.query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
+        v.into_iter().map(|r| r.map_err(be)).collect()
+    }
 }
 
 impl WriteTx for SqliteTx<'_> {
@@ -705,6 +714,11 @@ impl WriteTx for SqliteTx<'_> {
             .map_err(be)?
             .execute(params![key, value])
             .map_err(be)?;
+        Ok(())
+    }
+
+    fn remove_meta(&mut self, key: &str) -> Result<()> {
+        self.tx.prepare_cached("DELETE FROM t_meta WHERE key = ?1").map_err(be)?.execute([key]).map_err(be)?;
         Ok(())
     }
 }

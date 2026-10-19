@@ -42,6 +42,8 @@ pub trait ReadTx {
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>>;
 
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    /// Meta rows whose key starts with `prefix`, sorted by key.
+    fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>>;
 }
 
 /// Writes, inside a transaction. Every write is part of one atomic commit.
@@ -57,6 +59,7 @@ pub trait WriteTx: ReadTx {
     fn put_annotation(&mut self, a: &Annotation) -> Result<()>;
     fn put_fact(&mut self, f: &Fact) -> Result<()>;
     fn set_meta(&mut self, key: &str, value: &[u8]) -> Result<()>;
+    fn remove_meta(&mut self, key: &str) -> Result<()>;
 }
 
 /// A storage backend. `read` and `write` run a closure inside a transaction;

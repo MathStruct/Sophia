@@ -737,6 +737,7 @@ version = "0.1.0"
 dependencies = [
  "sophia-bench",
  "sophia-hash",
+ "sophia-interface",
  "sophia-store",
  "sophialang-core",
 ]
@@ -747,6 +748,18 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "proptest",
+ "thiserror",
+]
+
+[[package]]
+name = "sophia-interface"
+version = "0.1.0"
+dependencies = [
+ "sophia-hash",
+ "sophia-store",
+ "sophialang-core",
+ "sophialang-syntax",
+ "tempfile",
  "thiserror",
 ]
 
@@ -769,6 +782,16 @@ version = "0.1.0"
 dependencies = [
  "proptest",
  "sophia-hash",
+ "thiserror",
+]
+
+[[package]]
+name = "sophialang-syntax"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "sophia-hash",
+ "sophialang-core",
  "thiserror",
 ]
 

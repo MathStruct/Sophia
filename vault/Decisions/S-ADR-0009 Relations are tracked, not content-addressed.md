@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-20, Claude), after Daniel asked "should they have a type or be tracked?"** Related: [[SPEC-003 Sophialang Core v0]] §1, [[SP-006 Open method tables versus content addressing]], `crates/sophialang-core/src/sophialang_core.md`.
+> **Status: accepted (2026-10-20, Daniel: "Then go with tracked").** Proposed by Claude the same day, after Daniel asked "should they have a type or be tracked?". Related: [[SPEC-003 Sophialang Core v0]] §1, [[SP-006 Open method tables versus content addressing]], `crates/sophialang-core/src/sophialang_core.md`.
 
 ## Context
 
@@ -22,4 +22,4 @@ Option 3. A relation keeps a type, but the type is *about* it, not its identity.
 
 - In SPEC-003 §1, `relation` moves from the content-addressed kinds to the nominal kinds. A rule's head refers to its relation by nominal id.
 - This is symmetric with multiple dispatch: generic function ↔ relation, method ↔ rule.
-- To be done in `sophialang-core` and the sample program once Daniel confirms.
+- **Done (2026-10-20):** `NominalKind::Relation` in `sophialang-core`. The sample's `parent` and `ancestor` are nominal entities, with their signatures and rules as members. The interface creates relations from `relation` text and attaches rules by their head ([[edit]]).

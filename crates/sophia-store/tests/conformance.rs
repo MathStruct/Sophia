@@ -33,7 +33,7 @@ fn re_putting_writes_nothing<B: Backend>(s: Store<B>) {
     assert_eq!(s.put_records(&records).unwrap(), 0);
     assert_eq!(s.last_seq().unwrap(), seq);
     let count = s.read(|tx| tx.record_count()).unwrap();
-    // parent and ancestor share content.
+    // The two relation signatures share content.
     assert_eq!(count as usize, records.len() - 1);
 }
 
@@ -55,7 +55,7 @@ fn names_resolve_and_list<B: Backend>(s: Store<B>) {
     let none = s.read(|tx| tx.names_under("samp", 100)).unwrap();
     assert!(none.is_empty(), "prefix is by segment, not by characters");
     let of = s.read(|tx| tx.names_of(&records[6].id)).unwrap();
-    assert_eq!(of.len(), 2, "parent and ancestor name one definition");
+    assert_eq!(of.len(), 2, "the two relation signatures are one definition");
 }
 
 fn duplicate_names_are_refused<B: Backend>(s: Store<B>) {
@@ -271,4 +271,32 @@ fn sql_queries_are_read_only_and_capped() {
 
     // The store is still usable afterwards.
     assert!(s.resolve("sample.add").unwrap().is_some());
+}
+
+fn settings_are_listed_and_logged<B: Backend>(s: Store<B>) {
+    let before = s.last_seq().unwrap();
+    let seq = s
+        .set_settings("profile/mine", &[("profile/mine/kw.function".into(), Some("fn".into())), ("profile/mine/blocks".into(), Some("braces".into()))])
+        .unwrap();
+    assert_eq!(seq, before + 1);
+    let rows = s.meta_prefix("profile/mine/").unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0], ("profile/mine/blocks".to_string(), b"braces".to_vec()));
+    s.set_settings("profile/mine", &[("profile/mine/blocks".into(), None)]).unwrap();
+    assert_eq!(s.meta_prefix("profile/mine/").unwrap().len(), 1);
+    assert_eq!(s.changes_since(before, 10).unwrap().entries.iter().filter(|e| e.op == LogOp::Setting).count(), 2);
+}
+
+mod settings {
+    use super::*;
+    #[test]
+    fn sqlite() {
+        let d = tempfile::tempdir().unwrap();
+        settings_are_listed_and_logged(Store::new(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap()));
+    }
+    #[test]
+    fn redb() {
+        let d = tempfile::tempdir().unwrap();
+        settings_are_listed_and_logged(Store::new(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap()));
+    }
 }

@@ -286,6 +286,13 @@ impl<T: Kv> ReadTx for T {
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.get(META, key.as_bytes())
     }
+
+    fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
+        self.scan(META, prefix.as_bytes(), prefix.as_bytes(), ALL_ROWS)?
+            .into_iter()
+            .map(|(k, v)| Ok((String::from_utf8(k).map_err(|_| StoreError::Codec("meta key".into()))?, v)))
+            .collect()
+    }
 }
 
 impl WriteTx for RedbWrite<'_> {
@@ -356,6 +363,10 @@ impl WriteTx for RedbWrite<'_> {
 
     fn set_meta(&mut self, key: &str, value: &[u8]) -> Result<()> {
         self.put(META, key.as_bytes(), value)
+    }
+
+    fn remove_meta(&mut self, key: &str) -> Result<()> {
+        self.del(META, key.as_bytes())
     }
 }
 

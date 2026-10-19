@@ -15,7 +15,9 @@ resolver = "3"
 members = [
     "crates/sophia-hash",        # canonical framing, BLAKE3 digests, component ordering
     "crates/sophialang-core",    # sophialang's core terms and normaliser
+    "crates/sophialang-syntax",  # printer and parser of the rendering profiles
     "crates/sophia-store",       # the store: Backend trait, logic, backends
+    "crates/sophia-interface",   # what Moonkale wraps (SPEC-004)
     "crates/sophia-bench",       # the benchmark suite
     "crates/sophia-cli",         # the `sophia` command
 ]
@@ -38,5 +40,7 @@ tempfile = "3"
 
 sophia-hash = { path = "crates/sophia-hash" }
 sophialang-core = { path = "crates/sophialang-core" }
+sophialang-syntax = { path = "crates/sophialang-syntax" }
 sophia-store = { path = "crates/sophia-store" }
 sophia-bench = { path = "crates/sophia-bench" }
+sophia-interface = { path = "crates/sophia-interface" }

@@ -51,9 +51,13 @@ fn every_id_is_distinct_except_by_design() {
     let mut ids: Vec<Digest> = r.iter().map(|r| r.id).collect();
     ids.sort();
     ids.dedup();
-    // parent and ancestor are both `Nat → Nat → Prop` with no body: one definition.
+    // The two relations' signatures are both `Nat → Nat → Prop`: one
+    // definition. The relations themselves stay distinct, because they are
+    // nominal (S-ADR-0009).
     assert_eq!(ids.len(), r.len() - 1);
     assert_eq!(r[6].id, r[7].id);
+    let ns = sophialang_core::samples::nominals();
+    assert_ne!(ns[0].2, ns[1].2);
 }
 
 #[test]
@@ -218,10 +222,12 @@ fn arb_term() -> impl Strategy<Value = Term> {
             (
                 inner.clone(),
                 prop::option::of(inner.clone()),
+                prop::option::of(inner.clone()),
                 prop::collection::vec((0u32..3, prop::collection::vec(arb_binder(), 0..2), inner.clone()), 0..3)
             )
-                .prop_map(|(s, m, cs)| Term::Match {
+                .prop_map(|(s, dt, m, cs)| Term::Match {
                     scrutinee: Box::new(s),
+                    data: dt.map(Box::new),
                     motive: m.map(Box::new),
                     cases: cs.into_iter().map(|(constructor, binders, body)| Case { constructor, binders, body }).collect()
                 }),

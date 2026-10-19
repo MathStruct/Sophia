@@ -14,6 +14,9 @@ pub enum Kind {
     Data,
     /// The field layout of a nominal struct.
     Layout,
+    /// The declared type of a relation. The relation itself is nominal
+    /// (S-ADR-0009); its signature and its rules join it through the
+    /// store's versioned relation, like methods join a generic function.
     Relation,
     Rule,
     Test,
@@ -55,6 +58,8 @@ impl Kind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NominalKind {
     Generic,
+    /// A logic relation: its rules attach like methods (S-ADR-0009).
+    Relation,
     Struct,
     Abstract,
     Primitive,
@@ -64,6 +69,7 @@ impl NominalKind {
     pub fn as_str(self) -> &'static str {
         match self {
             NominalKind::Generic => "generic",
+            NominalKind::Relation => "relation",
             NominalKind::Struct => "struct",
             NominalKind::Abstract => "abstract",
             NominalKind::Primitive => "primitive",

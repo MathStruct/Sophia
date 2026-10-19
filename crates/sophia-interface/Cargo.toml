@@ -1,0 +1,26 @@
+# What Moonkale's `sources/sophia` adapter wraps (SPEC-004). Public types hold
+# no Moonkale, driver or async-runtime types. See src/sophia_interface.md.
+[package]
+name = "sophia-interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/sophia_interface.rs"
+
+[features]
+default = ["sqlite", "redb"]
+sqlite = ["sophia-store/sqlite"]
+redb = ["sophia-store/redb"]
+
+[dependencies]
+sophia-hash.workspace = true
+sophia-store = { path = "../sophia-store", default-features = false }
+sophialang-core.workspace = true
+sophialang-syntax.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

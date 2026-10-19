@@ -176,9 +176,14 @@ impl Encoder<'_> {
                 self.term(body);
                 self.w.close(o);
             }
-            Term::Match { scrutinee, motive, cases } => {
+            Term::Match { scrutinee, data, motive, cases } => {
                 let o = self.w.open("x");
                 self.term(scrutinee);
+                if let Some(d) = data {
+                    let od = self.w.open("data");
+                    self.term(d);
+                    self.w.close(od);
+                }
                 if let Some(m) = motive {
                     let om = self.w.open("mot");
                     self.term(m);
@@ -377,6 +382,11 @@ fn term(r: &mut Reader) -> Result<Term, DecodeError> {
         "x" => {
             let mut x = r.enter("x")?;
             let scrutinee = Box::new(term(&mut x)?);
+            let data = if !x.is_empty() && x.peek_tag()? == "data" {
+                Some(Box::new(term(&mut x.enter("data")?)?))
+            } else {
+                None
+            };
             let motive = if !x.is_empty() && x.peek_tag()? == "mot" {
                 Some(Box::new(term(&mut x.enter("mot")?)?))
             } else {
@@ -393,7 +403,7 @@ fn term(r: &mut Reader) -> Result<Term, DecodeError> {
                 }
                 cases.push(Case { constructor, binders, body: term(&mut c)? });
             }
-            Term::Match { scrutinee, motive, cases }
+            Term::Match { scrutinee, data, motive, cases }
         }
         "t" => Term::Type(r.expect_u32("t")?),
         "P" => {
@@ -457,8 +467,11 @@ pub fn for_each_name(def: &mut Definition, f: &mut impl FnMut(&mut String)) {
                 term(value, f);
                 term(body, f);
             }
-            Term::Match { scrutinee, motive, cases } => {
+            Term::Match { scrutinee, data, motive, cases } => {
                 term(scrutinee, f);
+                if let Some(d) = data {
+                    term(d, f);
+                }
                 if let Some(m) = motive {
                     term(m, f);
                 }
