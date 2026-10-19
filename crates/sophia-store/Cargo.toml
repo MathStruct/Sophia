@@ -1,15 +1,27 @@
-# Graph schema and storage backends. See src/sophia_store.md.
+# The Sophia store: the Backend trait, the store logic, and its backends.
+# See src/sophia_store.md and vault/Specifications/SPEC-001 Sophia Store v0.md.
 [package]
 name = "sophia-store"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [lib]
-# Explicit path so that no file in the repo is named lib.rs: Obsidian resolves
-# [[wikilinks]] by filename, and every code file has a same-named .md sibling.
 path = "src/sophia_store.rs"
 
+[features]
+default = ["sqlite", "redb"]
+sqlite = ["dep:rusqlite"]
+redb = ["dep:redb"]
+
 [dependencies]
-sophia-hash = { path = "../sophia-hash" }
-sophia-core = { path = "../sophia-core" }
+sophia-hash.workspace = true
+thiserror.workspace = true
+blake3.workspace = true
+rusqlite = { workspace = true, optional = true }
+redb = { workspace = true, optional = true }
+
+[dev-dependencies]
+sophialang-core.workspace = true
+tempfile.workspace = true

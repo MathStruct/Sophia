@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-17, Claude).** Answers Moonkale question 1a. Related: [[SPEC-001 Base Sophia v0]] §4, [[Theory of the v0 Store]], Moonkale Code Graph Schema §4 and its WP-66 section.
+> **Status: proposed (2026-10-17, Claude).** Answers Moonkale question 1a. Related: [[SPEC-001 Sophia Store v0]] §4, [[Theory of the v0 Store]], Moonkale Code Graph Schema §4 and its WP-66 section.
 
 ## Context
 

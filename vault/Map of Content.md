@@ -2,17 +2,18 @@
 
 > Every note of the Sophia vault, in reading order. How the vault is organised: [[Start Here]]. The mathematics behind the design is in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/), Track F; links to it below are ordinary web links.
 
-## Now: the base Sophia (2026-10-17)
+## Now: Sophia and sophialang (2026-10-20)
 
-The current work. Sophia's first job is to be the content-addressed code store that Moonkale edits. Start at [[Status]].
+The current work. **Sophia** is the content-addressed store for code in every language; **sophialang** is its own language. The first priority is the interface to Moonkale. Start at [[Status]].
 
-- [[Requirements]]: Daniel's requirements (SR-01 to SR-22) and Moonkale's (SR-30 to SR-49), each with where it came from. Moonkale's questions are summarised in [[Moonkale Interface Needs]].
-- [[SPEC-001 Base Sophia v0]]: the draft specification (index: [[Specifications]]).
-- [[Decisions]]: S-ADR-0001 to S-ADR-0006, all proposed.
-- [[Theory of the v0 Store]]: why the identities are built this way.
-- [[Implementation Plan v0]]: the phases, not started.
-- [[Problem Log]]: SP-001 to SP-005.
-- [[Reading of the Earlier Vault]]: where the notes below may have misread Daniel. Until that is confirmed, read the sections below as ideas, not requirements.
+- **Requirements and coordination:** [[Requirements]] (SR-nn, each with its origin) · [[Moonkale Interface Needs]]
+- **Specifications** ([[Specifications]]): [[SPEC-001 Sophia Store v0]] · [[SPEC-002 Sophialang Principles]] · [[SPEC-003 Sophialang Core v0]] · [[SPEC-004 Moonkale Interface]] · [[SPEC-005 Rendering Profiles]]
+- **Decisions:** [[Decisions]] (S-ADR-0001 to S-ADR-0008)
+- **Theory:** [[Theory of the v0 Store]] · [[Type Taxonomy]] · [[Computational Trinitarianism]]
+- **Research:** [[Compression and Canonical Form]] · [[Block Size and Hash Overhead]] · [[Adopting from Unison]] · [[Minimal Binaries]] · [[LLMs and Mixed-Language Code]] · [[Operating Systems and Sophia]] · [[Hardware for Sophia]] · [[Database Comparison]]
+- **Plans and measurements:** [[Milestones]] · [[Benchmark Plan]] · [[Benchmark Results]]
+- **Problems:** [[Problem Log]] (SP-001 to SP-007)
+- [[Reading of the Earlier Vault]]: where the notes below may have misread Daniel. Read the sections below as ideas, not requirements.
 
 ## 0. The idea
 

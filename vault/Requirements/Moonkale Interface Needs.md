@@ -1,6 +1,6 @@
 #reference
 
-> What Moonkale asked Sophia to specify. It is a summary of the Moonkale coordinator's message of 2026-10-17 (session `moonkale-1e`), with the answer in [[SPEC-001 Base Sophia v0]] for each item. Moonkale cites requirement numbers from [[Requirements]] back on its Code Graph Schema page.
+> What Moonkale asked Sophia to specify. It is a summary of the Moonkale coordinator's message of 2026-10-17 (session `moonkale-1e`), with the answer in [[SPEC-001 Sophia Store v0]] for each item. Moonkale cites requirement numbers from [[Requirements]] back on its Code Graph Schema page.
 >
 > Sources: Moonkale repository `~/Code/Moonkale/Moonkale` (master): `markdown/architecture/Code Graph Schema.md`, `markdown/decisions/ADR-0028 Files or the graph.md`, `markdown/problems/Work Packages.md` (WP-18, 19, 21, 30, 65–68), `packages/core/src/source/{mod,query,transaction,descriptor}.rs`.
 
@@ -10,12 +10,12 @@
 |---|---|---|
 | 1a | Content id: surface or core? Types and annotations in the hash? SCC order? Versioning and migration? | SPEC-001 §4 (SR-40) |
 | 1b | Is the content id the only identity, or is a stable slot needed? | SPEC-001 §5.3, S-ADR-0003 (SR-41) |
-| 1c | Which definition kinds apply; which `sophia:*` kinds | SPEC-001 §3.1 (SR-42) |
+| 1c | Which definition kinds apply; which `sophia:*` kinds | SPEC-003 §1 (SR-42) |
 | 1d | Namespaces, aliases, re-exports, rename, name history | SPEC-001 §5 (SR-43) |
-| 1e | Several typings: L3 node or annotation? | SPEC-001 §8 (SR-44) |
+| 1e | Several typings: L3 node or annotation? | SPEC-001 §9 (SR-44) |
 | 1f | Which layers Sophia owns; IR and lowering | SPEC-001 §2, §10 (SR-45) |
 | 1g | E-classes and e-nodes; persisted or derived; equivalences on content ids | SPEC-001 §10 (SR-46) |
-| 1h | Proofs as annotations: payload, checker, staleness | SPEC-001 §9 (SR-47) |
+| 1h | Proofs as annotations: payload, checker, staleness | SPEC-001 §8 (SR-47) |
 | 1i | Holes and unresolved references: stored? hashed? | SPEC-001 §4.4 (SR-48) |
 
 ## 2. Interface boundary
@@ -24,7 +24,7 @@ Moonkale prefers a Rust crate that implements `moonkale_core::Source`, with a se
 - Reads go through `Query::{Node, Children, Neighbours, All}`, plus `Query::Text` with a named dialect.
 - Edits go through `apply(Transaction)`: revision-checked, returning the new content ids.
 - Also needed: on-demand elaboration with provenance, a printer and a parser with diagnostics, provenance queries, `changes_since(seq)`, projections that parse back (WP-30), and `truth: Store`.
-- Answered in SPEC-001 §6, §7, §11, §12 (SR-30 to SR-38).
+- Answered in SPEC-004 and SPEC-005 (SR-30 to SR-38).
 
 ## 3. Storage
 

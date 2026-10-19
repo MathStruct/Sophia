@@ -1,14 +1,18 @@
-# Canonicalisation and content hashing. See src/sophia_hash.md.
+# Canonical framing, BLAKE3 digests and the ordering of recursive groups.
+# See src/sophia_hash.md and vault/Specifications/SPEC-001 Sophia Store v0.md §4.
 [package]
 name = "sophia-hash"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [lib]
-# Explicit path so that no file in the repo is named lib.rs: Obsidian resolves
-# [[wikilinks]] by filename, and every code file has a same-named .md sibling.
 path = "src/sophia_hash.rs"
 
 [dependencies]
+blake3.workspace = true
+thiserror.workspace = true
 
+[dev-dependencies]
+proptest.workspace = true

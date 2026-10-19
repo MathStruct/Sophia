@@ -13,3 +13,6 @@
 
 # /site/.tikz-cache is deliberately tracked: it keeps CI from recompiling every
 # diagram on each build
+
+# sophia CLI default store
+/.sophia/

@@ -1,41 +1,42 @@
-# Sophia — Rust workspace manifest.
+# Sophia: Rust workspace manifest.
 #
-# The repository is simultaneously a Rust workspace, a Julia package and an
-# Obsidian vault. Julia hard-requires `src/Sophia.jl`, so `src/` belongs to
-# Julia and all Rust code lives under `crates/`. See vault/Design/Repository
-# Layout.md for the full rationale.
+# Sophia is the content-addressed store; sophialang is its own language
+# (vault/Decisions/S-ADR-0007). The plan is vault/Plans/Milestones.md.
 #
-# NOTE: every source file in this workspace is currently comments only. Nothing
-# here is meant to build into anything that runs yet; the crates exist to fix
-# the module boundaries while the design in vault/Design/ is settled.
+# The repository is also an Obsidian vault, and wikilinks resolve by file
+# name, so no crate has a lib.rs: each sets its [lib] path explicitly, and
+# every source file has a same-named .md sibling explaining it.
+#
+# Crates that were comment-only placeholders and are not part of the current
+# milestones were moved to attic/ (excluded below).
 
 [workspace]
 resolver = "3"
 members = [
-    "crates/sophia-hash",               # canonicalisation + content hashing
-    "crates/sophia-core",               # Sophia Core calculus, kernel, elaboration
-    "crates/sophia-store",              # graph schema + storage backends
-    "crates/sophia-equiv",              # e-graph, equivalence edges, witness checking
-    "crates/sophia-emit",               # MLIR / LLVM emission
-    "crates/sophia-frontend-metamath",  # first frontend (see Roadmap M0)
-    "crates/sophia-cli",                # the `sophia` binary
+    "crates/sophia-hash",        # canonical framing, BLAKE3 digests, component ordering
+    "crates/sophialang-core",    # sophialang's core terms and normaliser
+    "crates/sophia-store",       # the store: Backend trait, logic, backends
+    "crates/sophia-bench",       # the benchmark suite
+    "crates/sophia-cli",         # the `sophia` command
 ]
+exclude = ["attic"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
+rust-version = "1.85"
 
-# Intended third-party dependencies, recorded but not yet enabled so that the
-# workspace stays resolvable offline while it is still comments-only:
-#
-#   blake3        content hashing                    -> sophia-hash
-#   xxhash-rust   in-memory interning only           -> sophia-hash
-#   smallvec      term children without heap churn   -> sophia-core
-#   egg           e-graphs and equality saturation   -> sophia-equiv
-#   duckdb        first storage backend              -> sophia-store
-#   rusqlite      Turso/SQLite backend               -> sophia-store
-#   melior        MLIR bindings                      -> sophia-emit
-#   inkwell       LLVM bindings                      -> sophia-emit
-#   clap          CLI                                -> sophia-cli
 [workspace.dependencies]
+blake3 = "1.8"
+rusqlite = { version = "0.40", features = ["bundled", "hooks"] }
+redb = "4.4"
+thiserror = "2"
+proptest = "1.12"
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+tempfile = "3"
+
+sophia-hash = { path = "crates/sophia-hash" }
+sophialang-core = { path = "crates/sophialang-core" }
+sophia-store = { path = "crates/sophia-store" }
+sophia-bench = { path = "crates/sophia-bench" }

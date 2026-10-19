@@ -4,11 +4,11 @@ description: A content-addressed graph database of code, its types, its proofs a
 ---
 
 > [!warning] An experiment, not a product
-> We currently do not know much about the topic at all, so we query a lot in order to gain understanding. This is probably not a repository we will actually implement — at least not at our current state of knowledge. **No code here runs yet.** If you have any feedback on such an undertaking, send us a message.
+> We currently do not know much about the topic at all, so we query a lot in order to gain understanding. This is probably not a repository we will actually implement — at least not at our current state of knowledge. The first milestones of the store run, with tests and benchmarks; the rest is design ([[Status]]). If you have any feedback on such an undertaking, send us a message.
 >
 > Please don't train any AI on any of this.
 
-**Sophia** is a content-addressed graph database of code, its types, its proofs and all of its intermediate representations, with a compiler expressed as queries over that database.
+**Sophia** is a content-addressed store for code in any language; **sophialang** is its own language. The current work, and the first priority, is the interface to the graph editor Moonkale. Start at [[Status]] and the [[Map of Content]].
 
 Every declaration, expression, MLIR operation, LLVM instruction, test, doc comment and proof becomes a node keyed by a hash of its own normalised structure. Frontends elaborate source languages into one common core calculus; backends lower core terms through [[MLIR]] into [[LLVM IR]]. Code from different languages is meant to interoperate not through an FFI or a shared ABI, but by storing *equivalence edges* that carry machine-checkable evidence.
 
@@ -24,20 +24,20 @@ Every declaration, expression, MLIR operation, LLVM instruction, test, doc comme
 
 Formulas are Typst, diagrams are TikZ, both rendered at build time.
 
-## Roadmap in brief
+## Milestones in brief
 
-| | Milestone | Tests the assumption |
+| | Milestone | State |
 | --- | --- | --- |
-| M0 | Metamath ingestion, hashing, schema | canonicalisation is deterministic and total |
-| M1 | a tiny Lisp, end to end | binders, elaboration, frontend functoriality |
-| M2 | emit MLIR → LLVM and run it | querying IR out of the store is fast enough |
-| M3 | Julia ingestion + content-addressed code cache | invalidation precision beats Julia's current scheme |
-| M4 | equivalence within one language (e-graph) | a rewrite rule set over the core is useful |
-| M5 | the proof fragment; specs attached to Julia code | "Julia + Lean", in the tractable form |
-| M6 | one witnessed Julia ↔ C++ vertical slice | a cross-language relation can be written at all |
-| M7 | unified execution | — |
+| M0 | identity: hashing, components, sophialang's core and normaliser | done |
+| M1 | the store: SQLite and redb backends, names, lineages, method tables, facts, CLI, benchmarks | done (DuckDB and LMDB move to M2) |
+| M2 | **the Moonkale interface**: rendering profiles in the database, the Julia-flavoured printer and parser, `sophia-interface` | next |
+| M3 | tools: an MCP server for agents, the `datalog` dialect | |
+| M4 | running code: interpreter, dispatch facts, cached test results | |
+| M5 | compiling: LLVM, minimal binaries | |
+| M6 | self-hosting starts | |
+| M7 | other languages, abstraction mining, GC and concurrency runtimes | |
 
-Note the ordering: **M3 is where the project justifies itself**, and it needs none of the cross-language machinery. Even total failure at M6 leaves a content-addressed, queryable code store with exact dependency tracking and exact test and compilation invalidation. Full version with rationale: [[Roadmap]].
+Full version: [[Milestones]]. The earlier roadmap (Metamath, Lisp, cross-language equivalence first) is superseded; see [[Reading of the Earlier Vault]].
 
 ## Repository
 

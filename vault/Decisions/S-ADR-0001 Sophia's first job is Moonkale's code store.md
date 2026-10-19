@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-17, Claude), from Daniel's message of 2026-10-17.** Related: [[SPEC-001 Base Sophia v0]], [[Requirements]] SR-18, SR-21; Moonkale ADR-0028 §3, WP-68.
+> **Status: proposed (2026-10-17, Claude), from Daniel's message of 2026-10-17.** Related: [[SPEC-001 Sophia Store v0]], [[Requirements]] SR-18, SR-21; Moonkale ADR-0028 §3, WP-68.
 
 ## Context
 

@@ -1,0 +1,28 @@
+# The benchmark suite. See src/sophia_bench.md and vault/Plans/Benchmark Plan.md.
+[package]
+name = "sophia-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+path = "src/sophia_bench.rs"
+
+[dependencies]
+sophia-hash.workspace = true
+sophialang-core.workspace = true
+sophia-store.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "micro"
+harness = false
+
+[[bin]]
+name = "sophia-bench-report"
+path = "src/bin/sophia-bench-report.rs"

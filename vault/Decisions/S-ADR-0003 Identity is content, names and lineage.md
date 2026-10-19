@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-17, Claude).** Answers Moonkale question 1b. Related: [[SPEC-001 Base Sophia v0]] §5, [[Theory of the v0 Store]].
+> **Status: proposed (2026-10-17, Claude).** Answers Moonkale question 1b. Related: [[SPEC-001 Sophia Store v0]] §5, [[Theory of the v0 Store]].
 
 ## Context
 

@@ -1,85 +1,225 @@
-//! Canonicalisation: Sophia Core term -> canonical form.
+//! Canonical tag-length-value framing. See `canonical.md`.
 //!
-//! Design notes: `canonical.md`, `vault/Design/Hashing and Identity.md`.
-//! COMMENTS ONLY — nothing here is implemented.
-//!
-//! This is the most dangerous file in the repository. Everything else fails
-//! loudly; this fails silently. An over-aggressive canonicaliser identifies two
-//! programs that are not the same, and the result is a wrong binary with no
-//! error anywhere. Read `vault/Design/Trusted Computing Base.md` before
-//! touching it.
-//!
-//! ## The pipeline
-//!
-//! ```ignore
-//! pub fn canonicalise(t: &Term, env: &Env) -> Result<CanonTerm, CanonError>;
-//! ```
-//!
-//! Applied in this order, and the order is part of the specification:
-//!
-//! 1. LOCALLY NAMELESS CONVERSION
-//!    Bound variables -> de Bruijn indices; free variables -> the hash of the
-//!    definition they refer to. This is what makes hashing alpha-invariant.
-//!    See vault/Background/Hashing/De Bruijn Index.md.
-//!
-//! 2. LET-FLOATING AND DEAD-BINDING ELIMINATION
-//!    `let x = e in b` with x unused in b  ==>  b, IF e is effect-free.
-//!    The effect check is mandatory: dropping an effectful binding changes the
-//!    program. sophia-core supplies the effect row.
-//!
-//! 3. ETA-EXPANSION TO A FIXED ARITY CONVENTION
-//!    So that `f` and `\x. f x` hash identically. Requires the type, which is
-//!    why canonicalisation runs on ELABORATED terms, never on surface syntax.
-//!
-//! 4. NORMALISATION OF TYPE-LEVEL SUBTERMS  (via sophia-core's NbE)
-//!    Definitional equality must be reflected in identity, or the kernel's
-//!    conversion rule and the hash disagree about what "the same" means — and
-//!    then the same term can enter the store under two identities.
-//!    See vault/Background/Type Theory/Definitional vs Propositional Equality.md.
-//!
-//! 5. DETERMINISTIC ORDERING OF UNORDERED STRUCTURES
-//!    Record fields, module members, effect rows, independent let-groups.
-//!    Order by the hash of the contents — which is a fixpoint, because the key
-//!    depends on hashes that depend on the order. Iterate to stability; cap the
-//!    iteration count and fail loudly rather than looping.
-//!
-//! 6. ATTRIBUTE NORMALISATION FOR PRIMITIVES
-//!    Overflow discipline, rounding mode, contraction/reassociation permission,
-//!    alignment. These are made EXPLICIT, never defaulted away. A Julia `+`
-//!    (wrapping) and a C++ `+` (nsw) must not converge here.
-//!    See vault/Design/Cross-Language Semantic Hazards.md.
-//!
-//! ## What canonicalisation must NOT do
-//!
-//! - No commutativity. No associativity. No distributivity. No algebraic
-//!   identities of any kind. Those are EQUIV edges discovered by the e-graph
-//!   (sophia-equiv), not identity. Baking them in here requires a decision
-//!   procedure for program equality, which does not exist.
-//! - No constant folding. Same reason: it is a rewrite, and rewrites are
-//!   recorded as equivalences so they stay inspectable and reversible.
-//! - No dropping of attributes "that probably don't matter".
-//!
-//! The governing rule: WHEN IN DOUBT, KEEP IT. An over-fine canonical form
-//! costs cache hits. An over-coarse one costs correctness.
-//!
-//! ## Properties that must hold (and be property-tested)
-//!
-//! ```ignore
-//! canonicalise(canonicalise(t)) == canonicalise(t)          // idempotent
-//! t =alpha= u                    ==> canon(t) == canon(u)    // alpha-invariant
-//! canon(t) == canon(u)           ==> t and u are semantically equal  // SOUNDNESS
-//! ```
-//!
-//! The third is the one that cannot be tested directly, only argued. Every
-//! step above needs a one-paragraph justification of why it preserves meaning,
-//! written down next to it.
-//!
-//! ## Failure modes worth an explicit error rather than a silent result
-//!
-//! - Ordering fixpoint does not converge within N iterations
-//! - SCC larger than a configured cap (see merkle.rs)
-//! - Normalisation budget exceeded (a term whose type-level part diverges)
-//! - An attribute the current schema version does not know how to encode
-//!
-//! Each of these is a case where the honest answer is "this term has no
-//! identity under schema version V", not a best-effort digest.
+//! A field is a little-endian u32 tag length, the tag bytes, a little-endian
+//! u32 payload length, then the payload. A payload may itself be a sequence
+//! of fields. This is the framing of Moonkale's WP-66 normaliser v1, shared so
+//! that the two systems' canonical streams are built the same way (their ids
+//! still differ: the streams start with different prefixes).
+
+/// Builds canonical bytes.
+#[derive(Default, Debug, Clone)]
+pub struct Writer {
+    buf: Vec<u8>,
+}
+
+/// A position returned by [`Writer::open`], closed by [`Writer::close`].
+#[must_use]
+#[derive(Debug)]
+pub struct Open(usize);
+
+impl Writer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(n: usize) -> Self {
+        Writer { buf: Vec::with_capacity(n) }
+    }
+
+    /// Writes a complete field.
+    pub fn field(&mut self, tag: &str, payload: &[u8]) {
+        self.tag(tag);
+        self.buf.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        self.buf.extend_from_slice(payload);
+    }
+
+    pub fn u32(&mut self, tag: &str, v: u32) {
+        self.field(tag, &v.to_le_bytes());
+    }
+
+    pub fn u64(&mut self, tag: &str, v: u64) {
+        self.field(tag, &v.to_le_bytes());
+    }
+
+    pub fn str(&mut self, tag: &str, v: &str) {
+        self.field(tag, v.as_bytes());
+    }
+
+    /// Starts a field whose payload is written by further calls, up to the
+    /// matching [`Writer::close`].
+    pub fn open(&mut self, tag: &str) -> Open {
+        self.tag(tag);
+        let at = self.buf.len();
+        self.buf.extend_from_slice(&[0; 4]);
+        Open(at)
+    }
+
+    pub fn close(&mut self, open: Open) {
+        let len = (self.buf.len() - open.0 - 4) as u32;
+        self.buf[open.0..open.0 + 4].copy_from_slice(&len.to_le_bytes());
+    }
+
+    /// Appends bytes that are already canonical fields.
+    pub fn raw(&mut self, bytes: &[u8]) {
+        self.buf.extend_from_slice(bytes);
+    }
+
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    pub fn finish(self) -> Vec<u8> {
+        self.buf
+    }
+
+    fn tag(&mut self, tag: &str) {
+        self.buf.extend_from_slice(&(tag.len() as u32).to_le_bytes());
+        self.buf.extend_from_slice(tag.as_bytes());
+    }
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ReadError {
+    #[error("truncated field at byte {0}")]
+    Truncated(usize),
+    #[error("tag is not UTF-8 at byte {0}")]
+    BadTag(usize),
+    #[error("expected tag {expected:?}, found {found:?}")]
+    UnexpectedTag { expected: String, found: String },
+    #[error("expected a {expected}-byte payload for {tag:?}, found {found}")]
+    BadLength { tag: String, expected: usize, found: usize },
+    #[error("no more fields")]
+    End,
+}
+
+/// Reads a sequence of fields.
+#[derive(Debug, Clone)]
+pub struct Reader<'a> {
+    buf: &'a [u8],
+    at: usize,
+    base: usize,
+}
+
+impl<'a> Reader<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Reader { buf, at: 0, base: 0 }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.at >= self.buf.len()
+    }
+
+    /// The next field's tag without consuming it.
+    pub fn peek_tag(&self) -> Result<&'a str, ReadError> {
+        self.clone().next().map(|(t, _)| t)
+    }
+
+    /// The next field as (tag, payload).
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> Result<(&'a str, &'a [u8]), ReadError> {
+        if self.is_empty() {
+            return Err(ReadError::End);
+        }
+        let start = self.base + self.at;
+        let tag_len = self.u32_raw().ok_or(ReadError::Truncated(start))? as usize;
+        let tag = self.take(tag_len).ok_or(ReadError::Truncated(start))?;
+        let tag = std::str::from_utf8(tag).map_err(|_| ReadError::BadTag(start))?;
+        let len = self.u32_raw().ok_or(ReadError::Truncated(start))? as usize;
+        let payload = self.take(len).ok_or(ReadError::Truncated(start))?;
+        Ok((tag, payload))
+    }
+
+    /// The next field, which must have tag `tag`.
+    pub fn expect(&mut self, tag: &str) -> Result<&'a [u8], ReadError> {
+        let (t, p) = self.next()?;
+        if t != tag {
+            return Err(ReadError::UnexpectedTag { expected: tag.into(), found: t.into() });
+        }
+        Ok(p)
+    }
+
+    /// A reader over a field's payload, which must have tag `tag`.
+    pub fn enter(&mut self, tag: &str) -> Result<Reader<'a>, ReadError> {
+        let offset = self.base + self.at;
+        let p = self.expect(tag)?;
+        Ok(Reader { buf: p, at: 0, base: offset })
+    }
+
+    pub fn expect_u32(&mut self, tag: &str) -> Result<u32, ReadError> {
+        let p = self.expect(tag)?;
+        let a: [u8; 4] = p.try_into().map_err(|_| ReadError::BadLength {
+            tag: tag.into(),
+            expected: 4,
+            found: p.len(),
+        })?;
+        Ok(u32::from_le_bytes(a))
+    }
+
+    pub fn expect_str(&mut self, tag: &str) -> Result<&'a str, ReadError> {
+        let at = self.base + self.at;
+        let p = self.expect(tag)?;
+        std::str::from_utf8(p).map_err(|_| ReadError::BadTag(at))
+    }
+
+    fn u32_raw(&mut self) -> Option<u32> {
+        let b = self.take(4)?;
+        Some(u32::from_le_bytes(b.try_into().ok()?))
+    }
+
+    fn take(&mut self, n: usize) -> Option<&'a [u8]> {
+        let end = self.at.checked_add(n)?;
+        let s = self.buf.get(self.at..end)?;
+        self.at = end;
+        Some(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn field_layout_is_tag_length_value() {
+        let mut w = Writer::new();
+        w.field("ab", b"xyz");
+        assert_eq!(w.finish(), [2, 0, 0, 0, b'a', b'b', 3, 0, 0, 0, b'x', b'y', b'z']);
+    }
+
+    #[test]
+    fn nested_fields_round_trip() {
+        let mut w = Writer::new();
+        let o = w.open("outer");
+        w.u32("n", 7);
+        w.str("s", "hi");
+        w.close(o);
+        w.field("tail", &[]);
+        let bytes = w.finish();
+
+        let mut r = Reader::new(&bytes);
+        let mut inner = r.enter("outer").unwrap();
+        assert_eq!(inner.expect_u32("n").unwrap(), 7);
+        assert_eq!(inner.expect_str("s").unwrap(), "hi");
+        assert!(inner.is_empty());
+        assert_eq!(r.expect("tail").unwrap(), b"");
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn truncation_is_an_error_not_a_panic() {
+        let mut w = Writer::new();
+        w.field("tag", b"payload");
+        let bytes = w.finish();
+        for cut in 0..bytes.len() {
+            let mut r = Reader::new(&bytes[..cut]);
+            if cut == 0 {
+                assert_eq!(r.next(), Err(ReadError::End));
+            } else {
+                assert!(matches!(r.next(), Err(ReadError::Truncated(_))));
+            }
+        }
+    }
+}

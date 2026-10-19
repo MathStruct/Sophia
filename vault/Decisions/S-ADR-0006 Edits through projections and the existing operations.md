@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-17, Claude).** Related: [[SPEC-001 Base Sophia v0]] §6, §12.3; Moonkale ADR-0028, `packages/core/src/source/transaction.rs`; [[SP-004 Moonkale operations are file-shaped]].
+> **Status: proposed (2026-10-17, Claude).** Related: [[SPEC-001 Sophia Store v0]] §6, §12.3; Moonkale ADR-0028, `packages/core/src/source/transaction.rs`; [[SP-004 Moonkale operations are file-shaped]].
 
 ## Context
 
@@ -20,5 +20,5 @@ Structural operations (filling a hole, applying a rewrite, adding an annotation)
 ## Consequences
 
 - WP-68 needs no change to Moonkale's core types.
-- Every text edit goes through the parser, so the round-trip property (SPEC-001 §6.3) is load-bearing.
+- Every text edit goes through the parser, so the round-trip property (SPEC-005 §5) is load-bearing.
 - A typo that fails to parse is a diagnostic, and nothing is stored. This is like a scratch file in Unison, except that the scratch is the editor buffer.

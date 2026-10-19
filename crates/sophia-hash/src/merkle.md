@@ -1,35 +1,18 @@
 #implementation
 
-> Sources: code: `merkle.rs`
+> Component, member and nominal digests, and `Record`: the language-agnostic row the store keeps for one hashed definition. Source: `merkle.rs`.
 >
-> Theory (CT-ML wiki): [Initial Algebra](https://mathstruct.org/CategoryTheory-ML-Wiki/Initial-Algebra) · [Polynomial Functor](https://mathstruct.org/CategoryTheory-ML-Wiki/Polynomial-Functor)
+> Sources: [[SPEC-001 Sophia Store v0]] §4.1, §4.3. code: `merkle.rs`
+>
+> Theory: [[Theory of the v0 Store]] §1 (the Merkle DAG).
 
-Merkle hashing over canonical terms. Source: `merkle.rs` (comments only).
+```
+component_digest = BLAKE3(field("sophia","store-v0") ‖ field("lang",…) ‖ field("normaliser",…) ‖ field("component", members…))
+member_digest    = BLAKE3(field("component", component_digest) ‖ field("index", u32))
+nominal_id       = BLAKE3(field("sophia","nominal-v0") ‖ lang ‖ kind ‖ field("nonce", 32 bytes))
+```
 
-## The easy half
+- **`Record`** carries the id, the language and its normaliser, the kind, the component and index, the canonical bytes, the display data (not hashed), the status, and the outgoing references (content and nominal).
+- **`Record::verify`** recomputes the ids of a component's members from their stored bytes. The store is not trusted: `sophia verify` rehashes everything.
 
-For a DAG, the [[Merkle DAG]] construction is three lines: hash the tag, the attributes and the children's hashes, with length-prefixed concatenation and a per-tag [[BLAKE3]] key. Memoising on the interned pointer ([[Hash Consing]]) makes a term that occurs `n` times cost one hash.
-
-## The hard half: mutual recursion
-
-Merkle hashing is defined by recursion on children, so it is well-founded only on acyclic structure. `isEven` calling `isOdd` calling `isEven` has no bottom. Every content-addressed code system meets this; the construction is in [[Cycle Hashing]] and is implemented here:
-
-Tarjan SCCs → hash the condensation (which *is* acyclic) → inside each SCC, order members by iterative colour refinement seeded from external dependency hashes → break residual ties lexicographically and record the choice → derive each member's hash from the SCC hash plus its canonical index.
-
-The uncomfortable part is the tie-break: canonical labelling of a general graph is not known to be polynomial. In practice SCCs in real code are 2–5 definitions and the first refinement round separates them. The engineering response is a **hard cap on SCC size and on refinement rounds, with a loud error above it** — an adversarial input should fail, not hang.
-
-## Erasure and `h_run`
-
-`hash_erased` reruns the construction on a term stripped of runtime-irrelevant structure: types in erasable (0-quantity, cf. [[Linear and Affine Types|QTT]]) positions, proof terms from the `Prf` fragment, phantom parameters. Definitions differing only in erased content then share compiled code, which is the mechanism behind [[Content-Addressed Precompilation]].
-
-The erasure function carries the same risk as [[canonical]]: erasing something that *is* runtime-relevant silently unifies two different programs.
-
-## Edges get hashed too
-
-`hash_edge` exists so a [[Equivalence and Witnesses|witness]] can cite the specific `EQUIV` edge it justifies. An unidentified edge cannot be referred to, and a claim that cannot be referred to cannot be checked. See [[Graph Schema]].
-
-## Related
-
-- [[Merkle DAG]] · [[Cycle Hashing]] · [[BLAKE3]] · [[Hash Consing]]
-- [[sophia_hash]] · [[canonical]]
-- [[Hashing and Identity]] · [[Content-Addressed Precompilation]]
+**What it does not do:** check that `refs` agrees with the references inside `bytes`. Only the language can decode the bytes, so that check belongs to the language's tests.

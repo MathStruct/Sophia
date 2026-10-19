@@ -6,26 +6,34 @@ Every source file in the repository has a markdown sibling of the same name desc
 
 **All code files are comments only.** Nothing is implemented, nothing is meant to run. See [[Repository Layout]] for the tree and the Rust/Julia split, and [[Roadmap]] for the order in which these would actually be written.
 
-## Rust — `crates/`
+## Rust — `crates/` (implemented, 2026-10-20)
 
 | Crate | File | Note | Role |
 | --- | --- | --- | --- |
-| `sophia-hash` | `sophia_hash.rs` | [[sophia_hash]] | public hashing API, the three-hash scheme |
-| | `canonical.rs` | [[canonical]] | term → canonical form. **The most dangerous file here.** |
-| | `merkle.rs` | [[merkle]] | Merkle hashing, SCC construction, erasure |
-| `sophia-core` | `sophia_core.rs` | [[sophia_core]] | the SC term language, kernel, `Prf`/`Cmp` fragments |
-| | `elaborate.rs` | [[elaborate]] | surface → core, NbE, the `Frontend` trait |
-| | `effects.rs` | [[effects]] | effect rows, regions, borrows |
-| `sophia-store` | `sophia_store.rs` | [[sophia_store]] | backend trait, the IR-persistence measurement |
-| | `schema.rs` | [[schema]] | node/edge kinds, SQL mapping, migrations |
-| `sophia-equiv` | `sophia_equiv.rs` | [[sophia_equiv]] | claims, levels, modulo, substitution policy |
-| | `egraph.rs` | [[egraph]] | saturation and extraction over `egg` |
-| | `witness.rs` | [[witness]] | the six witness formats and their checkers |
-| `sophia-emit` | `sophia_emit.rs` | [[sophia_emit]] | lowering to MLIR and LLVM |
-| `sophia-frontend-metamath` | `metamath.rs` | [[metamath]] | the M0 frontend |
-| `sophia-cli` | `main.rs` | [[main]] | the `sophia` command-line driver |
+| `sophia-hash` | `sophia_hash.rs` | [[sophia_hash]] | identity: framing, digests, components; language-agnostic |
+| | `canonical.rs` | [[canonical]] | the tag-length-value framing shared with Moonkale |
+| | `component.rs` | [[component]] | SCCs and the canonical order of recursive groups |
+| | `merkle.rs` | [[merkle]] | component, member and nominal digests; `Record` |
+| | `digest.rs` | [[digest]] | the 256-bit digest type |
+| `sophialang-core` | `sophialang_core.rs` | [[sophialang_core]] | sophialang's core calculus and normaliser |
+| | `term.rs` | [[term]] | core terms |
+| | `definition.rs` | [[definition]] | definition kinds and bodies |
+| | `encode.rs` | [[encode]] | canonical encoding, decoding, display data |
+| | `normalise.rs` | [[normalise]] | batches of drafts → records |
+| | `samples.rs` | [[samples]] | the 16-definition sample program |
+| `sophia-store` | `sophia_store.rs` | [[sophia_store]] | the store over interchangeable backends |
+| | `backend.rs` | [[backend]] | the backend traits |
+| | `logic.rs` | [[logic]] | the store's rules |
+| | `types.rs` | [[types]] | names, log, nominal entities, lineages, annotations, facts |
+| | `codec.rs`, `query.rs`, `error.rs` | [[codec]], [[query]], [[error]] | value encoding, query results, errors |
+| | `sqlite.rs` | [[sqlite]] | SQLite backend with the read-only guard |
+| | `redb_store.rs` | [[redb_store]] | redb backend |
+| `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
+| `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 
-## Julia — `src/`
+The comment-only crates of the first vault (`sophia-core`, `sophia-equiv`, `sophia-emit`, `sophia-frontend-metamath`) are kept as ideas in `attic/`: [[sophia_core]], [[elaborate]], [[effects]], [[sophia_equiv]], [[egraph]], [[witness]], [[sophia_emit]], [[metamath]].
+
+## Julia — `src/` (comment-only; not part of the plan since S-ADR-0004, Rust only)
 
 | File | Note | Role |
 | --- | --- | --- |
@@ -39,19 +47,17 @@ Every source file in the repository has a markdown sibling of the same name desc
 
 ## Reading order for someone new
 
-1. [[Design Overview]] — what the system is
-2. [[sophia_hash]] → [[canonical]] → [[merkle]] — how identity works, and what can go wrong with it
-3. [[sophia_core]] → [[effects]] — the common language
-4. [[schema]] → [[sophia_store]] — how it is stored and what has to be measured
-5. [[sophia_equiv]] → [[witness]] — the central claim and its safeguards
-6. [[Precompile]] — the part that could pay for itself first
+1. [[Status]] and [[SPEC-001 Sophia Store v0]]: what the system is now
+2. [[sophia_hash]] → [[canonical]] → [[component]] → [[merkle]]: how identity works, and what can go wrong with it
+3. [[sophialang_core]] → [[term]] → [[encode]] → [[normalise]]: the first language
+4. [[sophia_store]] → [[backend]] → [[logic]] → [[sqlite]] / [[redb_store]]: how it is stored, and the measurements ([[Benchmark Results]])
 
 ## Where the risk is concentrated
 
 Three files, for three different reasons:
 
-- [[canonical]] — the only silent failure mode in the system. An over-coarse canonical form identifies two different programs and nothing downstream detects it.
-- [[sophia_store]] — carries the empirical question that could invalidate the architecture: whether querying IR back out is competitive with regenerating it ([[Open Problems and Risks]]).
+- [[canonical]] and [[encode]] — the only silent failure mode in the system. An over-coarse canonical form identifies two different programs and nothing downstream detects it.
+- [[sophia_store]] — carries the empirical questions of [[Database Comparison]] and that could invalidate the architecture: whether querying IR back out is competitive with regenerating it ([[Open Problems and Risks]]).
 - [[sophia_equiv]] — where a careless default turns the project into a miscompilation generator, via the congruence problem in [[Equivalence and Witnesses]].
 
 ## Related

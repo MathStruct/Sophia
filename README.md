@@ -6,9 +6,9 @@ Regardless of that if you have any feed back w.r.t. such an undertaking send us 
 
 Please don't train any AI on any of this.
 
-**Under development — design stage. No code here runs yet.**
+**Under development.** The store's first milestones (M0 identity, M1 storage) run, with tests and benchmarks; everything else is design. See `vault/Status.md` and `vault/Plans/Milestones.md`.
 
-A content-addressed graph database of code, its types, its proofs and all of its intermediate representations, with a compiler expressed as queries over that database.
+**Sophia** is a content-addressed store for code in any language: definitions keyed by the hash of their normalised structure, names as movable labels, proofs and test results as annotations and derived facts. **sophialang** is the store's own language: Julia-flavoured, multiple dispatch, dependent types as an exchangeable checker, and a principle of *autoresolve → unsafe → safe*. Its first job is to be the code store that the graph editor [Moonkale](https://github.com/MathStruct/Moonkale) edits.
 
 Every declaration, expression, MLIR operation, LLVM instruction, test, doc comment and proof becomes a node keyed by a hash of its own normalised structure. Frontends elaborate source languages into one common core calculus; backends lower core terms through MLIR into LLVM IR. Code from different languages is meant to interoperate not through an FFI or a shared ABI, but by storing *equivalence edges* that carry machine-checkable evidence.
 
@@ -31,19 +31,29 @@ Formulas are Typst (`wypst`), diagrams are TikZ (`inline-tikz`).
 ## Layout
 
 ```
-Cargo.toml          Rust workspace manifest
-Project.toml        Julia package manifest
-crates/             Rust: hashing, core calculus, store, equivalence, emission, CLI
-src/                Julia: frontend, annotation macros, precompilation experiment
-vault/              the vault: design notes, surveys, background cards
-meta/               working material (authoring prompts), not published
-index.md            landing page of the website
-site/               vendored Quartz + plugins that build the website from the vault
+Cargo.toml          Rust workspace (Rust only: vault/Decisions/S-ADR-0004)
+crates/
+  sophia-hash/      identity: canonical framing, BLAKE3 digests, recursive groups
+  sophialang-core/  sophialang's core calculus and normaliser
+  sophia-store/     the store, with SQLite and redb backends and a conformance suite
+  sophia-bench/     the benchmark suite (criterion + a report binary)
+  sophia-cli/       the `sophia` command
+attic/              comment-only crates from the first design, kept as ideas
+src/, Project.toml  the earlier Julia skeleton (comment-only; not part of the plan)
+vault/              the vault: requirements, specifications, decisions, research, plans
+meta/               working material and agent scratchpads (not published)
+index.md, site/     the website (Quartz)
 ```
 
-Julia requires `src/Sophia.jl`, so `src/` belongs to Julia and Rust lives in `crates/`. Every `.rs` and `.jl` file has a `.md` sibling of the same name explaining what it is meant to do. See `vault/Design/Repository Layout.md`.
+Every `.rs` file has a `.md` sibling of the same name explaining it. The index is `vault/Design/Code Map.md`.
 
-**All source files currently contain comments only.** They exist to fix module boundaries while the design settles.
+```sh
+cargo test --workspace                       # 58 tests: identity properties, the store conformance suite on both backends
+cargo run -p sophia-cli -- sample            # load the sample program into .sophia/store.sqlite
+cargo run -p sophia-cli -- ls sample
+cargo run -p sophia-cli -- sql "SELECT kind, count(*) FROM definitions GROUP BY kind"
+cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000,10000,100000
+```
 
 ## Website
 
@@ -72,28 +82,24 @@ Pushing to `master` runs `.github/workflows/deploy.yml`, which builds the site a
 
 To pull in upstream changes, merge them into `site/` and keep the four transformer files above plus `quartz.config.ts` and `quartz.layout.ts`.
 
-## Roadmap in brief
+## Milestones in brief
 
-| | Milestone | Tests the assumption |
+| | Milestone | State |
 | --- | --- | --- |
-| M0 | Metamath ingestion, hashing, schema | canonicalisation is deterministic and total |
-| M1 | a tiny Lisp, end to end | binders, elaboration, frontend functoriality |
-| M2 | emit MLIR → LLVM and run it | querying IR out of the store is fast enough |
-| M3 | Julia ingestion + content-addressed code cache | invalidation precision beats Julia's current scheme |
-| M4 | equivalence within one language (e-graph) | a rewrite rule set over the core is useful |
-| M5 | the proof fragment; specs attached to Julia code | "Julia + Lean", in the tractable form |
-| M6 | one witnessed Julia ↔ C++ vertical slice | a cross-language relation can be written at all |
-| M7 | unified execution | — |
+| M0 | identity: hashing, components, sophialang's core and normaliser | done |
+| M1 | the store: SQLite and redb backends, names, lineages, method tables, facts, CLI, benchmarks | done (DuckDB and LMDB move to M2) |
+| M2 | **the Moonkale interface**: rendering profiles in the database, the Julia-flavoured printer and parser, `sophia-interface` | next |
+| M3 | tools: an MCP server for agents, the `datalog` dialect | |
+| M4 | running code: interpreter, dispatch facts, cached test results | |
+| M5 | compiling: LLVM, minimal binaries | |
+| M6 | self-hosting starts | |
+| M7 | other languages, abstraction mining, GC and concurrency runtimes | |
 
-Full version with rationale: `vault/Design/Roadmap.md`.
-
-Note the ordering: **M3 is where the project justifies itself**, and it needs none of the cross-language machinery. Even total failure at M6 leaves a content-addressed, queryable code store with exact dependency tracking and exact test and compilation invalidation.
+Full version: `vault/Plans/Milestones.md`. The earlier roadmap (Metamath, Lisp, cross-language equivalence first) is superseded; see `vault/Reading of the Earlier Vault.md`.
 
 ## Databases under evaluation
 
-Graph: LadybugDB, HelixDB, TypeDB, FalkorDB. Relational: DuckDB, TursoDB.
-
-Current leaning is DuckDB first — the schema is two tables wide and the hot queries are hash lookups and bounded traversals, which a columnar engine handles well without a server. The store sits behind a trait so the choice stays reversible; see `vault/State of the Art/State of the Art - Graph Databases for Code.md`.
+Several backends sit behind one trait and run the same conformance suite and benchmarks (`vault/Research/Database Comparison.md`, `vault/Plans/Benchmark Results.md`). SQLite and redb are implemented; DuckDB and LMDB come next; LadybugDB, HelixDB, TypeDB, FalkorDB and TursoDB are candidates. SQLite is the default meanwhile.
 
 ## On disagreeing with any of this
 

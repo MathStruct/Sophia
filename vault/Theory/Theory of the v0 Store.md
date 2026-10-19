@@ -36,7 +36,7 @@ The store has two parts:
 
 Every user-visible operation (edit, rename, delete) changes only the mutable part, plus an insertion into the immutable part. The printed text of a name is a *view*: `get(store, name) = print(lookup(name))`. An edit is the *put* direction: `put(store, name, text) = store[name ↦ hash(parse(text))]`, plus the new term.
 
-The lens laws are what the projection rules of SPEC-001 §6.3 demand:
+The lens laws are what the projection rules of SPEC-005 §5 demand:
 - **GetPut** (printing and then saving the unchanged text writes nothing new) is the round-trip property `parse ∘ print = id`, together with hash-consing.
 - **PutGet** (what you saved is what you see) holds when `print ∘ parse` is the identity on what the parser accepts, *up to the projection's normal form*.
 
@@ -53,9 +53,9 @@ Sophia's `relation` and `rule` definitions (SR-06) are also Horn clauses. If bot
 - the North Star's "logic queries over the graph" (§8) and Lenticulum's statistical logic programs (LT-24 to LT-29) become the same mechanism, applied to two different fact bases: the code graph itself, and the program's own data;
 - a weighted rule is a rule over a semiring other than the Booleans: probabilities, or provenance polynomials. Datalog over semirings is the standard generalisation.
 
-This is a design target (SPEC-001 §15, Q4), not v0.
+This is a design target (SPEC-001 §14, Q4), not v0.
 
 ## Related
 
-- [[SPEC-001 Base Sophia v0]] · [[S-ADR-0002 Hash the core term, not the text]] · [[S-ADR-0003 Identity is content, names and lineage]]
+- [[SPEC-001 Sophia Store v0]] · [[S-ADR-0002 Hash the core term, not the text]] · [[S-ADR-0003 Identity is content, names and lineage]]
 - Background cards: [[Merkle DAG]] · [[De Bruijn Index]] · [[Alpha Equivalence]] · [[Cycle Hashing]] · [[Datalog]] · [[Definitional vs Propositional Equality]]

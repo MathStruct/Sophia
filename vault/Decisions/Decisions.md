@@ -10,3 +10,5 @@
 | [[S-ADR-0004 Rust for the store, Julia for experiments]] | Rust only; Julia maybe much later for ML on the code graph | accepted |
 | [[S-ADR-0005 SQLite first behind a store trait]] | SQLite as the first backend; others can be added behind the trait | proposed |
 | [[S-ADR-0006 Edits through projections and the existing operations]] | Text is printed, edited and parsed back; Moonkale's existing `Op` set covers v0 | proposed |
+| [[S-ADR-0007 The store is language-agnostic]] | Sophia (the store) and sophialang (its language) are separate; the store serves every language | accepted |
+| [[S-ADR-0008 Sophialang before Metamath or Lisp]] | The first language is sophialang's core | accepted |

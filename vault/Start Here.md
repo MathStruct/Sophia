@@ -9,11 +9,12 @@ The vault is the whole repository. Its notes sit in four places:
 | where | what | example |
 |---|---|---|
 | `vault/Requirements/` | **requirements**, numbered `SR-nn`, each with its origin | `vault/Requirements/Requirements.md` |
-| `vault/Specifications/` | **specifications**, numbered `SPEC-nnn`, drafts until Daniel accepts them | `SPEC-001 Base Sophia v0.md` |
+| `vault/Specifications/` | **specifications**, numbered `SPEC-nnn`, drafts until Daniel accepts them | `SPEC-001 Sophia Store v0.md` |
 | `vault/Decisions/` | **decisions**, numbered `S-ADR-nnnn` (the `S-` keeps them apart from Moonkale's ADRs) | `S-ADR-0002 Hash the core term, not the text.md` |
 | `vault/Problems/` | **problems**, numbered `SP-nnn`, indexed in the Problem Log | `SP-002 Propagating an update to dependants.md` |
-| `vault/Plans/` | **implementation plans** | `Implementation Plan v0.md` |
-| `vault/Theory/` | **theory** specific to Sophia's decisions (general mathematics stays in the CT-ML wiki) | `Theory of the v0 Store.md` |
+| `vault/Plans/` | **milestones, benchmark plan and results** | `Milestones.md` |
+| `vault/Theory/` | **theory** specific to Sophia's decisions (general mathematics stays in the CT-ML wiki) | `Type Taxonomy.md` |
+| `vault/Research/` | **research notes**: questions answered, comparisons, analyses | `Compression and Canonical Form.md` |
 | `vault/templates/` | templates for ADRs, problems and specifications | |
 | `vault/Design/` | **design notes** from the first version of the vault: ideas, not requirements (see *Reading of the Earlier Vault*): what Sophia is supposed to be, made precise | `vault/Design/Hashing and Identity.md` |
 | `vault/State of the Art/` | **surveys** of prior art, one area per note | `State of the Art - Equality Saturation and E-Graphs.md` |

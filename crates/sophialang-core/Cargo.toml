@@ -1,0 +1,18 @@
+# sophialang's core terms and its normaliser. See src/sophialang_core.md and
+# vault/Specifications/SPEC-003 Sophialang Core v0.md.
+[package]
+name = "sophialang-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/sophialang_core.rs"
+
+[dependencies]
+sophia-hash.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

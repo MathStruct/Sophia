@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-17, Claude).** Related: [[Requirements]] SR-17, SR-39; [[SPEC-001 Base Sophia v0]] §13; [[State of the Art - Graph Databases for Code]].
+> **Status: proposed (2026-10-17, Claude).** Related: [[Requirements]] SR-17, SR-39; [[SPEC-001 Sophia Store v0]] §13; [[State of the Art - Graph Databases for Code]].
 
 ## Context
 
@@ -24,6 +24,10 @@ LadybugDB has no macOS or Windows build yet (Moonkale P-144). Moonkale's own sta
 ## Decision
 
 SQLite for v0, behind `sophia_store::Store`. The canonical encoding, not the database, is the contract. A second backend (DuckDB for analytics, a graph database for Cypher) is added when a query needs it. Moonkale shows Sophia's own dialects (`sql` now, `datalog` later) whatever the backend is.
+
+## Amendment (2026-10-20)
+
+Daniel asked to try several databases and compare them (SR-64). SQLite stays the **default** until the comparison says otherwise. redb, DuckDB and LMDB are implemented behind the same `Backend` trait and benchmarked ([[Database Comparison]], [[Benchmark Plan]]).
 
 ## Consequences
 
