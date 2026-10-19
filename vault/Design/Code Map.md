@@ -33,17 +33,9 @@ Every source file in the repository has a markdown sibling of the same name desc
 
 The comment-only crates of the first vault (`sophia-core`, `sophia-equiv`, `sophia-emit`, `sophia-frontend-metamath`) are kept as ideas in `attic/`: [[sophia_core]], [[elaborate]], [[effects]], [[sophia_equiv]], [[egraph]], [[witness]], [[sophia_emit]], [[metamath]].
 
-## Julia — `src/` (comment-only; not part of the plan since S-ADR-0004, Rust only)
+## Julia
 
-| File | Note | Role |
-| --- | --- | --- |
-| `Sophia.jl` | [[Sophia]] | package entry point; why there is a Julia half |
-| `CoreIR.jl` | [[CoreIR]] | mirror of the core term language, for differential testing |
-| `Hashing.jl` | [[Hashing]] | hashing plus the Rust conformance suite |
-| `Store.jl` | [[Store]] | thin client; the `context` query |
-| `Frontend.jl` | [[Frontend]] | Julia lowered/typed IR → core terms |
-| `Annotations.jl` | [[Annotations]] | `@equiv`, `@spec`, `@sophia_test`, `@assume` |
-| `Precompile.jl` | [[Precompile]] | the content-addressed code cache |
+The comment-only Julia skeleton (`src/*.jl`, `Project.toml`) was deleted on 2026-10-20 (S-ADR-0004: Rust only). Julia may come back much later, for analytics on the code graph (SR-24).
 
 ## Reading order for someone new
 

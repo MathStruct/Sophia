@@ -39,7 +39,6 @@ crates/
   sophia-bench/     the benchmark suite (criterion + a report binary)
   sophia-cli/       the `sophia` command
 attic/              comment-only crates from the first design, kept as ideas
-src/, Project.toml  the earlier Julia skeleton (comment-only; not part of the plan)
 vault/              the vault: requirements, specifications, decisions, research, plans
 meta/               working material and agent scratchpads (not published)
 index.md, site/     the website (Quartz)
@@ -66,7 +65,7 @@ whose build-time plugins match the vault's Obsidian plugins:
 - `quartz/plugins/transformers/tabs.ts` — **Markdown Tabs** blocks.
 - `quartz/plugins/transformers/titleHeading.ts` — drops the `# Note Name` heading each note opens with, since Quartz renders the note name as the title.
 
-The content directory is the repository root, so `src/*.md` and `crates/**/*.md` are published next to `vault/` and the `[[wikilinks]]` in `Code Map.md` resolve. `site/quartz.config.ts` lists what is *not* published: `site/`, `.obsidian/`, `meta/`, this README (the site has its own `index.md`), and the `.rs`/`.jl`/`.toml` sources themselves.
+The content directory is the repository root, so `crates/**/*.md` and `attic/**/*.md` are published next to `vault/` and the `[[wikilinks]]` in `Code Map.md` resolve. `site/quartz.config.ts` lists what is *not* published: `site/`, `.obsidian/`, `meta/`, this README (the site has its own `index.md`), and the `.rs`/`.jl`/`.toml` sources themselves.
 
 Local preview:
 
@@ -103,7 +102,7 @@ Several backends sit behind one trait and run the same conformance suite and ben
 
 ## On disagreeing with any of this
 
-The store is content-addressed, so it is not trusted: any node can be re-verified by rehashing it. And migration is re-elaboration from core terms rather than a text rewrite. So if you dislike the schema, replace `crates/sophia-store/src/schema.rs` and migrate — that is a supported operation, not a fork.
+The store is content-addressed, so it is not trusted: any node can be re-verified by rehashing it. And migration is re-elaboration from core terms rather than a text rewrite. So if you dislike the schema, write a different normaliser (a new hash version) and migrate (SPEC-001 §4.5) — that is a supported operation, not a fork.
 
 ## Prior art
 

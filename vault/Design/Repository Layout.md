@@ -1,5 +1,7 @@
 #design #reference
 
+> **Superseded (2026-10-20).** This note describes the first layout, with a Rust and Julia split. Since S-ADR-0004 the code is Rust only, the Julia skeleton is deleted, and unused crates are in `attic/`. The current layout is in the README and in [[Code Map]].
+
 > Sources: original to this vault (design and analysis; no single paper)
 
 Sophia is simultaneously a Rust workspace, a Julia package and an Obsidian vault. This note fixes where things go and why, and is the index for the per-file design documents that sit next to the code.
@@ -103,5 +105,5 @@ The boundary is a C ABI: Rust exposes a small `extern "C"` surface, Julia calls 
 - [[Design Overview]]
 - [[Roadmap]]
 - [[Tests and Documentation as Nodes]]
-- [[Sophia]] — the Julia package entry point
+- `Sophia.jl` (deleted) — the Julia package entry point
 - [[main]] — the Rust CLI entry point

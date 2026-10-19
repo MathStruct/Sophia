@@ -14,6 +14,7 @@
 - **Specifications:** five drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first).
 - **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale.
+- **Daniel's answers of 2026-10-20 (second message):** push; delete the Julia skeleton (done); M2 starts with the interface crate. Relations: S-ADR-0009 proposed (tracked), awaiting confirmation.
 - **Daniel's answers so far:**
   - Q1: keep both Unison and Sophia.
   - Q2: Julia-flavoured, display as settings stored in the database.

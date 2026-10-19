@@ -25,5 +25,5 @@ A frontend should record `ELABORATES_TO` edges from lowered IR to [[Core Calculu
 - [[Multiple Dispatch]]
 - [[World Age]]
 - [[SSA Form]]
-- [[Frontend]]
+- `Frontend.jl` (deleted)
 - [[State of the Art - Julia Compilation and Precompilation]]

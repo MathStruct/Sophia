@@ -70,4 +70,4 @@ These are the numbers that would justify the whole architecture, and they are ob
 - [[Multiple Dispatch]]
 - [[Pkgimage]]
 - [[State of the Art - Incremental Computation]]
-- [[Precompile]] — the Julia module that would implement this
+- `Precompile.jl` (deleted) — the Julia module that would implement this
