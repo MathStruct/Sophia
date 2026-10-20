@@ -32,10 +32,10 @@ The extensional database. Every backend answers these. The schema name is hashed
 | `def(d, kind)` | Id, Text | a definition and its kind | `d` (`kind_of`), `kind` (`records_of_kind`); scan `all_kinds` |
 | `refs(a, b)` | Id, Id | `a` references definition `b` directly | `a` (`refs_of`), `b` (`dependants`); scan `all_refs` |
 | `name(path, t)` | Text, Id | a name and its target (definition or nominal) | `path` (`name`), `t` (`names_of`); scan `names_under("")` |
-| `member(n, d)` | Id, Id | `d` is a current member of nominal `n` (a method, a relation's rule) | `n` (`relation`); scan over `nominal_ids` |
+| `member(n, d)` | Id, Id | `d` is a current member of nominal `n` (a method, a relation's rule, a library's axiom) | `n` (`relation`, wide), `d` (`memberships_of`); scan over `nominal_ids` |
 | `nominal(n, kind)` | Id, Text | a nominal entity and its kind | `n` (`nominal`); scan over `nominal_ids` |
 | `uses(d, n)` | Id, Id | `d` references nominal entity `n` | `d` (the record); scan over records |
-| `annotation(a, kind, s)` | Id, Text, Id | annotation `a` of a kind on subject `s` | `s` (`annotations_of`); scan over subjects |
+| `annotation(a, kind, s)` | Id, Text, Id | annotation `a` of a kind on subject `s` | `a` (`annotation`), `s` (`annotations_of`); scan over subjects |
 | `fact(f, kind, s)` | Id, Text, Id | derived fact `f` of a kind about `s` | `s` (`facts_of`); scan over subjects |
 
 The access paths are `ReadTx` methods. A backend overrides one when it has a better index (SQLite answers `refs_of` from `t_ref` without decoding records; the key-value backends scan their `kind` and `ref_rev` tables for `all_kinds` and `all_refs`). **The algebra depends on neither SQL nor key order**, only on these methods (SR-96).
@@ -193,6 +193,8 @@ A greedy planner orders each body:
 
 The same planner decides the sideways information passing of §6.2.
 
+**Selectivity classes (2026-10-20, from set.mm).** An access path is *narrow* (by id or path) or *wide*: every definition of a kind (`def(_, k)`), every member of a collection (`member(c, _)`). Wide lookups come after local literals, bound or free. A free local predicate is computed once from the query's parameters, while binding a goal from a wide lookup makes magic sets search backwards from every match. On set.mm that was the difference between 2 ms and over 30 s. This is a static guess; cost-based planning replaces it.
+
 This is the extensible point (SR-98). A cost-based planner using backend statistics replaces `plan::order` without touching the IR.
 
 ### 6.2 Magic sets: an optimisation as IR → IR
@@ -208,7 +210,11 @@ This is the extensible point (SR-98). A cost-based planner using backend statist
 - the SQL translation becomes goal-directed too;
 - its equivalence to the original is a checkable claim, tested today and provable later.
 
-**Negation:** negated calls use the all-free adornment, and negations are dropped from magic rules, which only enlarges the magic set and is sound. If the rewrite would break stratification, the query runs as written.
+**Negation:**
+- Negated calls with bound arguments get magic sets too (since 2026-10-20). Without them, `!proved(a)` computed `proved` for all 64 000 proofs of set.mm.
+- Negations are dropped from magic-rule bodies, which only enlarges the magic set and is sound.
+- If the result is not stratified, the rewrite is retried with negated calls unadorned. If that fails too, the query runs as written.
+- The differential property test covers all three cases.
 
 `Strategy::Auto` uses the rewrite when it applies; `Strategy::Plain` runs the query as written. B-17 measures the difference: about 0.17 ms against 6 s per probe at 10⁴ definitions ([[Benchmark Results]]).
 

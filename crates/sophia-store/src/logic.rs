@@ -334,6 +334,29 @@ impl<B: Backend> Store<B> {
         })
     }
 
+    /// Adds many members to a nominal entity's relation in one transaction
+    /// (a library's axioms, its proofs). Members already present are
+    /// skipped. Returns the relation's version.
+    pub fn add_members(&self, nominal: &NominalId, members: &[Digest]) -> Result<u64> {
+        self.backend.write(|tx| {
+            let mut n = tx.nominal(nominal)?.ok_or_else(|| StoreError::NotFound(nominal.to_hex()))?;
+            let mut present: std::collections::HashSet<Digest> = tx.relation(nominal)?.into_iter().map(|e| e.member).collect();
+            for m in members {
+                if !present.insert(*m) {
+                    continue;
+                }
+                if !tx.has_record(m)? {
+                    return Err(StoreError::NotFound(m.to_hex()));
+                }
+                let seq = self.log(tx, LogOp::AddMethod, nominal.to_hex(), None, Some(*m))?;
+                tx.put_relation(&RelationEntry { nominal: *nominal, member: *m, added_seq: seq, removed_seq: None })?;
+                n.version = seq;
+            }
+            tx.put_nominal(&n)?;
+            Ok(n.version)
+        })
+    }
+
     pub fn remove_method(&self, generic: &NominalId, method: &Digest) -> Result<u64> {
         self.backend.write(|tx| {
             let mut n = tx.nominal(generic)?.ok_or_else(|| StoreError::NotFound(generic.to_hex()))?;
@@ -358,6 +381,19 @@ impl<B: Backend> Store<B> {
         self.backend.write(|tx| {
             let seq = self.log(tx, LogOp::Annotate, a.kind.clone(), None, Some(a.id))?;
             tx.put_annotation(a)?;
+            Ok(seq)
+        })
+    }
+
+    /// Adds many annotations in one transaction, logged one by one. Returns
+    /// the last seq.
+    pub fn annotate_many(&self, annotations: &[Annotation]) -> Result<u64> {
+        self.backend.write(|tx| {
+            let mut seq = tx.last_seq()?;
+            for a in annotations {
+                seq = self.log(tx, LogOp::Annotate, a.kind.clone(), None, Some(a.id))?;
+                tx.put_annotation(a)?;
+            }
             Ok(seq)
         })
     }

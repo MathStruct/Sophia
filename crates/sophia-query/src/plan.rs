@@ -11,9 +11,20 @@ use crate::ir::*;
 pub fn access_columns(b: Base) -> &'static [usize] {
     match b {
         Base::Def | Base::Refs | Base::Name => &[0, 1],
-        Base::Member | Base::Nominal | Base::Uses => &[0],
-        Base::Annotation | Base::Fact => &[2],
+        Base::Member => &[0, 1],
+        Base::Nominal | Base::Uses => &[0],
+        Base::Annotation => &[0, 2],
+        Base::Fact => &[2],
     }
+}
+
+/// Lookups that can return a large share of a relation: every definition
+/// of a kind, every member of a collection (a library's proofs, a big
+/// method table). Other id- and path-keyed lookups are narrow. Without
+/// statistics this is a static guess (SPEC-007 §6.1); cost-based planning
+/// replaces it.
+pub fn wide(b: Base, col: usize) -> bool {
+    matches!((b, col), (Base::Def, 1) | (Base::Member, 0))
 }
 
 pub(crate) fn is_bound(t: &Term, bound: &[bool]) -> bool {
@@ -57,8 +68,17 @@ fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
     match l {
         Literal::Pos(a) => Some(match a.pred {
             Pred::Base(b) => {
-                if access_columns(b).iter().any(|&c| is_bound(&a.args[c], bound)) {
+                let paths: Vec<usize> = access_columns(b).iter().copied().filter(|&c| is_bound(&a.args[c], bound)).collect();
+                if paths.iter().any(|&c| !wide(b, c)) {
                     60 + nb(a)
+                } else if !paths.is_empty() {
+                    // A wide lookup (all definitions of a kind) binds many
+                    // tuples. It comes after local literals, bound or free:
+                    // a free local predicate is computed once from the
+                    // query's parameters, while binding it from a wide
+                    // lookup makes magic sets search backwards from every
+                    // match (measured on set.mm).
+                    8
                 } else if nb(a) > 0 {
                     5
                 } else {

@@ -2,6 +2,40 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
+## 2026-10-20 (night): B-16 on a real library, Metamath set.mm
+
+- Machine: as below.
+- Command: `sophia-bench-report --sizes 1000 --backends sqlite,redb,lmdb --metamath ~/.cache/sophia-corpora/set.mm/set.mm --skip-queries --only-queries`.
+
+| backend | assertions | proofs | records | parse | ingest (parse + store) | size | queries (median of 5) |
+|---|---|---|---|---|---|---|---|
+| sqlite | 51159 | 48083 | 98136 | 2.25s | 15.26s | 564 MiB | axioms behind 2p2e4: 15 rows, 3.87 ms; axioms behind fta (fundamental thm of algebra): 46 rows, 79.34 ms; proofs using ax-mp directly: 5361 rows, 14.53 ms; count by kind: 3 rows, 97.06 ms |
+| redb | 51159 | 48083 | 98136 | 2.17s | 10.91s | 1028 MiB | axioms behind 2p2e4: 15 rows, 2.42 ms; axioms behind fta (fundamental thm of algebra): 46 rows, 46.53 ms; proofs using ax-mp directly: 5361 rows, 13.53 ms; count by kind: 3 rows, 66.98 ms |
+| lmdb | 51159 | 48083 | 98136 | 2.17s | 6.21s | 791 MiB | axioms behind 2p2e4: 15 rows, 1.85 ms; axioms behind fta (fundamental thm of algebra): 46 rows, 37.14 ms; proofs using ax-mp directly: 5361 rows, 10.04 ms; count by kind: 3 rows, 52.63 ms |
+
+### Where the space goes (SQLite, set.mm)
+
+| Table | MiB | Share |
+|---|---|---|
+| definitions (canonical bytes, display, refs blob) | 238 | 42 % |
+| `t_ref` (reference edges) | 125 | 22 % |
+| `t_ref_dst` (the reverse index) | 115 | 20 % |
+| log | 28 | 5 % |
+| everything else | 59 | 11 % |
+
+- Canonical bytes: 49 MiB of statements and 83 MiB of proofs.
+- 1.5 M reference edges.
+
+### What this says
+
+- **Real queries are fast:**
+  - the axioms behind `2p2e4` take 1.9 ms on LMDB;
+  - the axioms behind the fundamental theorem of algebra (46 of them, a deep chain) take 37 ms;
+  - LMDB is fastest on every query, redb next, SQLite last but within about 2×.
+- **Ingest:** LMDB 6.2 s, redb 10.9 s, SQLite 15.3 s, of which 2.2 s is parsing.
+- **Reference edges dominate storage on real code** ([[SP-011 Reference edges dominate storage on real code]]): about 31 references per proof, against 3 in the synthetic generator. **H3 is refuted on synthetic code and confirmed on real code.** Synthetic benchmarks understated the cost of 32-byte references by about 10×. That is the reason for B-16.
+- What the library taught the design: [[Real Code Corpora]] §4.
+
 ## 2026-10-20 (evening): B-17, Sophia's own query language (SPEC-007), and the zero-copy breakdown
 
 - Machine: AMD Ryzen 7 7800X3D, 8 threads, 30 GiB RAM, Linux 7.2.9-arch1-1.

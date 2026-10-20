@@ -18,3 +18,5 @@
 **Why closures:** a transaction's lifetime is tied to the backend's own transaction type. Closures keep that out of the public types, which Moonkale's adapter needs to be free of driver types (SPEC-004).
 
 **Access paths for the query executor** (2026-10-20, [[SPEC-007 Sophia Query Language]] §2): `kind_of`, `refs_of`, `all_kinds`, `all_refs` and `nominal_ids` have default implementations built on the other reads, so every backend answers Sophia's queries. A backend overrides one when an index answers it without decoding records (SQLite, DuckDB, and the key-value backends for the two scans).
+
+**More access paths** (2026-10-20, from Metamath): `annotation(id)` reads an annotation by its id, and `memberships_of(member)` lists the nominal entities whose relation contains a definition (the generic functions a method belongs to; the library collections holding a statement). The key-value backends keep a `relation_by_member` table; SQLite and DuckDB have an index on `t_relation(member)`.

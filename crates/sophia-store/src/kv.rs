@@ -28,6 +28,8 @@ pub enum Table {
     Nom,
     /// nominal ‖ member
     Rel,
+    /// member ‖ nominal
+    RelMem,
     /// lineage ‖ id
     Lin,
     /// id ‖ lineage
@@ -42,9 +44,9 @@ pub enum Table {
 }
 
 impl Table {
-    pub const ALL: [Table; 16] = [
+    pub const ALL: [Table; 17] = [
         Table::Rec, Table::Comp, Table::Kind, Table::RefRev, Table::Name, Table::NameTgt, Table::Log, Table::Nom,
-        Table::Rel, Table::Lin, Table::LinId, Table::Ann, Table::AnnSub, Table::Fact, Table::FactSub, Table::Meta,
+        Table::Rel, Table::RelMem, Table::Lin, Table::LinId, Table::Ann, Table::AnnSub, Table::Fact, Table::FactSub, Table::Meta,
     ];
 
     pub fn name(self) -> &'static str {
@@ -58,6 +60,7 @@ impl Table {
             Table::Log => "log",
             Table::Nom => "nominal",
             Table::Rel => "relation",
+            Table::RelMem => "relation_by_member",
             Table::Lin => "lineage",
             Table::LinId => "lineage_by_id",
             Table::Ann => "annotation",
@@ -215,6 +218,26 @@ impl<X: Kv> ReadTx for X {
         Ok(out)
     }
 
+    fn memberships_of(&self, member: &Digest) -> Result<Vec<NominalId>> {
+        let mut out = Vec::new();
+        for (k, _) in self.scan(Table::RelMem, member.as_bytes(), member.as_bytes(), ALL_ROWS)? {
+            let n = tail_digest(&k)?;
+            let current = self
+                .get(Table::Rel, &cat(&[n.as_bytes(), member.as_bytes()]))?
+                .map(|b| decode_relation(&b))
+                .transpose()?
+                .is_some_and(|e| e.removed_seq.is_none());
+            if current {
+                out.push(n);
+            }
+        }
+        Ok(out)
+    }
+
+    fn annotation(&self, id: &Digest) -> Result<Option<Annotation>> {
+        self.get(Table::Ann, id.as_bytes())?.map(|b| decode_annotation(&b)).transpose()
+    }
+
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>> {
         let mut out = Vec::new();
         for (k, _) in self.scan(Table::FactSub, subject.as_bytes(), subject.as_bytes(), ALL_ROWS)? {
@@ -296,7 +319,8 @@ impl<X: KvWrite> WriteTx for X {
     }
 
     fn put_relation(&mut self, e: &RelationEntry) -> Result<()> {
-        self.put(Table::Rel, &cat(&[e.nominal.as_bytes(), e.member.as_bytes()]), &encode_relation(e))
+        self.put(Table::Rel, &cat(&[e.nominal.as_bytes(), e.member.as_bytes()]), &encode_relation(e))?;
+        self.put(Table::RelMem, &cat(&[e.member.as_bytes(), e.nominal.as_bytes()]), &[])
     }
 
     fn put_lineage(&mut self, e: &LineageEntry) -> Result<()> {

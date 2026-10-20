@@ -15,6 +15,7 @@ sophia-hash.workspace = true
 sophialang-core.workspace = true
 sophia-store = { workspace = true, features = ["lmdb", "duckdb"] }
 sophia-query = { workspace = true, features = ["lmdb", "duckdb"] }
+sophia-ingest.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]

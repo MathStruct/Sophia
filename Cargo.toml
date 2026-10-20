@@ -19,6 +19,7 @@ members = [
     "crates/sophia-store",       # the store: Backend trait, logic, backends
     "crates/sophia-interface",   # what Moonkale wraps (SPEC-004)
     "crates/sophia-query",       # Sophia's own query language (SPEC-007)
+    "crates/sophia-ingest",      # frontends for real code (B-16): Metamath first
     "crates/sophia-bench",       # the benchmark suite
     "crates/sophia-cli",         # the `sophia` command
 ]
@@ -48,3 +49,4 @@ sophia-store = { path = "crates/sophia-store" }
 sophia-bench = { path = "crates/sophia-bench" }
 sophia-interface = { path = "crates/sophia-interface" }
 sophia-query = { path = "crates/sophia-query" }
+sophia-ingest = { path = "crates/sophia-ingest" }

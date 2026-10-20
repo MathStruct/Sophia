@@ -1,0 +1,20 @@
+# Frontends that bring real code into Sophia (B-16). Metamath first.
+# See src/sophia_ingest.md and vault/Plans/Real Code Corpora.md.
+[package]
+name = "sophia-ingest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/sophia_ingest.rs"
+
+[dependencies]
+sophia-hash.workspace = true
+sophia-store = { path = "../sophia-store", default-features = false }
+thiserror.workspace = true
+
+[dev-dependencies]
+sophia-store = { path = "../sophia-store" }
+tempfile.workspace = true

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS t_nominal(
 CREATE TABLE IF NOT EXISTS t_relation(
   nominal BLOB NOT NULL, member BLOB NOT NULL, added_seq INTEGER NOT NULL, removed_seq INTEGER,
   PRIMARY KEY(nominal, member));
+CREATE INDEX IF NOT EXISTS t_relation_member ON t_relation(member);
 CREATE TABLE IF NOT EXISTS t_name(
   path TEXT PRIMARY KEY, target_kind TEXT NOT NULL, target BLOB NOT NULL,
   visibility TEXT NOT NULL, seq INTEGER NOT NULL);
@@ -475,6 +476,21 @@ impl ReadTx for DuckTx<'_> {
                 Ok(LineageEntry { lineage: *lineage, id: dg(id)?, seq, supersedes: opt_dg(sup)? })
             })
             .collect()
+    }
+
+    fn memberships_of(&self, id: &Digest) -> Result<Vec<NominalId>> {
+        let mut st = self.tx.prepare_cached("SELECT nominal FROM t_relation WHERE member = $1 AND removed_seq IS NULL ORDER BY nominal").map_err(be)?;
+        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
+    }
+
+    fn annotation(&self, id: &Digest) -> Result<Option<Annotation>> {
+        // Through its first subject, which reuses the row decoding below.
+        let mut st = self.tx.prepare_cached("SELECT subject FROM t_annotation_subject WHERE id = $1 LIMIT 1").map_err(be)?;
+        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        let Some(subject) = v.into_iter().next() else { return Ok(None) };
+        let subject = dg(subject.map_err(be)?)?;
+        Ok(self.annotations_of(&subject)?.into_iter().find(|a| a.id == *id))
     }
 
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>> {

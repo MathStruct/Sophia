@@ -4,6 +4,7 @@
 //!
 //! Usage: sophia-bench-report [--sizes 1000,10000,100000] [--backends sqlite,redb,lmdb,duckdb] [--seed N]
 //!        [--analytics-size N] [--skip-analytics] [--query-size N] [--skip-queries] [--only-queries] [--zero-copy]
+//!        [--metamath FILE]
 
 use std::time::{Duration, Instant};
 
@@ -253,6 +254,42 @@ fn zero_copy(n: usize, seed: u64, shape: Shape) {
     println!("| record + decode the core term (heap objects) | {term:.0} |\n");
 }
 
+/// B-16 on a real library: a Metamath database (`--metamath FILE`) loaded
+/// into each backend, then real queries.
+fn metamath<B: Backend>(store: Store<B>, db: &str, text: &str) {
+    use sophia_query::{Limits, Strategy, Val, prepare_text};
+    let t = Instant::now();
+    let parsed = sophia_ingest::metamath::parse(text).unwrap();
+    let parse = t.elapsed();
+    let r = sophia_ingest::store_metamath(&store, db, &parsed, 1000).unwrap();
+    let ingest = t.elapsed();
+    let name = store.backend().name();
+    let bytes = store.backend().size_on_disk().map(|b| format!("{:.0} MiB", b as f64 / (1 << 20) as f64)).unwrap_or("-".into());
+    let rests = prepare_text(
+        "query rests_on(proof::Id, axioms::Text)\n below(x) = refs(proof, x)\n below(y) = below(x) && def(x, :proof) && refs(x, y)\n select s where below(s) && def(s, :statement) && member(c, s) && name(axioms, c)\nend",
+    )
+    .unwrap();
+    let uses = prepare_text("query users(s::Id)\n select p where refs(p, s) && def(p, :proof)\nend").unwrap();
+    let kinds = prepare_text("select k, count(d) where def(d, k)").unwrap();
+    let id_of = |n: &str| store.resolve(n).unwrap().unwrap().target.digest();
+    let limits = Limits { max_rows: usize::MAX, ..Limits::default() };
+    let mut cells = Vec::new();
+    for (label, p, args) in [
+        ("axioms behind 2p2e4", &rests, vec![Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "2p2e4"))), Val::Text(sophia_ingest::library_collection(db, "axioms"))]),
+        ("axioms behind fta (fundamental thm of algebra)", &rests, vec![Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "fta"))), Val::Text(sophia_ingest::library_collection(db, "axioms"))]),
+        ("proofs using ax-mp directly", &uses, vec![Val::Id(id_of(&sophia_ingest::metamath::name_for(db, "ax-mp")))]),
+        ("count by kind", &kinds, vec![]),
+    ] {
+        let mut rows = 0;
+        let time = median_time(5, || rows = store.read(|tx| Ok(p.run(tx, &args, limits, Strategy::Auto).unwrap())).unwrap().rows.len());
+        cells.push(format!("{label}: {rows} rows, {:.2} ms", time.as_secs_f64() * 1e3));
+    }
+    println!(
+        "| {name} | {} | {} | {} | {:.2?} | {:.2?} | {bytes} | {} |",
+        r.assertions, r.proofs, r.new_records, parse, ingest, cells.join("; ")
+    );
+}
+
 fn percentile(v: &mut [usize], p: f64) -> usize {
     v.sort_unstable();
     v[((v.len() - 1) as f64 * p) as usize]
@@ -348,6 +385,23 @@ fn main() {
                     queries(&s, &records, n, None);
                 }
                 other => panic!("unknown backend {other}"),
+            }
+        }
+        println!();
+    }
+    if let Some(file) = arg("--metamath") {
+        let text = std::fs::read_to_string(&file).expect("metamath file");
+        let db = std::path::Path::new(&file).file_stem().and_then(|s| s.to_str()).unwrap_or("db").replace(['.', '-'], "_");
+        println!("#### B-16: a real library, Metamath `{db}`\n");
+        println!("| backend | assertions | proofs | records | parse | ingest (parse + store) | size | queries (median of 5) |");
+        println!("|---|---|---|---|---|---|---|---|");
+        for which in &backends {
+            let dir = tempfile::tempdir().unwrap();
+            match which.as_str() {
+                "sqlite" => metamath(Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("m.sqlite")).unwrap()), &db, &text),
+                "redb" => metamath(Store::new(sophia_store::redb_store::Redb::open(dir.path().join("m.redb")).unwrap()), &db, &text),
+                "lmdb" => metamath(Store::new(sophia_store::lmdb_store::Lmdb::open(dir.path().join("m.lmdb")).unwrap()), &db, &text),
+                _ => eprintln!("skipping {which} for Metamath (too slow to ingest)"),
             }
         }
         println!();

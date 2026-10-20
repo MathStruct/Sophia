@@ -39,6 +39,9 @@ pub trait ReadTx {
     fn lineage(&self, lineage: &Digest) -> Result<Vec<LineageEntry>>;
 
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>>;
+    /// An annotation by its id (an access path for `annotation(a, _, _)`
+    /// with `a` bound, SPEC-007 §2).
+    fn annotation(&self, id: &Digest) -> Result<Option<Annotation>>;
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>>;
 
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>>;
@@ -76,6 +79,19 @@ pub trait ReadTx {
         for id in self.records_of_kind(None, usize::MAX)? {
             for r in self.refs_of(&id)? {
                 out.push((id, r));
+            }
+        }
+        Ok(out)
+    }
+
+    /// The nominal entities whose current relation contains `member` (which
+    /// generic functions a method belongs to; which collections hold a
+    /// definition).
+    fn memberships_of(&self, member: &Digest) -> Result<Vec<NominalId>> {
+        let mut out = Vec::new();
+        for n in self.nominal_ids()? {
+            if self.relation(&n)?.iter().any(|e| e.member == *member) {
+                out.push(n);
             }
         }
         Ok(out)

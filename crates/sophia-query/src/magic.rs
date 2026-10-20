@@ -22,8 +22,11 @@ struct Rewriter<'a> {
     work: Vec<(u32, Vec<bool>)>,
     rules: Vec<Rule>,
     /// For display and debugging: the name of each new predicate.
-    pub names: Vec<String>,
+    names: Vec<String>,
     old_names: &'a [String],
+    /// Negated calls with bound arguments get magic sets too (tried first;
+    /// abandoned if the result is not stratified).
+    magic_neg: bool,
 }
 
 fn mask_str(m: &[bool]) -> String {
@@ -82,7 +85,18 @@ impl Rewriter<'_> {
                     Literal::Pos(Atom { pred: Pred::Local(ap), args: args.clone() })
                 }
                 Literal::Neg(Atom { pred: Pred::Local(p), args }) => {
-                    let ap = self.adorned(*p, vec![false; args.len()]);
+                    let mask: Vec<bool> = if self.magic_neg {
+                        args.iter().map(|t| plan::is_bound(t, &bound)).collect()
+                    } else {
+                        vec![false; args.len()]
+                    };
+                    let ap = self.adorned(*p, mask.clone());
+                    if mask.iter().any(|b| *b) {
+                        let mp = self.magic(*p, &mask);
+                        let margs: Vec<Term> = args.iter().zip(&mask).filter(|(_, b)| **b).map(|(t, _)| t.clone()).collect();
+                        let mbody: Vec<Literal> = out.iter().filter(|l| !matches!(l, Literal::Neg(_))).cloned().collect();
+                        self.rules.push(Rule { head: mp, args: margs, body: mbody, vars });
+                    }
                     Literal::Neg(Atom { pred: Pred::Local(ap), args: args.clone() })
                 }
                 l => l.clone(),
@@ -98,7 +112,12 @@ impl Rewriter<'_> {
 /// rewrite does not apply (no local predicate is called with a bound
 /// argument) or would not be stratified.
 pub fn rewrite(q: &Query, names: &Names) -> Option<(Query, Vec<String>)> {
+    rewrite_with(q, names, true).or_else(|| rewrite_with(q, names, false))
+}
+
+fn rewrite_with(q: &Query, names: &Names, magic_neg: bool) -> Option<(Query, Vec<String>)> {
     let mut w = Rewriter {
+        magic_neg,
         q,
         preds: Vec::new(),
         adorned: HashMap::new(),

@@ -17,3 +17,4 @@ sophia-store.workspace = true
 sophia-bench.workspace = true
 sophia-interface = { workspace = true, features = ["lmdb", "duckdb"] }
 sophia-query = { workspace = true, features = ["lmdb", "duckdb"] }
+sophia-ingest.workspace = true

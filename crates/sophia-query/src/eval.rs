@@ -242,6 +242,11 @@ impl<'a> Exec<'a> {
                     out.extend(tx.relation(d)?.into_iter().map(|e| vec![key.clone(), Val::Id(e.member)]));
                 }
             }
+            (Base::Member, 1) => {
+                if let Some(d) = id(key) {
+                    out.extend(tx.memberships_of(d)?.into_iter().map(|n| vec![Val::Id(n), key.clone()]));
+                }
+            }
             (Base::Nominal, 0) => {
                 if let Some(d) = id(key) {
                     out.extend(tx.nominal(d)?.map(|n| vec![key.clone(), Val::Text(n.kind)]));
@@ -251,6 +256,13 @@ impl<'a> Exec<'a> {
                 if let Some(d) = id(key) {
                     if let Some(r) = tx.record(d)? {
                         out.extend(r.nominal_refs.into_iter().map(|n| vec![key.clone(), Val::Id(n)]));
+                    }
+                }
+            }
+            (Base::Annotation, 0) => {
+                if let Some(d) = id(key) {
+                    if let Some(a) = tx.annotation(d)? {
+                        out.extend(a.subjects.iter().map(|s| vec![key.clone(), Val::Text(a.kind.clone()), Val::Id(*s)]));
                     }
                 }
             }

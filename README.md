@@ -39,6 +39,7 @@ crates/
   sophialang-syntax/ rendering profiles: printer and parser (Julia- and Rust-flavoured)
   sophia-interface/ what Moonkale wraps: nodes, edges, text, edits, profiles, the `query` dialect
   sophia-query/     Sophia's own query language: Datalog IR, Julia-flavoured syntax, content ids, executors
+  sophia-ingest/    real code into Sophia: Metamath first (set.mm, iset.mm)
   sophia-bench/     the benchmark suite (criterion + a report binary)
   sophia-cli/       the `sophia` command
 attic/              comment-only crates from the first design, kept as ideas

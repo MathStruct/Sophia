@@ -14,3 +14,5 @@
 | [[SP-008 Edits span several transactions]] | A text edit is several store transactions, not one | open |
 | [[SP-009 Canonical form of queries]] | Literal order inside a query body is part of its id | open, accepted for v0 |
 | [[SP-010 Query snapshots are coarse]] | Any logged change invalidates every cached query result | open |
+| [[SP-011 Reference edges dominate storage on real code]] | On set.mm, 32-byte reference edges take 42 % of the store | open |
+| [[SP-012 Record kinds must follow from content]] | A kind that can differ between users of the same content is a role, not a kind | rule adopted |

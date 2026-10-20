@@ -19,6 +19,7 @@
 //!   query Q [ARG..] [FLAGS]   a query in Sophia's query language (SPEC-007);
 //!                             Q is text, @FILE, or the name of a stored query;
 //!                             --explain, --sql, --plain, --save NAME
+//!   ingest-mm FILE [DB]       load a Metamath database as `mm.<DB>.<label>`
 //! ```
 
 use std::path::PathBuf;
@@ -32,7 +33,7 @@ use sophia_store::{Backend, Store, Target};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]|ingest-mm FILE [DB]>"
 }
 
 fn main() -> ExitCode {
@@ -367,6 +368,30 @@ fn run<B: Backend + Sync>(
         }
         "sql" => sql(store, args.first().ok_or("sql QUERY")?)?,
         "query" => query(store, args)?,
+        "ingest-mm" => {
+            let file = args.first().ok_or("ingest-mm FILE [DB]")?;
+            let db = args.get(1).cloned().unwrap_or_else(|| {
+                std::path::Path::new(file).file_stem().and_then(|s| s.to_str()).unwrap_or("db").replace(['.', '-'], "_")
+            });
+            let t = std::time::Instant::now();
+            let text = std::fs::read_to_string(file)?;
+            let parsed = sophia_ingest::metamath::parse(&text)?;
+            let parse_time = t.elapsed();
+            let r = sophia_ingest::store_metamath(store, &db, &parsed, 1000)?;
+            println!(
+                "{}: {} assertions and {} proofs, {} new records ({} already stored); parsed in {:.2?}, total {:.2?}",
+                db,
+                r.assertions,
+                r.proofs,
+                r.new_records,
+                (r.assertions + r.proofs).saturating_sub(r.new_records),
+                parse_time,
+                t.elapsed()
+            );
+            for (k, n) in &r.kinds {
+                println!("  {k}: {n}");
+            }
+        }
         other => return Err(format!("unknown command {other:?}\n{}", usage()).into()),
     }
     Ok(())

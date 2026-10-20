@@ -150,6 +150,18 @@ From the external review of `d0c08b4` ([[Review 2026-10-20 M3a (external)]]), fo
 | SR-112 | One record shape for transformations and their evidence, shared by every optimiser and frontend. | R3 §10 | interface now, build later | specified (SPEC-006 §6a) |
 | SR-113 | Real-code benchmarks and Moonkale's edit loop come before the agent server. | R3 §9 | now | adopted ([[Milestones]]) |
 
+## From Daniel, 2026-10-20 (the three projects)
+
+Daniel: "Moonkale was meant as an editor for Lenticulum.jl. Now Sophia is somewhat intermingled with it, so it would be a good idea to think the three things together." Also: "no one really uses Moonkale, Lenticulum or Sophia right now, so you may make really big alterations later."
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-114 | Moonkale, Lenticulum.jl and Sophia are designed together: Moonkale edits, Sophia stores (and later runs), Lenticulum is the program. | Daniel | now | plan ([[Real Code Corpora]] §1) |
+| SR-115 | Lenticulum.jl runs in Sophia: a goal, but a later one; easier Julia packages first. | Daniel | later | planned (corpus rung 4) |
+| SR-116 | Sophia's Julia (and Rust, Python) ingestion uses the same normal form as Moonkale's WP-66 content ids, ideally the same code. | follows from SR-114 | rung 2 | proposed to the Moonkale agent |
+| SR-117 | Real-code corpora: linear algebra (BLAS-like, in Julia and Rust), Metamath, then Lean. | Daniel | now | Metamath done; ladder in [[Real Code Corpora]] |
+| SR-118 | Large breaking changes are acceptable while there are no users: prefer the right design over compatibility. | Daniel | now | adopted |
+
 ## From Moonkale
 
 Each row cites the Moonkale page or section it comes from. Moonkale will cite these numbers back from its Code Graph Schema.
@@ -180,6 +192,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-114 to SR-118 added (the three projects together; real-code corpora).
 - 2026-10-20: SR-107 to SR-113 added from the review of M3a.
 - 2026-10-20: SR-90 to SR-106 added from Daniel's query-language proposal and its forwarded review; SR-32 updated (the `query` dialect).
 - 2026-10-20: SR-75 to SR-89 added from the external review.

@@ -25,3 +25,5 @@
 ## Not yet
 
 Garbage collection, branches, update propagation, the overlap check that would let a new method make only *affected* facts stale (SP-006; today any change to a relation makes all its facts stale), and migration.
+
+**Batches** (2026-10-20): `add_members` adds many members to one nominal entity in a single transaction, checking membership once. `add_method` checks it per call, which was quadratic for set.mm's 48 000 proofs. `annotate_many` adds many annotations in one transaction.

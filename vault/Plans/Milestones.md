@@ -84,6 +84,13 @@ Foundational invariants (identity, worlds, editable projections) count as settle
   - property tests for canonical invariance, and differential tests of magic sets and SQL (one guard bug found and fixed);
   - SPEC-006 §6a, the transformation-evidence interface.
 
+- **2026-10-20: B-16 rung 1, Metamath:** `sophia-ingest`, set.mm and iset.mm stored and queried ([[Real Code Corpora]] §4). On the way the store gained:
+  - annotations by id;
+  - membership lookups by member;
+  - batch members and annotations;
+  - planner selectivity classes;
+  - magic sets for negated calls.
+
 **Order from here (SR-113):**
 1. **B-16, real code:** ingest real Julia and Rust code (and a theorem library) and rerun B-03 to B-07 and B-17 on it.
 2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision.

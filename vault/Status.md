@@ -26,6 +26,8 @@
 
   **M3a stabilised (2026-10-20)** after its review ([[Review 2026-10-20 M3a (external)]]): cache race fixed, exact canonical form, resource budget, property and differential tests.
 
+  **B-16 rung 1 done (2026-10-20):** Metamath set.mm and iset.mm in Sophia, with real queries (the axioms behind 2 + 2 = 4, per library) and four design corrections learned from real data ([[Real Code Corpora]] §4). Daniel: Moonkale, Lenticulum and Sophia are to be thought of together; Lenticulum running in Sophia is a later goal (SR-114, SR-115).
+
   **Next, in order (SR-113):** B-16 (real code), B-15 (Moonkale edits), the set-oriented executor, then M3b (the agent server).
 - **Specifications:** seven drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first), S-ADR-0009 (relations tracked), S-ADR-0010 (amended), S-ADR-0011 (own query algebra).
