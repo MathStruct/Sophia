@@ -139,7 +139,17 @@ Then, unchanged: `definition(lang, node, text, &references[f][i], budget)` per d
   - 2 199 references, 867 across files;
   - 4 027 `calls_generic`.
 
-**Findings on `calls_generic` (reported to Moonkale).** It does not affect ids, but it does affect drawn Calls edges and Sophia's nominal uses:
+**v6 (Moonkale `31f0f0d4`, 2026-10-20) fixes all three findings below in the normal form itself.** Sophia dropped its filters.
+- **Type parameters are locals:** `where`, and `Name{T}` in type definitions. Renaming one keeps the id; a different bound changes it.
+- **Generic uses are scope-aware:** `definition_and_uses` reports only the uses the encoding read as non-local names.
+- **One naming rule, `julia_name`,** for the resolver, the own-name encoding and Sophia's definitions. Callable-type and interpolated heads name nothing.
+
+Sophia reproduces the re-blessed golden data, including the new `Callable.jl` root. LinearAlgebra in both tools:
+- 3 435 ids (refusals unchanged);
+- **2 469 references, 948 across files** (more, because names that a bogus `Type`/`$X` head had made ambiguous now resolve uniquely);
+- **2 237 generic uses** (was 4 027).
+
+**Findings on `calls_generic` (reported to Moonkale; fixed in v6).** It does not affect ids, but it does affect drawn Calls edges and Sophia's nominal uses:
 1. **1 328 of 4 027 are names bound locally.** These are `where` type parameters (`S`: 610) and function parameters (`p`, `f`, `uplo`, `k`, …). Sophia skips them when recording uses.
 2. **Callable-type methods** `(::Type{Bi})(…) where {Bi<:…}` are named `Type`, so every `Type{…}` in a signature counted as a call. They bind no module name, like a qualified method.
 3. **Interpolated heads** in `@eval` code (`$S(A::$S) = A`) bind `S`. They bind nothing.

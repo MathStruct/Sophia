@@ -61,24 +61,6 @@ fn name_node<'t>(lang: &str, n: Syntax<'t>) -> Option<Syntax<'t>> {
     }
 }
 
-/// A Julia method whose head is a parenthesised callable,
-/// `(::Type{T})(…)` or `(f::F)(…)`: it adds a method to a type or a functor,
-/// and binds no name in the module.
-fn callable_head(lang: &str, n: Syntax) -> bool {
-    if lang != "julia" {
-        return false;
-    }
-    let mut head = n.named_child(0);
-    while let Some(h) = head {
-        match h.kind() {
-            "parenthesized_expression" => return true,
-            "identifier" | "operator" | "macro_identifier" | "field_expression" => return false,
-            _ => head = h.named_child(0),
-        }
-    }
-    false
-}
-
 /// Every definition the normal form covers, in source order (nested ones,
 /// such as methods in a Python class or items in a module, included).
 pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syntax<'t>)> {
@@ -86,8 +68,18 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
     let mut stack = vec![root];
     while let Some(n) = stack.pop() {
         if is_definition(lang, n) {
-            let callable = callable_head(lang, n);
-            let nn = if callable { None } else { name_node(lang, n) };
+            // Julia: the crate's single naming rule (v6), shared with the
+            // resolver and the own-name encoding. Callable-type heads
+            // (`(::Type{T})(…)`) and interpolated heads (`$S(…)`) name
+            // nothing; `Base.show(…)` is qualified.
+            let (nn, qualified) = if lang == "julia" {
+                match moonkale_content_id::julia_name(n) {
+                    Some((x, q)) => (Some(x), q),
+                    None => (None, false),
+                }
+            } else {
+                (name_node(lang, n), false)
+            };
             out.push((
                 Def {
                     name: nn.map(|x| text(x, src).to_string()).unwrap_or_default(),
@@ -95,10 +87,7 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
                     start: n.start_byte(),
                     end: n.end_byte(),
                     name_span: nn.map(|x| (x.start_byte(), x.end_byte())),
-                    // Qualified (`Base.show`), callable (`(::Type{T})(…)`) or
-                    // interpolated (`$S(…)` in `@eval` code): binds no name.
-                    qualified: callable
-                        || nn.and_then(|x| x.parent()).is_some_and(|p| matches!(p.kind(), "field_expression" | "interpolation_expression")),
+                    qualified: qualified || (lang == "julia" && nn.is_none()),
                 },
                 n,
             ));

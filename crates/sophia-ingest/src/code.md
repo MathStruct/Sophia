@@ -4,7 +4,7 @@
 >
 > Sources: Moonkale `packages/services/content-id` (rev `f09b3c40`, normaliser v4); [[Real Code Corpora]] rung 2. code: `code.rs`, `tests/code.rs`, `tests/golden-moonkale/`
 
-- **Finding definitions:** `definitions` walks the tree with the crate's `is_definition`. Names come from Julia's head (the first identifier down the first-child chain, or the last field of `Base.show`) or from the `name` field.
+- **Finding definitions:** `definitions` walks the tree with the crate's `is_definition`. Julia names come from the crate's `julia_name` (v6), the rule Moonkale uses too: callable-type and interpolated heads name nothing, and `Base.show` is qualified. Other languages use the `name` field.
 - **Resolving references (`resolve`):** same file only, by spelling. It skips the definition's own name, the names it binds locally (parameters, assignment, `let` and loop targets), and names shared by several definitions (Julia methods: a call is to the generic function, so it is left unresolved, as Moonkale does).
 - **Records (`file`):**
   - the id is the WP-66 digest, the same as Moonkale's `NodeId::from_content`;

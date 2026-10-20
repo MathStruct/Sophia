@@ -14,7 +14,7 @@ use moonkale_content_id::julia::{self, DefKey, ModuleFile};
 use moonkale_content_id::{Budget, ContentIdError, Identity, Syntax, Tree, definition, is_definition, parse};
 use sophia_hash::Record;
 
-use crate::code::{CodeError, Def, definitions, local_names, text, to_record};
+use crate::code::{CodeError, Def, definitions, to_record};
 
 pub use moonkale_content_id::julia::{MAX_MODULE_BYTES, MAX_MODULE_FILES, MODULE_STEPS_BASE, MODULE_STEPS_PER_BYTE};
 
@@ -140,37 +140,6 @@ fn node_at(tree: &Tree, start: usize, end: usize) -> Option<Syntax<'_>> {
     None
 }
 
-/// Type parameters a definition binds in `where` clauses (`where {S, T<:X}`).
-fn where_params(def: Syntax, src: &str) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let mut stack = vec![def];
-    while let Some(n) = stack.pop() {
-        if n.kind() == "where_expression" {
-            if let Some(params) = n.named_child(1) {
-                let items: Vec<Syntax> = if params.kind() == "curly_expression" {
-                    let mut c = params.walk();
-                    params.named_children(&mut c).collect()
-                } else {
-                    vec![params]
-                };
-                for p in items {
-                    let id = if p.kind() == "binary_expression" { p.named_child(0) } else { Some(p) };
-                    if let Some(id) = id.filter(|x| x.kind() == "identifier") {
-                        out.insert(text(id, src).to_string());
-                    }
-                }
-            }
-        }
-        let mut c = n.walk();
-        for child in n.children(&mut c) {
-            if child.id() == def.id() || !is_definition("julia", child) {
-                stack.push(child);
-            }
-        }
-    }
-    out
-}
-
 /// Resolves and identifies a whole module with the crate, and builds
 /// records. A record's bytes are the canonical parts, re-derived from the
 /// crate's references (the same input gives the same encoding).
@@ -223,13 +192,10 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
         });
         out[f].1.push((def.clone(), to_record("julia", &def, &parts, &ids, x.key, &norm)));
     }
-    // Which definition each generic call is in: the innermost one around
-    // its span. A name the definition binds itself (a parameter, a local, a
-    // `where` type parameter) is not a call to the module's generic
-    // function: the crate's `calls_generic` (v5) still lists those, and
-    // they are skipped here (reported to Moonkale).
+    // Which definition each generic use is in: the innermost one around
+    // its span. Since v6 the crate reports only uses the encoding read as
+    // non-local names, so parameters and type parameters are not listed.
     let mut uses_generic: HashMap<sophia_hash::Digest, Vec<String>> = HashMap::new();
-    let mut locals_cache: HashMap<DefKey, HashSet<String>> = HashMap::new();
     for (f, span, name) in &jm.calls_generic {
         let around = jm
             .definitions
@@ -237,20 +203,6 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
             .filter(|x| x.key.0 == *f && x.key.1 <= span.0 && span.1 <= x.key.2)
             .min_by_key(|x| x.key.2 - x.key.1);
         let Some(around) = around else { continue };
-        let locals = locals_cache.entry(around.key).or_insert_with(|| {
-            let fi = around.key.0 as usize;
-            match node_at(&trees[fi], around.key.1, around.key.2) {
-                Some(n) => {
-                    let mut l = local_names("julia", n, &d.files[fi].text, None);
-                    l.extend(where_params(n, &d.files[fi].text));
-                    l
-                }
-                None => HashSet::new(),
-            }
-        });
-        if locals.contains(name) {
-            continue;
-        }
         if let Some(id) = ids.get(&around.key) {
             let v = uses_generic.entry(sophia_hash::Digest(id.digest)).or_default();
             if !v.contains(name) {
