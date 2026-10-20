@@ -34,6 +34,11 @@ impl Default for QueryLimits {
     }
 }
 
+/// A backend that answers read-only `sql` queries (SQLite, DuckDB).
+pub trait ReadOnlyQuery {
+    fn query_readonly(&self, sql: &str, limits: QueryLimits) -> Result<Table, crate::StoreError>;
+}
+
 /// The views a read-only `sql` query may use (SPEC-001 §11).
 pub const VIEWS: [&str; 9] =
     ["definitions", "names", "refs", "nominals", "relation", "lineage", "annotations", "facts", "log"];

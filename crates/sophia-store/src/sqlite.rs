@@ -194,6 +194,12 @@ impl Sqlite {
     }
 }
 
+impl crate::query::ReadOnlyQuery for Sqlite {
+    fn query_readonly(&self, sql: &str, limits: QueryLimits) -> Result<Table> {
+        Sqlite::query_readonly(self, sql, limits)
+    }
+}
+
 impl Backend for Sqlite {
     fn name(&self) -> &'static str {
         "sqlite"
@@ -332,7 +338,7 @@ impl ReadTx for SqliteTx<'_> {
             .tx
             .prepare_cached("SELECT id FROM t_definition WHERE (?1 IS NULL OR kind = ?1) ORDER BY id LIMIT ?2")
             .map_err(be)?;
-        let v: Vec<_> = st.query_map(params![kind, limit as i64], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        let v: Vec<_> = st.query_map(params![kind, limit.min(i64::MAX as usize) as i64], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
         v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
     }
 
@@ -353,7 +359,7 @@ impl ReadTx for SqliteTx<'_> {
                  ORDER BY path LIMIT ?2",
             )
             .map_err(be)?;
-        let v: Vec<_> = st.query_map(params![prefix, limit as i64], Self::name_row).map_err(be)?.collect();
+        let v: Vec<_> = st.query_map(params![prefix, limit.min(i64::MAX as usize) as i64], Self::name_row).map_err(be)?.collect();
         v.into_iter().map(|r| Self::finish_name(r.map_err(be)?)).collect()
     }
 
@@ -376,7 +382,7 @@ impl ReadTx for SqliteTx<'_> {
             .prepare_cached("SELECT seq, op, subject, old, new, actor, at FROM t_log WHERE seq > ?1 ORDER BY seq LIMIT ?2")
             .map_err(be)?;
         let rows: Vec<_> = st
-            .query_map(params![seq as i64, limit as i64], |r| {
+            .query_map(params![seq as i64, limit.min(i64::MAX as usize) as i64], |r| {
                 Ok((
                     u(r, 0)?,
                     r.get::<_, String>(1)?,

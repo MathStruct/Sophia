@@ -1,7 +1,7 @@
 //! The `sophia` command (Milestones M1). See `main.md`.
 //!
 //! ```text
-//! sophia [--store PATH] [--backend sqlite|redb] <command>
+//! sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <command>
 //!   init                      create an empty store
 //!   sample                    load the sample program (SPEC-004 §9)
 //!   gen N [SEED]              load N synthetic definitions
@@ -29,7 +29,7 @@ use sophia_store::{Backend, Store, Target};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY>"
 }
 
 fn main() -> ExitCode {
@@ -58,7 +58,7 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
     let path = store_path.unwrap_or_else(|| {
-        PathBuf::from(".sophia").join(if backend == "redb" { "store.redb" } else { "store.sqlite" })
+        PathBuf::from(".sophia").join(format!("store.{backend}"))
     });
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         let _ = std::fs::create_dir_all(dir);
@@ -71,7 +71,15 @@ fn main() -> ExitCode {
         "redb" => sophia_store::redb_store::Redb::open(&path)
             .and_then(|b| Interface::open(b, actor()))
             .map_err(Into::into)
-            .and_then(|i| run(&i, &cmd, &args[1..], |_, _| Err("sql needs the sqlite backend".into()))),
+            .and_then(|i| run(&i, &cmd, &args[1..], |_, _| Err("sql needs the sqlite or duckdb backend".into()))),
+        "lmdb" => sophia_store::lmdb_store::Lmdb::open(&path)
+            .and_then(|b| Interface::open(b, actor()))
+            .map_err(Into::into)
+            .and_then(|i| run(&i, &cmd, &args[1..], |_, _| Err("sql needs the sqlite or duckdb backend".into()))),
+        "duckdb" => sophia_store::duckdb_store::DuckDb::open(&path)
+            .and_then(|b| Interface::open(b, actor()))
+            .map_err(Into::into)
+            .and_then(|i| run(&i, &cmd, &args[1..], sql)),
         other => Err(format!("unknown backend {other:?}").into()),
     };
     match result {
@@ -87,8 +95,8 @@ fn actor() -> String {
     std::env::var("USER").map(|u| format!("cli:{u}")).unwrap_or_else(|_| "cli".into())
 }
 
-fn sql(store: &Store<sophia_store::sqlite::Sqlite>, q: &str) -> AnyResult<()> {
-    let t = store.backend().query_readonly(q, QueryLimits::default())?;
+fn sql<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, q: &str) -> AnyResult<()> {
+    let t = sophia_store::query::ReadOnlyQuery::query_readonly(store.backend(), q, QueryLimits::default())?;
     println!("{}", t.columns.join("\t"));
     for row in &t.rows {
         let cells: Vec<String> = row

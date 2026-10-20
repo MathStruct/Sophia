@@ -35,6 +35,20 @@ fn redb() {
     check(Store::new(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap()));
 }
 
+#[cfg(feature = "lmdb")]
+#[test]
+fn lmdb() {
+    let d = tempfile::tempdir().unwrap();
+    check(Store::new(sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap()));
+}
+
+#[cfg(feature = "duckdb")]
+#[test]
+fn duckdb() {
+    let d = tempfile::tempdir().unwrap();
+    check(Store::new(sophia_store::duckdb_store::DuckDb::open(d.path().join("d")).unwrap()));
+}
+
 #[test]
 fn symmetric_members_are_one_definition_stable_under_permutation_and_renaming() {
     let int = || Term::Nominal(builtin("Int64"));

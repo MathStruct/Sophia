@@ -8,7 +8,13 @@
 
 - **[[backend]]**: the `ReadTx`/`WriteTx`/`Backend` traits, which are typed operations inside transactions.
 - **[[logic]]**: `Store<B>`, the store's rules, written once against those traits: sequence numbers, names, lineages, nominal entities and method tables, annotations, facts and staleness.
-- **Backends**, behind features: [[sqlite]] (default; real tables, views and the query guard) and [[redb_store]] (pure-Rust key-value store).
+- **Backends**, behind features:
+  - [[sqlite]] (default; real tables, views and the query guard);
+  - [[redb_store]] (default; pure Rust);
+  - [[lmdb_store]] (`lmdb`);
+  - [[duckdb_store]] (`duckdb`).
+
+  redb and LMDB share their tables and logic in [[kv]].
 
 ## Tests
 
@@ -16,4 +22,4 @@
 
 ## What is not here yet
 
-Rendering profiles (SPEC-005, M2), the `datalog` dialect (M3), branches, gc, migration (SPEC-001 §4.5), DuckDB and LMDB backends (M2).
+The `datalog` dialect (M3), branches, gc, migration (SPEC-001 §4.5), a bulk loader for the DuckDB replica.

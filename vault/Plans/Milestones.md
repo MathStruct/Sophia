@@ -42,7 +42,7 @@ Foundational invariants (identity, worlds, editable projections) count as settle
 | # | Demonstration | Status |
 |---|---|---|
 | 1 | **Symmetric recursion:** two symmetric mutually recursive definitions normalise, store, reload and verify without loss, on both backends, stable under renaming and permutation | **passes** (`crates/sophia-store/tests/symmetric.rs`, after the quotient fix) |
-| 2 | **Two-view editing:** two clients cannot silently overwrite each other or an unintended alias | **passes on Sophia's side** (edit tokens; `group_members_cannot_be_overwritten_silently`). Moonkale's client side (keeping the alias context) is open |
+| 2 | **Two-view editing:** two clients cannot silently overwrite each other or an unintended alias | **passes**: on Sophia's side (`group_members_cannot_be_overwritten_silently`), and through Moonkale's `Source` with two clients in two profiles (Moonkale `two_clients_in_two_profiles_cannot_overwrite_each_other`, `46a06b65` on its dev branch) |
 | 3 | **Reproducible dispatch:** a method table changes, and an earlier world snapshot still reproduces the original | **passes at the store level** (`worlds_are_reproducible`). End-to-end dispatch needs the interpreter (M4) |
 
 ## Progress
@@ -63,6 +63,11 @@ Foundational invariants (identity, worlds, editable projections) count as settle
   - The CLI's `text`, `edit`, `add` and `profile` commands.
   - Relations are nominal (S-ADR-0009).
   - `Match` carries its data type.
+
+- **2026-10-20: M2 done.**
+  - LMDB (heed) and DuckDB backends; redb and LMDB now share `kv.rs`.
+  - The four-backend comparison is recorded, with S-ADR-0010 proposed.
+  - The P0 gate's demonstration 2 passes through Moonkale's `Source` (Moonkale `46a06b65`, on its dev branch).
 
 ## Order of work inside M0 to M2
 

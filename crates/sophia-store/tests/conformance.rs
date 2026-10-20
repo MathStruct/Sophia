@@ -52,6 +52,12 @@ fn names_resolve_and_list<B: Backend>(s: Store<B>) {
     let all = s.read(|tx| tx.names_under("sample", 100)).unwrap();
     assert_eq!(all.len(), names.len());
     assert!(all.windows(2).all(|w| w[0].path < w[1].path));
+    let every = s.read(|tx| tx.names_under("", usize::MAX)).unwrap();
+    assert_eq!(every.len(), names.len(), "an unlimited listing from the empty prefix works");
+    let ids = s.read(|tx| tx.records_of_kind(None, usize::MAX)).unwrap();
+    assert_eq!(ids.len(), records.len() - 1);
+    assert_eq!(s.read(|tx| tx.records_of_kind(Some("method"), usize::MAX)).unwrap().len(), 7);
+    assert!(s.meta_prefix("").is_ok());
     let none = s.read(|tx| tx.names_under("samp", 100)).unwrap();
     assert!(none.is_empty(), "prefix is by segment, not by characters");
     let of = s.read(|tx| tx.names_of(&records[6].id)).unwrap();
@@ -227,6 +233,10 @@ macro_rules! suite {
 
 suite!(sqlite, |p: &std::path::Path| sophia_store::sqlite::Sqlite::open(p.join("store.sqlite")).unwrap());
 suite!(redb, |p: &std::path::Path| sophia_store::redb_store::Redb::open(p.join("store.redb")).unwrap());
+#[cfg(feature = "lmdb")]
+suite!(lmdb, |p: &std::path::Path| sophia_store::lmdb_store::Lmdb::open_with_map_size(p.join("store.lmdb"), 1 << 30).unwrap());
+#[cfg(feature = "duckdb")]
+suite!(duckdb, |p: &std::path::Path| sophia_store::duckdb_store::DuckDb::open(p.join("store.duckdb")).unwrap());
 
 #[test]
 fn sql_queries_are_read_only_and_capped() {
@@ -294,6 +304,18 @@ mod settings {
         let d = tempfile::tempdir().unwrap();
         settings_are_listed_and_logged(Store::new(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap()));
     }
+    #[cfg(feature = "lmdb")]
+    #[test]
+    fn lmdb() {
+        let d = tempfile::tempdir().unwrap();
+        settings_are_listed_and_logged(Store::new(sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap()));
+    }
+    #[cfg(feature = "duckdb")]
+    #[test]
+    fn duckdb() {
+        let d = tempfile::tempdir().unwrap();
+        settings_are_listed_and_logged(Store::new(sophia_store::duckdb_store::DuckDb::open(d.path().join("d")).unwrap()));
+    }
     #[test]
     fn redb() {
         let d = tempfile::tempdir().unwrap();
@@ -329,9 +351,42 @@ mod worlds {
         let d = tempfile::tempdir().unwrap();
         worlds_are_reproducible(Store::new(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap()));
     }
+    #[cfg(feature = "lmdb")]
+    #[test]
+    fn lmdb() {
+        let d = tempfile::tempdir().unwrap();
+        worlds_are_reproducible(Store::new(sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap()));
+    }
+    #[cfg(feature = "duckdb")]
+    #[test]
+    fn duckdb() {
+        let d = tempfile::tempdir().unwrap();
+        worlds_are_reproducible(Store::new(sophia_store::duckdb_store::DuckDb::open(d.path().join("d")).unwrap()));
+    }
     #[test]
     fn redb() {
         let d = tempfile::tempdir().unwrap();
         worlds_are_reproducible(Store::new(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap()));
     }
+}
+
+#[cfg(feature = "duckdb")]
+#[test]
+fn duckdb_queries_are_read_only_capped_and_timed() {
+    use sophia_store::query::QueryLimits;
+    let dir = tempfile::tempdir().unwrap();
+    let s = Store::new(sophia_store::duckdb_store::DuckDb::open(dir.path().join("q.duckdb")).unwrap());
+    populated(&s);
+    let db = s.backend();
+    let t = db.query_readonly("SELECT kind, count(*) AS n FROM definitions GROUP BY kind ORDER BY kind", QueryLimits::default()).unwrap();
+    assert_eq!(t.columns, vec!["kind", "n"]);
+    assert!(!t.rows.is_empty());
+    let capped = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: 3, ..Default::default() }).unwrap();
+    assert!(capped.truncated && capped.rows.len() == 3);
+    for bad in ["DELETE FROM t_name", "INSERT INTO t_meta VALUES ('a', 'x')", "SELECT 1; DELETE FROM t_name", "ATTACH 'x.db' AS y", "SELECT * FROM read_csv('/etc/passwd')"] {
+        assert!(db.query_readonly(bad, QueryLimits::default()).is_err(), "{bad}");
+    }
+    let slow = db.query_readonly("SELECT count(*) FROM range(10000000000) a", QueryLimits { max_steps_k: 50, ..Default::default() });
+    assert!(slow.is_err(), "the time budget interrupts runaway queries");
+    assert!(s.resolve("sample.add").unwrap().is_some(), "the store still works");
 }

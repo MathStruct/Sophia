@@ -138,7 +138,7 @@ Polling only in v0.
 
 ## 9. Acceptance (Moonkale WP-68)
 
-1. The sample store opens as a source. Its namespaces, names and definitions draw in the graph view.
+1. The sample store opens as a source. Its namespaces, names and definitions draw in the graph view. (The sample has 16 named definitions but 15 distinct records: the two relations' signatures have identical content. Plus two nominal relations.)
 2. One definition is edited as text in the default profile, and its name moves to the new content id.
 3. A parse error during `WriteText` shows as diagnostics in the editor and leaves the name unchanged.
 4. A rename shows up through `changes_since`.

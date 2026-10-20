@@ -27,7 +27,8 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `types.rs` | [[types]] | names, log, nominal entities, lineages, annotations, facts |
 | | `codec.rs`, `query.rs`, `error.rs` | [[codec]], [[query]], [[error]] | value encoding, query results, errors |
 | | `sqlite.rs` | [[sqlite]] | SQLite backend with the read-only guard |
-| | `redb_store.rs` | [[redb_store]] | redb backend |
+| | `redb_store.rs`, `lmdb_store.rs`, `kv.rs` | [[redb_store]], [[lmdb_store]], [[kv]] | key-value backends and their shared logic |
+| | `duckdb_store.rs` | [[duckdb_store]] | DuckDB backend (analytics) |
 | `sophialang-syntax` | `sophialang_syntax.rs` | [[sophialang_syntax]] | profiles, printer, parser; the round-trip guarantee |
 | | `lexer.rs`, `parser.rs`, `ast.rs` | [[lexer]], [[parser]], [[ast]] | text → surface tree |
 | | `elab.rs`, `resolve.rs` | [[elab]], [[resolve]] | surface tree → core; shared name resolution |

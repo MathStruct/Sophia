@@ -2,7 +2,7 @@
 //! larger sizes than criterion handles comfortably, and prints a Markdown
 //! report for vault/Plans/Benchmark Results.md.
 //!
-//! Usage: sophia-bench-report [--sizes 1000,10000,100000] [--seed N]
+//! Usage: sophia-bench-report [--sizes 1000,10000,100000] [--backends sqlite,redb,lmdb,duckdb] [--seed N]
 
 use std::time::{Duration, Instant};
 
@@ -94,9 +94,31 @@ fn run<B: Backend>(store: Store<B>, program: &[(String, sophialang_core::Definit
     }
 }
 
+/// B-11: analytical queries on the SQL backends.
+const ANALYTICS: [(&str, &str); 3] = [
+    ("count by kind", "SELECT kind, count(*) FROM definitions GROUP BY kind"),
+    ("10 most referenced", "SELECT to_id, count(*) AS n FROM refs GROUP BY to_id ORDER BY n DESC LIMIT 10"),
+    ("mean size per status", "SELECT status, avg(bytes) FROM definitions GROUP BY status"),
+];
+
+fn analytics<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, n: usize) {
+    for (label, q) in ANALYTICS {
+        let limits = sophia_store::query::QueryLimits { max_rows: 1000, max_steps_k: 10_000_000 };
+        let t = median_time(5, || {
+            std::hint::black_box(store.backend().query_readonly(q, limits).unwrap());
+        });
+        println!("| {} | {n} | {label} | {:.2} ms |", store.backend().name(), t.as_secs_f64() * 1e3);
+    }
+}
+
 fn percentile(v: &mut [usize], p: f64) -> usize {
     v.sort_unstable();
     v[((v.len() - 1) as f64 * p) as usize]
+}
+
+/// The size for analytics: the `--analytics-size` flag, else the smallest size.
+fn analytics_size(sizes: &[usize]) -> usize {
+    arg("--analytics-size").map(|s| s.parse().unwrap()).unwrap_or_else(|| *sizes.iter().min().unwrap())
 }
 
 fn main() {
@@ -104,6 +126,11 @@ fn main() {
         .unwrap_or_else(|| "1000,10000,100000".into())
         .split(',')
         .map(|s| s.trim().parse().expect("size"))
+        .collect();
+    let backends: Vec<String> = arg("--backends")
+        .unwrap_or_else(|| "sqlite,redb,lmdb,duckdb".into())
+        .split(',')
+        .map(|s| s.trim().to_string())
         .collect();
     let seed: u64 = arg("--seed").map(|s| s.parse().unwrap()).unwrap_or(42);
     let shape = Shape::default();
@@ -144,16 +171,43 @@ fn main() {
         100.0 * (ref_occ * 24) as f64 / total as f64
     );
 
+    if !arg("--skip-analytics").is_some() {
+        println!("#### B-11: analytical queries (SQL backends)\n");
+        println!("| backend | definitions | query | median |");
+        println!("|---|---|---|---|");
+        let n = analytics_size(&sizes);
+        let program = generate(seed, n, shape);
+        for which in backends.iter().filter(|b| *b == "sqlite" || *b == "duckdb") {
+            let dir = tempfile::tempdir().unwrap();
+            match which.as_str() {
+                "sqlite" => {
+                    let s = Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("a.sqlite")).unwrap());
+                    ingest(&s, &program, 1000);
+                    analytics(&s, n);
+                }
+                _ => {
+                    let s = Store::new(sophia_store::duckdb_store::DuckDb::open(dir.path().join("a.duckdb")).unwrap());
+                    ingest(&s, &program, 1000);
+                    analytics(&s, n);
+                }
+            }
+        }
+        println!();
+    }
+
     println!("#### B-03 / B-04 / B-05: backends\n");
     println!("| backend | definitions | ingest | ingest rate | size on disk | bytes / def | record by id | name | dependants | closure of last (size) | full change feed |");
     println!("|---|---|---|---|---|---|---|---|---|---|---|");
     for &n in &sizes {
         let program = generate(seed, n, shape);
-        for which in ["sqlite", "redb"] {
+        for which in backends.iter() {
             let dir = tempfile::tempdir().unwrap();
-            let row = match which {
+            let row = match which.as_str() {
                 "sqlite" => run(Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("s.sqlite")).unwrap()), &program, seed),
-                _ => run(Store::new(sophia_store::redb_store::Redb::open(dir.path().join("s.redb")).unwrap()), &program, seed),
+                "redb" => run(Store::new(sophia_store::redb_store::Redb::open(dir.path().join("s.redb")).unwrap()), &program, seed),
+                "lmdb" => run(Store::new(sophia_store::lmdb_store::Lmdb::open(dir.path().join("s.lmdb")).unwrap()), &program, seed),
+                "duckdb" => run(Store::new(sophia_store::duckdb_store::DuckDb::open(dir.path().join("s.duckdb")).unwrap()), &program, seed),
+                other => panic!("unknown backend {other}"),
             };
             println!(
                 "| {} | {} | {:.2} s | {:.0} defs/s | {} | {} | {} | {} | {} | {} ({}) | {:.1} ms |",

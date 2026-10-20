@@ -10,8 +10,14 @@ mod error;
 pub mod logic;
 pub mod types;
 
+#[cfg(any(feature = "redb", feature = "lmdb"))]
+pub mod kv;
 #[cfg(feature = "redb")]
 pub mod redb_store;
+#[cfg(feature = "lmdb")]
+pub mod lmdb_store;
+#[cfg(feature = "duckdb")]
+pub mod duckdb_store;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 

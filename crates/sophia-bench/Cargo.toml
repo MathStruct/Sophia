@@ -13,7 +13,7 @@ path = "src/sophia_bench.rs"
 [dependencies]
 sophia-hash.workspace = true
 sophialang-core.workspace = true
-sophia-store.workspace = true
+sophia-store = { workspace = true, features = ["lmdb", "duckdb"] }
 tempfile.workspace = true
 
 [dev-dependencies]

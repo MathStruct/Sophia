@@ -33,6 +33,8 @@ rust-version = "1.85"
 blake3 = "1.8"
 rusqlite = { version = "0.40", features = ["bundled", "hooks"] }
 redb = "4.4"
+duckdb = { version = "1.10506", features = ["bundled"] }
+heed = "0.22"
 thiserror = "2"
 proptest = "1.12"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }

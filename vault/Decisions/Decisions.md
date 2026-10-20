@@ -13,3 +13,4 @@
 | [[S-ADR-0007 The store is language-agnostic]] | Sophia (the store) and sophialang (its language) are separate; the store serves every language | accepted |
 | [[S-ADR-0008 Sophialang before Metamath or Lisp]] | The first language is sophialang's core | accepted |
 | [[S-ADR-0009 Relations are tracked, not content-addressed]] | Relations get a fixed identity; rules attach like methods | accepted |
+| [[S-ADR-0010 Primary backend and an analytics replica]] | SQLite primary now; LMDB the performance candidate; DuckDB an analytics replica | proposed, needs Daniel |

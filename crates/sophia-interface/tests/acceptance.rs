@@ -148,6 +148,10 @@ macro_rules! both {
     ($($t:ident),*) => {
         mod sqlite { use super::*; $(#[test] fn $t() { let d = tempfile::tempdir().unwrap(); super::$t(sample(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap())); })* }
         mod redb { use super::*; $(#[test] fn $t() { let d = tempfile::tempdir().unwrap(); super::$t(sample(sophia_store::redb_store::Redb::open(d.path().join("r")).unwrap())); })* }
+        #[cfg(feature = "lmdb")]
+        mod lmdb { use super::*; $(#[test] fn $t() { let d = tempfile::tempdir().unwrap(); super::$t(sample(sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap())); })* }
+        #[cfg(feature = "duckdb")]
+        mod duckdb { use super::*; $(#[test] fn $t() { let d = tempfile::tempdir().unwrap(); super::$t(sample(sophia_store::duckdb_store::DuckDb::open(d.path().join("d")).unwrap())); })* }
     };
 }
 

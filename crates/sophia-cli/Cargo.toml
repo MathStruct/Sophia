@@ -15,4 +15,4 @@ sophia-hash.workspace = true
 sophialang-core.workspace = true
 sophia-store.workspace = true
 sophia-bench.workspace = true
-sophia-interface.workspace = true
+sophia-interface = { workspace = true, features = ["lmdb", "duckdb"] }

@@ -16,7 +16,7 @@
   - `sophia-interface` (SPEC-004 §9 on both backends);
   - Moonkale has been sent the revision.
 
-  **Next:** DuckDB and LMDB backends (the rest of M2), then M3 (MCP, Datalog).
+  **M2 is complete:** four backends compared ([[Database Comparison]]; S-ADR-0010 proposed). **Next:** M3 (an MCP server for agents, the Datalog dialect), or B-15/B-16 (edit latency, real code).
 - **Specifications:** five drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first).
 - **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale.

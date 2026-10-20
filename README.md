@@ -35,7 +35,7 @@ Cargo.toml          Rust workspace (Rust only: vault/Decisions/S-ADR-0004)
 crates/
   sophia-hash/      identity: canonical framing, BLAKE3 digests, recursive groups
   sophialang-core/  sophialang's core calculus and normaliser
-  sophia-store/     the store, with SQLite and redb backends and a conformance suite
+  sophia-store/     the store, with SQLite, redb, LMDB and DuckDB backends and a conformance suite
   sophialang-syntax/ rendering profiles: printer and parser (Julia- and Rust-flavoured)
   sophia-interface/ what Moonkale wraps: nodes, edges, text, edits, profiles
   sophia-bench/     the benchmark suite (criterion + a report binary)
@@ -91,7 +91,7 @@ To pull in upstream changes, merge them into `site/` and keep the four transform
 | --- | --- | --- |
 | M0 | identity: hashing, components, sophialang's core and normaliser | done |
 | M1 | the store: SQLite and redb backends, names, lineages, method tables, facts, CLI, benchmarks | done (DuckDB and LMDB move to M2) |
-| M2 | **the Moonkale interface**: rendering profiles in the database, the Julia-flavoured printer and parser, `sophia-interface` | interface done; DuckDB and LMDB next |
+| M2 | **the Moonkale interface**: rendering profiles in the database, the Julia-flavoured printer and parser, `sophia-interface`; four backends compared | done |
 | M3 | tools: an MCP server for agents, the `datalog` dialect | |
 | M4 | running code: interpreter, dispatch facts, cached test results | |
 | M5 | compiling: LLVM, minimal binaries | |
@@ -102,7 +102,7 @@ Full version: `vault/Plans/Milestones.md`. The earlier roadmap (Metamath, Lisp, 
 
 ## Databases under evaluation
 
-Several backends sit behind one trait and run the same conformance suite and benchmarks (`vault/Research/Database Comparison.md`, `vault/Plans/Benchmark Results.md`). SQLite and redb are implemented; DuckDB and LMDB come next; LadybugDB, HelixDB, TypeDB, FalkorDB and TursoDB are candidates. SQLite is the default meanwhile.
+Four backends sit behind one trait and pass the same conformance suite: SQLite (default), redb, LMDB and DuckDB (`--features lmdb,duckdb`). Measured on synthetic code, LMDB is the fastest, SQLite the smallest and queryable, and DuckDB only suits analytics (`vault/Research/Database Comparison.md`, `vault/Plans/Benchmark Results.md`). LadybugDB, HelixDB, TypeDB, FalkorDB and TursoDB remain candidates.
 
 ## On disagreeing with any of this
 

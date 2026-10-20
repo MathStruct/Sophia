@@ -14,6 +14,8 @@ path = "src/sophia_store.rs"
 default = ["sqlite", "redb"]
 sqlite = ["dep:rusqlite"]
 redb = ["dep:redb"]
+duckdb = ["dep:duckdb"]
+lmdb = ["dep:heed"]
 
 [dependencies]
 sophia-hash.workspace = true
@@ -21,6 +23,8 @@ thiserror.workspace = true
 blake3.workspace = true
 rusqlite = { workspace = true, optional = true }
 redb = { workspace = true, optional = true }
+duckdb = { workspace = true, optional = true }
+heed = { workspace = true, optional = true }
 
 [dev-dependencies]
 sophialang-core.workspace = true

@@ -16,7 +16,7 @@ Sixteen byte-to-byte tables. Values are encoded with [[codec]]. Secondary indexe
 
 The log is keyed by big-endian `seq`, so a range scan is in order.
 
-One small private trait, `Kv` (get, prefix scan, last key, length), is implemented for read and write transactions. A blanket `impl<T: Kv> ReadTx for T` then gives both the same read logic.
+Since 2026-10-20 the tables and logic live in [[kv]], which is shared with LMDB. This file only adapts redb's read and write transactions. `Redb::compact` reclaims space for a fair size comparison.
 
 ## Findings (2026-10-20, [[Benchmark Results]])
 

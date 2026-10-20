@@ -731,12 +731,11 @@ impl<B: Backend + Sync> Interface<B> {
     }
 }
 
-#[cfg(feature = "sqlite")]
-impl Interface<sophia_store::sqlite::Sqlite> {
+impl<B: Backend + Sync + sophia_store::query::ReadOnlyQuery> Interface<B> {
     /// A read-only `sql` query (SPEC-004 §5): the table, plus a node for
     /// every id column cell that names a definition or nominal entity.
     pub fn sql(&self, query: &str, limits: sophia_store::query::QueryLimits) -> Result<(sophia_store::query::Table, Subgraph)> {
-        let t = self.store.backend().query_readonly(query, limits)?;
+        let t = sophia_store::query::ReadOnlyQuery::query_readonly(self.store.backend(), query, limits)?;
         let mut g = Subgraph::default();
         let mut seen = HashSet::new();
         for (i, col) in t.columns.iter().enumerate() {
