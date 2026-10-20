@@ -31,9 +31,12 @@ pub struct Def {
     pub end: usize,
     /// The byte span of the definition's own name.
     pub name_span: Option<(usize, usize)>,
+    /// The name is qualified (`Base.show(…) = …`): the definition adds a
+    /// method to another module's function and binds nothing here.
+    pub qualified: bool,
 }
 
-fn text<'a>(n: Syntax, src: &'a str) -> &'a str {
+pub(crate) fn text<'a>(n: Syntax, src: &'a str) -> &'a str {
     &src[n.start_byte()..n.end_byte()]
 }
 
@@ -73,6 +76,7 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
                     start: n.start_byte(),
                     end: n.end_byte(),
                     name_span: nn.map(|x| (x.start_byte(), x.end_byte())),
+                    qualified: nn.and_then(|x| x.parent()).is_some_and(|p| p.kind() == "field_expression"),
                 },
                 n,
             ));
@@ -88,7 +92,7 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
 /// targets, loop variables. A use of such a name is not a reference to a
 /// top-level definition of the same spelling (a possible shadow is left
 /// unresolved, as Moonkale does).
-fn local_names(lang: &str, def: Syntax, src: &str, own: Option<(usize, usize)>) -> HashSet<String> {
+pub(crate) fn local_names(lang: &str, def: Syntax, src: &str, own: Option<(usize, usize)>) -> HashSet<String> {
     let mut out = HashSet::new();
     let mut stack = vec![def];
     let binding_parent = |p: Syntax| -> bool {
@@ -206,7 +210,7 @@ const REFUSED: [&str; 15] = [
 
 /// Why a definition was refused: the first refused construct inside it, or
 /// the error.
-fn reason(node: Syntax, err: &moonkale_content_id::ContentIdError) -> String {
+pub(crate) fn reason(node: Syntax, err: &moonkale_content_id::ContentIdError) -> String {
     let mut stack = vec![node];
     while let Some(n) = stack.pop() {
         if n.id() != node.id() && REFUSED.contains(&n.kind()) {
@@ -219,6 +223,48 @@ fn reason(node: Syntax, err: &moonkale_content_id::ContentIdError) -> String {
         stack.extend(n.children(&mut c));
     }
     format!("{err:?}")
+}
+
+/// The record of one identified definition. `parts` reference other units
+/// by key; references inside the definition's recursive group are not
+/// `refs`.
+pub(crate) fn to_record<K: Copy + Eq + std::hash::Hash>(
+    lang: &str,
+    d: &Def,
+    parts: &[Part<K>],
+    ids: &HashMap<K, Identity>,
+    key: K,
+    normaliser: &str,
+) -> Record {
+    let id = &ids[&key];
+    let mut bytes = Vec::new();
+    let mut targets = Vec::new();
+    for p in parts {
+        match p {
+            Part::Bytes(b) => bytes.extend_from_slice(b),
+            Part::Reference(k) => {
+                let t = Digest(ids[k].digest);
+                bytes.extend_from_slice(t.as_bytes());
+                if ids[k].component_digest != id.component_digest && !targets.contains(&t) {
+                    targets.push(t);
+                }
+            }
+        }
+    }
+    Record {
+        id: Digest(id.digest),
+        lang: lang.into(),
+        normaliser: normaliser.into(),
+        kind: d.kind.clone(),
+        component: Digest(id.component_digest),
+        index: id.component_index,
+        component_size: id.component_size,
+        bytes,
+        display: d.name.as_bytes().to_vec(),
+        status: Status::Complete,
+        refs: targets,
+        nominal_refs: Vec::new(),
+    }
 }
 
 /// A parsed file: definitions, their records, and the refused ones.
@@ -277,38 +323,13 @@ pub fn file(lang: &str, src: &str) -> Result<File, CodeError> {
     let ids = identities(&parts, &mut budget)?;
     let mut records = Vec::new();
     let mut defs = Vec::new();
+    let normaliser = normaliser();
     for (i, (d, _)) in found.iter().enumerate() {
-        let Some(id) = ids.get(&i) else { continue };
-        let mut bytes = Vec::new();
-        let mut targets = Vec::new();
-        for p in &parts[&i] {
-            match p {
-                Part::Bytes(b) => bytes.extend_from_slice(b),
-                Part::Reference(k) => {
-                    let t = Digest(ids[k].digest);
-                    bytes.extend_from_slice(t.as_bytes());
-                    // References inside the recursive group are not refs.
-                    if ids[k].component_digest != id.component_digest && !targets.contains(&t) {
-                        targets.push(t);
-                    }
-                }
-            }
+        if !ids.contains_key(&i) {
+            continue;
         }
         defs.push(d.clone());
-        records.push(Record {
-            id: Digest(id.digest),
-            lang: lang.into(),
-            normaliser: normaliser(),
-            kind: d.kind.clone(),
-            component: Digest(id.component_digest),
-            index: id.component_index,
-            component_size: id.component_size,
-            bytes,
-            display: d.name.as_bytes().to_vec(),
-            status: Status::Complete,
-            refs: targets,
-            nominal_refs: Vec::new(),
-        });
+        records.push(to_record(lang, d, &parts[&i], &ids, i, &normaliser));
     }
     let mut refused: Vec<(Def, String)> = failed.into_iter().map(|(i, r)| (found[i].0.clone(), r)).collect();
     refused.sort_by_key(|(d, _)| d.start);

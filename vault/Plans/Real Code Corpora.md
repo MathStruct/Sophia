@@ -122,6 +122,11 @@ Sophia's resolver matches Moonkale's on all golden fixtures, including the new `
 - **Shared bodies:** 134 method bodies are members of two or more generic functions (for example `hpmv!` and `spmv!`). The function's own name is not part of the content, so identical bodies under different names are one record, the Unison idea.
 - **References:** 913 same-file references. Cross-file references (one package spread over `include`d files) are not resolved yet, as in Moonkale.
 
+**Module-level resolution (2026-10-20, [[SPEC-008 Module-Level Julia Resolution]]).**
+- Per-file resolution is not only incomplete for Julia; it is partly wrong. About 1 940 per-file references in LinearAlgebra link a call to one method of a generic function, or a field `x.name` to a definition of that name.
+- The module resolver makes 2 301 references, 880 of them across files.
+- Proposed to Moonkale as normaliser v5.
+
 **The caveat:** ids also depend on **reference resolution**. So "one id in both" needs the same resolver too. The plan has two steps:
 1. Sophia uses the shared normaliser with its own resolver. Golden fixtures from Moonkale show where the two diverge, and the differences get recorded.
 2. Moonkale moves its Julia resolver into the crate behind a plain-data interface, once Sophia ingests Julia.

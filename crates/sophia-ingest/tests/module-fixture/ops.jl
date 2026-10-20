@@ -1,0 +1,8 @@
+norm2(p::Point) = p.x * p.x + p.y * p.y
+dist(a::Point, b::Point) = sqrt(norm2(Point(a.x - b.x, a.y - b.y)))
+len(p::Point) = norm(p)
+area(p::Point) = helper(p)
+show2(p) = Base.show(stdout, p)
+twice(x) = 2x
+twice(x, y) = 2x + y
+use_twice(x) = twice(x)

@@ -3,6 +3,7 @@
 
 pub mod code;
 pub mod metamath;
+pub mod module;
 
 use std::collections::BTreeMap;
 
@@ -83,6 +84,83 @@ pub fn store_metamath<B: Backend>(
     Ok(report)
 }
 
+/// Stores identified definitions: records, names for non-functions, and
+/// functions grouped by name into generic functions.
+fn store_items<B: Backend>(
+    store: &Store<B>,
+    lang: &str,
+    pkg: &str,
+    items: &[(code::Def, sophia_hash::Record)],
+    report: &mut CodeReport,
+) -> Result<(), StoreError> {
+    let prefix = match lang {
+        "julia" => "jl",
+        "rust" => "rs",
+        _ => "py",
+    };
+    let records: Vec<sophia_hash::Record> = items.iter().map(|(_, r)| r.clone()).collect();
+    report.new_records += store.put_records(&records)?;
+    let mut methods: BTreeMap<String, Vec<sophia_hash::Digest>> = BTreeMap::new();
+    let mut named: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
+    for (d, r) in items {
+        if d.name.is_empty() {
+            continue;
+        }
+        let function = matches!(d.kind.as_str(), "function_definition" | "assignment" | "function_item" | "function_signature_item");
+        if function {
+            methods.entry(d.name.clone()).or_default().push(r.id);
+        } else {
+            named.entry(d.name.clone()).or_insert(r.id);
+        }
+    }
+    let mut names: Vec<(String, usize, Visibility)> = Vec::new();
+    let mut records = Vec::new();
+    for (n, id) in &named {
+        let path = format!("{prefix}.{pkg}.{}", segment(n));
+        if store.resolve(&path)?.is_none() {
+            if let Some(r) = store.record(id)? {
+                names.push((path, records.len(), Visibility::Public));
+                records.push(r);
+            }
+        }
+    }
+    store.add(&records, &names)?;
+    for (n, ms) in &methods {
+        let mut path = format!("{prefix}.{pkg}.{}", segment(n));
+        if named.contains_key(n) {
+            path.push_str(".new");
+        }
+        let generic = match store.resolve(&path)? {
+            Some(e) => e.target.digest(),
+            None => store.new_nominal(lang, "generic", &path)?,
+        };
+        let mut ms = ms.clone();
+        ms.sort();
+        ms.dedup();
+        report.methods += ms.len();
+        report.generics += 1;
+        store.add_members(&generic, &ms)?;
+    }
+    Ok(())
+}
+
+/// Stores a whole Julia module, resolved module-wide (SPEC-008, a proposal
+/// for Moonkale's normaliser v5). `report.references` counts all resolved
+/// references; `cross_file` those between files.
+pub fn store_module<B: Backend>(
+    store: &Store<B>,
+    pkg: &str,
+    root: &std::path::Path,
+) -> Result<(CodeReport, usize), Box<dyn std::error::Error>> {
+    let d = module::discover(root)?;
+    let r = module::ingest(&d)?;
+    let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
+    let items: Vec<(code::Def, sophia_hash::Record)> = r.files.into_iter().flat_map(|(_, v)| v).collect();
+    report.definitions = items.len();
+    store_items(store, "julia", pkg, &items, &mut report)?;
+    Ok((report, r.cross_file_references))
+}
+
 /// What a code ingest did.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CodeReport {
@@ -123,14 +201,9 @@ pub fn store_code<B: Backend>(
     pkg: &str,
     files: &[(String, String)],
 ) -> Result<CodeReport, StoreError> {
-    let prefix = match lang {
-        "julia" => "jl",
-        "rust" => "rs",
-        _ => "py",
-    };
+
     let mut report = CodeReport { files: files.len(), ..CodeReport::default() };
-    let mut methods: BTreeMap<String, Vec<sophia_hash::Digest>> = BTreeMap::new();
-    let mut named: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
+    let mut items: Vec<(code::Def, sophia_hash::Record)> = Vec::new();
     for (path, src) in files {
         let parsed = match code::file(lang, src) {
             Ok(f) => f,
@@ -140,50 +213,12 @@ pub fn store_code<B: Backend>(
             }
         };
         report.definitions += parsed.records.len();
+        report.references += parsed.records.iter().map(|r| r.refs.len()).sum::<usize>();
         for (_, why) in &parsed.refused {
             *report.refused_definitions.entry(why.clone()).or_default() += 1;
         }
-        report.references += parsed.records.iter().map(|r| r.refs.len()).sum::<usize>();
-        report.new_records += store.put_records(&parsed.records)?;
-        for (d, r) in parsed.defs.iter().zip(&parsed.records) {
-            if d.name.is_empty() {
-                continue;
-            }
-            let function = matches!(d.kind.as_str(), "function_definition" | "assignment" | "function_item" | "function_signature_item");
-            if function {
-                methods.entry(d.name.clone()).or_default().push(r.id);
-            } else {
-                named.entry(d.name.clone()).or_insert(r.id);
-            }
-        }
+        items.extend(parsed.defs.into_iter().zip(parsed.records));
     }
-    let mut names: Vec<(String, usize, Visibility)> = Vec::new();
-    let mut records = Vec::new();
-    for (n, id) in &named {
-        let path = format!("{prefix}.{pkg}.{}", segment(n));
-        if store.resolve(&path)?.is_none() {
-            if let Some(r) = store.record(id)? {
-                names.push((path, records.len(), Visibility::Public));
-                records.push(r);
-            }
-        }
-    }
-    store.add(&records, &names)?;
-    for (n, ms) in &methods {
-        let mut path = format!("{prefix}.{pkg}.{}", segment(n));
-        if named.contains_key(n) {
-            path.push_str(".new");
-        }
-        let generic = match store.resolve(&path)? {
-            Some(e) => e.target.digest(),
-            None => store.new_nominal(lang, "generic", &path)?,
-        };
-        let mut ms = ms.clone();
-        ms.sort();
-        ms.dedup();
-        report.methods += ms.len();
-        report.generics += 1;
-        store.add_members(&generic, &ms)?;
-    }
+    store_items(store, lang, pkg, &items, &mut report)?;
     Ok(report)
 }
