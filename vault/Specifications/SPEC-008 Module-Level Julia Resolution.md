@@ -127,6 +127,27 @@ Then, unchanged: `definition(lang, node, text, &references[f][i], budget)` per d
 
 ## 6. Status
 
+**v5 in both tools (2026-10-20).**
+- Moonkale ported the prototype into `moonkale-content-id` (`6592867c`, `julia::{includes, module}`), with two deliberate changes:
+  - **refusal propagates:** a definition whose encoding refers to a refused one is refused too (`DependencyRefused`), so a callee cannot change without its caller's id changing;
+  - **locals** are decided by v4's scoping inside the normaliser, not by a resolver heuristic.
+- Sophia now uses the crate. It reads the files and finds the package (`Project.toml`); the crate resolves and identifies.
+- **Sophia reproduces every row of Moonkale's `golden/module.tsv`:** ids, `depends_on`, references and `calls_generic`, for the module fixture, the dynamic-include fixture and the single-file modules. The stored record ids are those ids.
+- On LinearAlgebra both tools give the same numbers:
+  - 3 435 ids;
+  - 27 unsupported, 6 malformed, 103 `DependencyRefused`;
+  - 2 199 references, 867 across files;
+  - 4 027 `calls_generic`.
+
+**Findings on `calls_generic` (reported to Moonkale).** It does not affect ids, but it does affect drawn Calls edges and Sophia's nominal uses:
+1. **1 328 of 4 027 are names bound locally.** These are `where` type parameters (`S`: 610) and function parameters (`p`, `f`, `uplo`, `k`, …). Sophia skips them when recording uses.
+2. **Callable-type methods** `(::Type{Bi})(…) where {Bi<:…}` are named `Type`, so every `Type{…}` in a signature counted as a call. They bind no module name, like a qualified method.
+3. **Interpolated heads** in `@eval` code (`$S(A::$S) = A`) bind `S`. They bind nothing.
+
+Sophia treats (2) and (3) as binding nothing. In the crate, (2) and (3) can also change ids: with exactly one such method in a package, every use of `Type` would resolve to it. With these filters, LinearAlgebra's methods record 1 187 uses of generic functions.
+
+**Earlier stages:**
+
 **After the review:**
 - The prototype has span keys, the struct-field rule, the resolvable kinds, modules as namespaces, `calls_generic`, the normative budget constants and `package_root`. The fixture adds a struct field named like a function, a package-level `Base.show`, and a `const`.
 - LinearAlgebra, found through `Project.toml`:

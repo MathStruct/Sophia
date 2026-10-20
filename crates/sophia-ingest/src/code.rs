@@ -61,6 +61,24 @@ fn name_node<'t>(lang: &str, n: Syntax<'t>) -> Option<Syntax<'t>> {
     }
 }
 
+/// A Julia method whose head is a parenthesised callable,
+/// `(::Type{T})(…)` or `(f::F)(…)`: it adds a method to a type or a functor,
+/// and binds no name in the module.
+fn callable_head(lang: &str, n: Syntax) -> bool {
+    if lang != "julia" {
+        return false;
+    }
+    let mut head = n.named_child(0);
+    while let Some(h) = head {
+        match h.kind() {
+            "parenthesized_expression" => return true,
+            "identifier" | "operator" | "macro_identifier" | "field_expression" => return false,
+            _ => head = h.named_child(0),
+        }
+    }
+    false
+}
+
 /// Every definition the normal form covers, in source order (nested ones,
 /// such as methods in a Python class or items in a module, included).
 pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syntax<'t>)> {
@@ -68,7 +86,8 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
     let mut stack = vec![root];
     while let Some(n) = stack.pop() {
         if is_definition(lang, n) {
-            let nn = name_node(lang, n);
+            let callable = callable_head(lang, n);
+            let nn = if callable { None } else { name_node(lang, n) };
             out.push((
                 Def {
                     name: nn.map(|x| text(x, src).to_string()).unwrap_or_default(),
@@ -76,7 +95,10 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
                     start: n.start_byte(),
                     end: n.end_byte(),
                     name_span: nn.map(|x| (x.start_byte(), x.end_byte())),
-                    qualified: nn.and_then(|x| x.parent()).is_some_and(|p| p.kind() == "field_expression"),
+                    // Qualified (`Base.show`), callable (`(::Type{T})(…)`) or
+                    // interpolated (`$S(…)` in `@eval` code): binds no name.
+                    qualified: callable
+                        || nn.and_then(|x| x.parent()).is_some_and(|p| matches!(p.kind(), "field_expression" | "interpolation_expression")),
                 },
                 n,
             ));
@@ -92,6 +114,11 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
 /// targets, loop variables. A use of such a name is not a reference to a
 /// top-level definition of the same spelling (a possible shadow is left
 /// unresolved, as Moonkale does).
+/// The local names of a definition, for diagnostics (examples).
+pub fn locals_for_check(lang: &str, def: Syntax, src: &str) -> HashSet<String> {
+    local_names(lang, def, src, None)
+}
+
 pub(crate) fn local_names(lang: &str, def: Syntax, src: &str, own: Option<(usize, usize)>) -> HashSet<String> {
     let mut out = HashSet::new();
     let mut stack = vec![def];

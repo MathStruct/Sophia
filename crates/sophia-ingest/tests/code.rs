@@ -8,6 +8,10 @@ use sophia_ingest::code::{definitions, file, identify, resolve};
 
 const FILES: [&str; 4] = ["geometry.jl", "geometry.rs", "geometry.py", "scopes.jl"];
 
+/// Files whose references Moonkale lists per file (`references.tsv`). Since
+/// v5, Julia references come from the module resolver: `tests/module.rs`.
+const PER_FILE: [&str; 2] = ["geometry.rs", "geometry.py"];
+
 const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden-moonkale");
 
 fn tsv(name: &str) -> Vec<Vec<String>> {
@@ -33,7 +37,7 @@ fn lang(file: &str) -> &'static str {
 fn moonkale_spans_give_moonkale_ids() {
     let ids = tsv("ids.tsv");
     let refs = tsv("references.tsv");
-    for f in FILES {
+    for f in PER_FILE {
         let l = lang(f);
         let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
         let mut budget = Budget::new();
@@ -60,7 +64,7 @@ fn moonkale_spans_give_moonkale_ids() {
 #[test]
 fn sophia_resolves_like_moonkale() {
     let refs = tsv("references.tsv");
-    for f in FILES {
+    for f in PER_FILE {
         let l = lang(f);
         let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
         let tree = parse(l, &src, &mut Budget::new()).unwrap();

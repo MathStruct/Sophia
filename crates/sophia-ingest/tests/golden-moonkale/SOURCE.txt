@@ -1,1 +1,1 @@
-Copied from MathStruct/Moonkale f09b3c4003c6c96545cee32d37d56fdfdcaaeec9, packages/services/content-id/golden (MIT). Regenerate when the pinned rev of moonkale-content-id changes.
+Copied from MathStruct/Moonkale 6592867c850efe330a6112b12dadd50597e48a86, packages/services/content-id/golden (MIT). Regenerate when the pinned rev of moonkale-content-id changes.

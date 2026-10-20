@@ -122,6 +122,8 @@ Sophia's resolver matches Moonkale's on all golden fixtures, including the new `
 - **Shared bodies:** 134 method bodies are members of two or more generic functions (for example `hpmv!` and `spmv!`). The function's own name is not part of the content, so identical bodies under different names are one record, the Unison idea.
 - **References:** 913 same-file references. Cross-file references (one package spread over `include`d files) are not resolved yet, as in Moonkale.
 
+**v5 in both tools (2026-10-20).** Sophia now uses the crate's module resolver and reproduces Moonkale's golden module data exactly. On LinearAlgebra both tools report 3 435 ids and 2 199 references (867 across files). Methods record their calls to generic functions as nominal uses (1 187), after filtering three kinds of false generic calls found here (SPEC-008 §6).
+
 **Module-level resolution (2026-10-20, [[SPEC-008 Module-Level Julia Resolution]]).**
 - Per-file resolution is not only incomplete for Julia; it is partly wrong. About 1 940 per-file references in LinearAlgebra link a call to one method of a generic function, or a field `x.name` to a definition of that name.
 - The module resolver makes 2 301 references, 880 of them across files.

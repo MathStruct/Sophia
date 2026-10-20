@@ -85,12 +85,15 @@ pub fn store_metamath<B: Backend>(
 }
 
 /// Stores identified definitions: records, names for non-functions, and
-/// functions grouped by name into generic functions.
+/// functions grouped by name into generic functions. `uses_generic` maps a
+/// record id to the generic functions it calls: they become the record's
+/// `nominal_refs` (queryable as `uses(d, g)`), which do not affect its id.
 fn store_items<B: Backend>(
     store: &Store<B>,
     lang: &str,
     pkg: &str,
     items: &[(code::Def, sophia_hash::Record)],
+    uses_generic: &std::collections::HashMap<sophia_hash::Digest, Vec<String>>,
     report: &mut CodeReport,
 ) -> Result<(), StoreError> {
     let prefix = match lang {
@@ -98,8 +101,6 @@ fn store_items<B: Backend>(
         "rust" => "rs",
         _ => "py",
     };
-    let records: Vec<sophia_hash::Record> = items.iter().map(|(_, r)| r.clone()).collect();
-    report.new_records += store.put_records(&records)?;
     let mut methods: BTreeMap<String, Vec<sophia_hash::Digest>> = BTreeMap::new();
     let mut named: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
     for (d, r) in items {
@@ -113,19 +114,9 @@ fn store_items<B: Backend>(
             named.entry(d.name.clone()).or_insert(r.id);
         }
     }
-    let mut names: Vec<(String, usize, Visibility)> = Vec::new();
-    let mut records = Vec::new();
-    for (n, id) in &named {
-        let path = format!("{prefix}.{pkg}.{}", segment(n));
-        if store.resolve(&path)?.is_none() {
-            if let Some(r) = store.record(id)? {
-                names.push((path, records.len(), Visibility::Public));
-                records.push(r);
-            }
-        }
-    }
-    store.add(&records, &names)?;
-    for (n, ms) in &methods {
+    // Generic functions first, so records can refer to them.
+    let mut generics: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
+    for n in methods.keys() {
         let mut path = format!("{prefix}.{pkg}.{}", segment(n));
         if named.contains_key(n) {
             path.push_str(".new");
@@ -134,18 +125,51 @@ fn store_items<B: Backend>(
             Some(e) => e.target.digest(),
             None => store.new_nominal(lang, "generic", &path)?,
         };
+        generics.insert(n.clone(), generic);
+    }
+    let records: Vec<sophia_hash::Record> = items
+        .iter()
+        .map(|(_, r)| {
+            let mut r = r.clone();
+            if let Some(names) = uses_generic.get(&r.id) {
+                for n in names {
+                    if let Some(g) = generics.get(n) {
+                        if !r.nominal_refs.contains(g) {
+                            r.nominal_refs.push(*g);
+                        }
+                    }
+                }
+            }
+            r
+        })
+        .collect();
+    report.new_records += store.put_records(&records)?;
+    let mut names: Vec<(String, usize, Visibility)> = Vec::new();
+    let mut named_records = Vec::new();
+    for (n, id) in &named {
+        let path = format!("{prefix}.{pkg}.{}", segment(n));
+        if store.resolve(&path)?.is_none() {
+            if let Some(r) = store.record(id)? {
+                names.push((path, named_records.len(), Visibility::Public));
+                named_records.push(r);
+            }
+        }
+    }
+    store.add(&named_records, &names)?;
+    for (n, ms) in &methods {
         let mut ms = ms.clone();
         ms.sort();
         ms.dedup();
         report.methods += ms.len();
         report.generics += 1;
-        store.add_members(&generic, &ms)?;
+        store.add_members(&generics[n], &ms)?;
     }
     Ok(())
 }
 
-/// Stores a whole Julia module, resolved module-wide (SPEC-008, a proposal
-/// for Moonkale's normaliser v5). `report.references` counts all resolved
+/// Stores a whole Julia module through the crate's module-level resolver
+/// (normaliser v5, SPEC-008): ids are Moonkale's; calls to generic
+/// functions become nominal uses. `report.references` counts all resolved
 /// references; `cross_file` those between files.
 pub fn store_module<B: Backend>(
     store: &Store<B>,
@@ -154,11 +178,11 @@ pub fn store_module<B: Backend>(
 ) -> Result<(CodeReport, usize, usize), Box<dyn std::error::Error>> {
     let d = module::discover(root)?;
     let r = module::ingest(&d)?;
-    let calls = r.calls_generic;
+    let calls = r.calls_generic.len();
     let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
     let items: Vec<(code::Def, sophia_hash::Record)> = r.files.into_iter().flat_map(|(_, v)| v).collect();
     report.definitions = items.len();
-    store_items(store, "julia", pkg, &items, &mut report)?;
+    store_items(store, "julia", pkg, &items, &r.uses_generic, &mut report)?;
     Ok((report, r.cross_file_references, calls))
 }
 
@@ -220,6 +244,6 @@ pub fn store_code<B: Backend>(
         }
         items.extend(parsed.defs.into_iter().zip(parsed.records));
     }
-    store_items(store, lang, pkg, &items, &mut report)?;
+    store_items(store, lang, pkg, &items, &Default::default(), &mut report)?;
     Ok(report)
 }

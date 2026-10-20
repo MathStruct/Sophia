@@ -1,109 +1,90 @@
-//! Module-level Julia resolution (SPEC-008), on a multi-file fixture.
+//! Julia modules through the crate's module-level resolver (normaliser
+//! v5), checked against Moonkale's golden data (`golden-moonkale/module.tsv`).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use sophia_ingest::module::{Module, discover, ingest, resolve};
+use sophia_ingest::module::{discover, ingest, package_root};
 
-const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/module-fixture");
+const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden-moonkale/module");
 
-/// (definition, referenced name, referenced file) for every resolved span.
-type Edges = BTreeSet<(String, String, String)>;
-
-fn edges(root: &str) -> (Edges, HashMap<String, BTreeSet<String>>) {
-    let d = discover(&Path::new(DIR).join(root)).unwrap();
-    let m = Module::new(&d).unwrap();
-    let defs = m.definitions();
-    let r = resolve(&m, &defs, &d.dynamic);
-    let base = |f: usize| Path::new(&m.files[f].path).file_name().unwrap().to_string_lossy().to_string();
-    let name_at = |k: &(usize, usize, usize)| defs[k.0].iter().find(|(d, _)| d.start == k.1 && d.end == k.2).unwrap().0.name.clone();
-    let mut out = BTreeSet::new();
-    let mut deps = HashMap::new();
-    for (f, fr) in r.refs.iter().enumerate() {
-        for (i, map) in fr.iter().enumerate() {
-            let d = &defs[f][i].0;
-            for t in map.values() {
-                out.insert((d.name.clone(), name_at(t), base(t.0)));
-            }
-            if let Some(files) = r.depends_on.get(&(f, d.start, d.end)) {
-                deps.insert(d.name.clone(), files.iter().map(|&x| base(x)).collect());
-            }
-        }
-    }
-    (out, deps)
-}
-
-fn has(e: &BTreeSet<(String, String, String)>, from: &str, to: &str) -> bool {
-    e.iter().any(|(f, t, _)| f == from && t == to)
+fn base(p: &str) -> String {
+    Path::new(p).file_name().unwrap().to_string_lossy().to_string()
 }
 
 #[test]
 fn includes_are_followed_in_order() {
     let d = discover(&Path::new(DIR).join("Geo.jl")).unwrap();
-    let names: Vec<String> = d.files.iter().map(|f| Path::new(&f.path).file_name().unwrap().to_string_lossy().to_string()).collect();
+    let names: Vec<String> = d.files.iter().map(|f| base(&f.path)).collect();
     assert_eq!(names, ["Geo.jl", "types.jl", "ops.jl"]);
     assert_eq!(d.files[1].base_module, ["Geo"]);
-    assert!(d.dynamic.is_empty());
+    let dy = discover(&Path::new(DIR).join("Dyn.jl")).unwrap();
+    assert_eq!(dy.dynamic.len(), 1, "include(joinpath(…)) is dynamic");
+}
+
+/// Every row of module.tsv: Sophia, reading the files itself and calling
+/// the crate, gets Moonkale's ids, depends_on, references and generic calls,
+/// and its stored records carry those ids.
+#[test]
+fn sophia_reproduces_moonkale_module_ids() {
+    let tsv = std::fs::read_to_string(format!("{DIR}/../module.tsv")).unwrap();
+    let mut rows: BTreeMap<String, Vec<Vec<String>>> = BTreeMap::new();
+    for l in tsv.lines().filter(|l| !l.starts_with('#') && !l.is_empty()) {
+        let cols: Vec<String> = l.split('\t').map(String::from).collect();
+        rows.entry(cols[0].clone()).or_default().push(cols);
+    }
+    assert!(rows.len() >= 4);
+    for (root, rows) in rows {
+        let d = discover(&Path::new(DIR).join(&root)).unwrap();
+        let r = ingest(&d).unwrap();
+        let fname = |i: u32| base(&d.files[i as usize].path);
+        let stored: BTreeMap<(String, String), String> = r
+            .files
+            .iter()
+            .flat_map(|(p, v)| v.iter().map(move |(def, rec)| ((base(p), format!("{}:{}", def.start, def.end)), rec.id.to_hex())))
+            .collect();
+        for row in &rows {
+            if row[2] == "calls_generic" {
+                let span = row[3].clone();
+                assert!(
+                    r.calls_generic.iter().any(|(f, s, n)| fname(*f) == row[1] && format!("{}:{}", s.0, s.1) == span && *n == row[4]),
+                    "{root}: calls_generic {row:?} missing from {:?}",
+                    r.calls_generic
+                );
+                continue;
+            }
+            let x = r
+                .module
+                .definitions
+                .iter()
+                .find(|x| fname(x.key.0) == row[1] && format!("{}:{}", x.key.1, x.key.2) == row[3])
+                .unwrap_or_else(|| panic!("{root}: no definition {row:?}"));
+            let got = match &x.identity {
+                Ok(i) => i.digest.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+                Err(e) => format!("{e:?}"),
+            };
+            assert_eq!(got, row[4], "{root}: {} {}", row[1], row[2]);
+            let deps: BTreeSet<String> = x.depends_on.iter().map(|&f| fname(f)).collect();
+            let want: BTreeSet<String> = row[5].split(',').filter(|s| !s.is_empty()).map(String::from).collect();
+            assert_eq!(deps, want, "{root}: depends_on of {}", row[2]);
+            let refs: BTreeSet<String> =
+                x.references.iter().map(|(s, t)| format!("{}:{}>{}:{}:{}", s.0, s.1, fname(t.0), t.1, t.2)).collect();
+            let want: BTreeSet<String> = row.get(6).map(|c| c.split(',').filter(|s| !s.is_empty()).map(String::from).collect()).unwrap_or_default();
+            assert_eq!(refs, want, "{root}: references of {}", row[2]);
+            if x.identity.is_ok() {
+                assert_eq!(stored[&(row[1].clone(), row[3].clone())], row[4], "{root}: stored record id of {}", row[2]);
+            }
+        }
+    }
 }
 
 #[test]
-fn references_resolve_across_files_conservatively() {
-    let (e, deps) = edges("Geo.jl");
-    // Across files: ops.jl uses the struct from types.jl.
-    assert!(e.contains(&("dist".into(), "Point".into(), "types.jl".into())));
-    assert!(has(&e, "dist", "norm2"));
-    assert!(has(&e, "origin", "Point"));
-    // Imported (`using LinearAlgebra: norm`): never resolved to a local.
-    assert!(!has(&e, "len", "norm"));
-    assert!(has(&e, "len", "Point"));
-    // `helper` lives in the submodule Inner: invisible from Geo.
-    assert!(!has(&e, "area", "helper"));
-    // ...but visible inside Inner.
-    assert!(has(&e, "scale", "helper"));
-    // Two methods: the call is to the generic function, unresolved.
-    assert!(!has(&e, "use_twice", "twice"));
-    // `x.y` fields and `Base.show` are not module-level names.
-    assert!(!e.iter().any(|(f, _, _)| f == "show2"));
-    // The files an id depends on (Moonkale's cache key).
-    assert_eq!(deps["dist"], BTreeSet::from(["ops.jl".to_string(), "types.jl".to_string()]));
-    assert_eq!(deps["twice"], BTreeSet::from(["ops.jl".to_string()]));
-    // A struct field's name is not a reference; its type is (Moonkale's
-    // review): `parent::Point` in Wrap, with a function `parent` around.
-    assert!(!has(&e, "Wrap", "parent"));
-    assert!(has(&e, "Wrap", "Point"));
-    // A const resolves.
-    assert!(has(&e, "scaled", "SCALE"));
-    // A qualified call never resolves to the package's own `Base.show`.
-    assert!(!has(&e, "show3", "show"));
-    // Modules are namespaces, not units.
-    assert!(!deps.contains_key("Geo") && !deps.contains_key("Inner"));
-}
-
-#[test]
-fn calls_to_generic_functions_are_returned_separately() {
-    let d = discover(&Path::new(DIR).join("Geo.jl")).unwrap();
-    let m = Module::new(&d).unwrap();
-    let defs = m.definitions();
-    let r = resolve(&m, &defs, &d.dynamic);
-    assert!(r.calls_generic.iter().any(|(_, _, n)| n == "twice"), "{:?}", r.calls_generic);
-}
-
-#[test]
-fn a_dynamic_include_keeps_functions_open() {
-    let d = discover(&Path::new(DIR).join("Dyn.jl")).unwrap();
-    assert_eq!(d.dynamic.len(), 1, "include(joinpath(…)) is dynamic");
-    let (e, _) = edges("Dyn.jl");
-    assert!(!has(&e, "f", "origin"), "a function could gain methods from the dynamic include");
-    assert!(has(&e, "g", "Point"), "a type cannot be redefined: still resolved");
-}
-
-#[test]
-fn module_ingest_identifies_every_file() {
-    let d = discover(&Path::new(DIR).join("Geo.jl")).unwrap();
-    let r = ingest(&d).unwrap();
-    assert!(r.cross_file_references >= 4, "{}", r.cross_file_references);
-    let all: Vec<_> = r.files.iter().flat_map(|(_, v)| v).collect();
-    let dist = all.iter().find(|(d, _)| d.name == "dist").unwrap();
-    let point = all.iter().find(|(d, _)| d.name == "Point").unwrap();
-    assert!(dist.1.refs.contains(&point.1.id), "dist's id depends on Point's (Merkle, across files)");
+fn package_root_reads_project_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("Project.toml"), "name = \"Geo\"\nuuid = \"x\"\n").unwrap();
+    std::fs::write(dir.path().join("src/Geo.jl"), "module Geo end\n").unwrap();
+    let (name, root) = package_root(dir.path()).unwrap();
+    assert_eq!(name, "Geo");
+    assert!(root.ends_with("src/Geo.jl"));
 }
