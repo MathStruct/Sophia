@@ -32,17 +32,17 @@ The suite is not a Julia implementation. It is a ledger of which claims Sophia m
 
 ## Part 2: generic ownership on LinearAlgebra (Julia 1.13.1)
 
-Julia lists 4 933 methods from LinearAlgebra's source files. Sophia stores 2 939 methods.
+Julia lists 4 933 methods from LinearAlgebra's source files. Sophia stores 2 920 methods (normaliser v7; on v6 it was 2 939, see the `check` row).
 
 | Outcome | Methods | What |
 |---|---|---|
-| **same owner** | **2 777 (94.5 %)** | knows |
+| **same owner** | **2 777 (95.1 %)** | knows |
 | different owner: re-exported binding | 86 | approximates: `Base.Matrix` is `Core.Array`, `Base.cbrt` is `Base.Math.cbrt`, `Base.uppercase` is `Base.Unicode.uppercase`, `Base.CartesianIndex` is `Base.IteratorsMD.CartesianIndex` ([[SP-013 Julia bindings of modules Sophia has not ingested]]) |
-| different owner: spurious unit in a macro call | 11 | **wrong**: `@deprecate f(…; check::Bool = true) …` gives a "method" named `check`; reported to Moonkale (the crate decides units) |
-| no Julia method at that line | 65 | approximates: `@static if Sys.isapple()` code (not compiled on Linux), `function f end` (no method), multi-line signatures |
-| Julia methods at lines where Sophia stores none | 1 026 | leaves open: `@eval` loops, macros, default constructors, refused definitions |
+| different owner: spurious unit in a macro call | 0 (11 on v6) | was **wrong**: `@deprecate f(…; check::Bool = true) …` gave a "method" named `check`. Reported to Moonkale, fixed in v7 the same day (nothing inside a call is a module-level unit) |
+| no Julia method at that line | 57 | approximates: `@static if Sys.isapple()` code (not compiled on Linux), `function f end` (no method), multi-line signatures |
+| Julia methods at lines where Sophia stores none | 1 059 | leaves open: `@eval` loops, macros, default constructors, refused definitions |
 
-**Before the (module, name) fix** (`--by-name` reproduces the old grouping): **1 578 of 2 939 (53.7 %)**. The 1 296 disagreements were 898 methods of Base functions filed as LinearAlgebra's (662 by `import`, 236 by qualified heads such as `Base.to_indices`, stored as a function named `` `Base.to_indices` ``), 234 methods of BLAS and LAPACK functions filed under LinearAlgebra, 38 of `Base.Broadcast`, and the alias cases that remain.
+**Before the (module, name) fix** (`--by-name` reproduces the old grouping): **1 578 of 2 939 (53.7 %)** on v6, 1 578 of 2 920 (54.0 %) on v7. The 1 296 disagreements (v6) were 898 methods of Base functions filed as LinearAlgebra's (662 by `import`, 236 by qualified heads such as `Base.to_indices`, stored as a function named `` `Base.to_indices` ``), 234 methods of BLAS and LAPACK functions filed under LinearAlgebra, 38 of `Base.Broadcast`, and the alias cases that remain.
 
 ## Part 3 onwards: planned
 

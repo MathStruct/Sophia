@@ -2,7 +2,7 @@
 
 > Julia modules through `moonkale-content-id`'s module-level resolver (normaliser v5; [[SPEC-008 Module-Level Julia Resolution]]). Source: `module.rs`. The prototype that was here was ported into the crate from Sophia `eb549c6`.
 >
-> Sources: [[SPEC-008 Module-Level Julia Resolution]]; Moonkale `packages/services/content-id/src/julia.rs` (`31f0f0d4`, v6). code: `module.rs`, `tests/module.rs` (against `golden-moonkale/module.tsv`), `examples/generic_calls.rs`
+> Sources: [[SPEC-008 Module-Level Julia Resolution]]; Moonkale `packages/services/content-id/src/julia.rs` (`dacef2e6`, v7: nothing inside a call is a unit). code: `module.rs`, `tests/module.rs` (against `golden-moonkale/module.tsv`), `examples/generic_calls.rs`
 
 - `package_root(dir)`: `src/<name>.jl` from `Project.toml` (the caller's job, SPEC-008 §4).
 - `discover(root)`: reads the files in include order with the crate's `includes`; literal includes only, others recorded as dynamic; bounded by the crate's constants.

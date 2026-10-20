@@ -127,9 +127,9 @@ Then, unchanged: `definition(lang, node, text, &references[f][i], budget)` per d
 
 ## 5a. Sophia's side: which generic function a method belongs to (2026-10-20)
 
-The crate resolves references and generic **uses** per module. Which generic function a **method** belongs to is Sophia's storage decision, and it was wrong: methods were grouped by bare name. Since 2026-10-20 the key is (module path, name), and methods that extend another module's function (a qualified head, or a name imported with `import`) join that function. Agreement with Julia's own method table on LinearAlgebra: 53.7 % before, 94.5 % after. Rules, approximations and the remaining disagreements: [[Julia Name Resolution]], [[Julia Conformance]], [[SP-013 Julia bindings of modules Sophia has not ingested]].
+The crate resolves references and generic **uses** per module. Which generic function a **method** belongs to is Sophia's storage decision, and it was wrong: methods were grouped by bare name. Since 2026-10-20 the key is (module path, name), and methods that extend another module's function (a qualified head, or a name imported with `import`) join that function. Agreement with Julia's own method table on LinearAlgebra: 53.7 % before, 94.5 % after (95.1 % on v7). Rules, approximations and the remaining disagreements: [[Julia Name Resolution]], [[Julia Conformance]], [[SP-013 Julia bindings of modules Sophia has not ingested]].
 
-One finding for the crate (reported to Moonkale): a keyword default inside a module-level macro call (`@deprecate f(x; check::Bool = true) g(x)`) is taken as a unit named `check` (11 in LinearAlgebra).
+One finding for the crate: a keyword default inside a module-level macro call (`@deprecate f(x; check::Bool = true) g(x)`) was taken as a unit named `check` (11 in LinearAlgebra). **Fixed in v7** (Moonkale `dacef2e6`, crate `9ca03e68`): `units()` stops at any call. LinearAlgebra on v7, identical in both tools: 3 416 of 3 552 units get ids; references, refusals and generic uses unchanged. Sophia pins v7 and reproduces the new `Macros.jl` golden module.
 
 ## 6. Status
 

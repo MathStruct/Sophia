@@ -1,52 +1,59 @@
 # root	file	definition	start:end	digest|error	depends_on	references (span>file:start:end)
-Geo.jl	Geo.jl	helper	107:120	1aae966dba1a7636281b0f128b487aeca20b2c5ff9560e8a150399cffae214ce	Geo.jl	
-Geo.jl	Geo.jl	scale	121:141	bf1e0d24692589b0a766de6a3b54a4d9f33dcc8d5f7c124b7d9084183d8ab87c	Geo.jl	132:138>Geo.jl:107:120
-Geo.jl	types.jl	Point	0:46	12c4fa0094804fe5d22ca3d1b3f0130c7d94f6f536834ce7d63eea800bf4cf87	types.jl	
-Geo.jl	types.jl	origin	47:73	644dfe4587e50c29ad6412312d64e35a8261c1c5931515703d9ce607456242e3	types.jl	58:63>types.jl:0:46
-Geo.jl	types.jl	Wrap	74:107	7dfe86f343b418cf85f1a294254cdb09131beacc9f83bba0208f31f62f48f768	types.jl	98:103>types.jl:0:46
-Geo.jl	types.jl	parent	108:128	13bf9a3fbc0cb161569500864fc3e77cfb8c9a92468f45cc8bf4a9eab97d4124	types.jl	
-Geo.jl	types.jl		129:177	c233777df8199e229d032f838ae86da2d7be377d986450b473c70853c59dd31d	types.jl	150:154>types.jl:74:107
-Geo.jl	types.jl	SCALE	178:195	91bfa8cc1ee6910836cb7c86433d9ebeb0ce52c07d73f0c6c0b5b3562e1ecc77	types.jl	
-Geo.jl	ops.jl	norm2	0:39	f9669392164f9437afb2cda7a1419bb90b1546b9b4dd0ccd4cb8dab8903c6720	types.jl,ops.jl	9:14>types.jl:0:46
-Geo.jl	ops.jl	dist	40:107	d727eb5c771a9559214846f252ab0aa71db886f01108fb2637beac75179aa841	types.jl,ops.jl	48:53>types.jl:0:46,58:63>types.jl:0:46,72:77>ops.jl:0:39,78:83>types.jl:0:46
-Geo.jl	ops.jl	len	108:131	6e10ac37a43cd7c100308ee05b6a369e85b2a017eda9ccfeb769da08769c4d8b	types.jl,ops.jl	115:120>types.jl:0:46
-Geo.jl	ops.jl	area	132:158	67f15cc836b8b76b42a15ba84b023e7f8091feb9ee0e3a0398572e3ec56935c9	types.jl,ops.jl	140:145>types.jl:0:46
-Geo.jl	ops.jl	show2	159:190	a86cf08e39d7508d776688e220c091de55306abc7e35ace99284ea3a36eea654	ops.jl	
-Geo.jl	ops.jl	twice	191:204	7d2b1ac103648d6610ffb15f8736c2a7670f814a602d95e77594ab95498362be	ops.jl	
-Geo.jl	ops.jl	twice	205:225	b713704503c3a9c1c221db4be3a9a08adaeace304d9171001ce1cae36e38aea5	ops.jl	
-Geo.jl	ops.jl	use_twice	226:249	5776412e1349a037467600d6a6557b1b3b5248f86459dc584b9cfcb58955f6f3	ops.jl	
-Geo.jl	ops.jl	scaled	250:280	f91a1cf422195c30f9d903241ad33797fa9e32fce152bcc447e83ebc7974aa62	types.jl,ops.jl	260:265>types.jl:0:46,269:274>types.jl:178:195
-Geo.jl	ops.jl	show3	281:312	a86cf08e39d7508d776688e220c091de55306abc7e35ace99284ea3a36eea654	ops.jl	
+Geo.jl	Geo.jl	helper	107:120	040c08d32beaa8d8ec3789664cda5090a951c5959879a9f743d1d9b13af168cf	Geo.jl	
+Geo.jl	Geo.jl	scale	121:141	b79a994f80e6d9132cbadc70a760a8d180821586ca2daee08df4263db9e8880c	Geo.jl	132:138>Geo.jl:107:120
+Geo.jl	types.jl	Point	0:46	5b991bbbd38dbdb48a22894e1df8916f567a3c30a9184ca96b1082dc99143805	types.jl	
+Geo.jl	types.jl	origin	47:73	dc6af408e7f689e52f9381d2fdca9ac21b596bb7b304400eaa44e55bbbddb8ba	types.jl	58:63>types.jl:0:46
+Geo.jl	types.jl	Wrap	74:107	3b45c97f8963b825308ac5fa09e66f179d2af5bed755c2b60acd9f040f576c36	types.jl	98:103>types.jl:0:46
+Geo.jl	types.jl	parent	108:128	2a5622a1b44529e1bd0cc3b1686bd8a93f292ed141023682de5babc26969ebdf	types.jl	
+Geo.jl	types.jl		129:177	27564101635097aa738e15957874a96d396f797afc6eb66d64a505465b331b20	types.jl	150:154>types.jl:74:107
+Geo.jl	types.jl	SCALE	178:195	09621f5dc770c2fe7200e42be4f553ccd3f4e1c29a3027d4e2e595e805f41aee	types.jl	
+Geo.jl	ops.jl	norm2	0:39	bd134da301cd2d13a2ae15be2965da20e84d7ee59b588d263ef4111e89415af7	types.jl,ops.jl	9:14>types.jl:0:46
+Geo.jl	ops.jl	dist	40:107	199cf428f64a0efcc81f04a540d9fafc55096eee751a24f10ea9ce9a816eb35e	types.jl,ops.jl	48:53>types.jl:0:46,58:63>types.jl:0:46,72:77>ops.jl:0:39,78:83>types.jl:0:46
+Geo.jl	ops.jl	len	108:131	2817b048c106e24d80b3c26fa690169ae69671e6e58a892578eb601ccaf0cb5c	types.jl,ops.jl	115:120>types.jl:0:46
+Geo.jl	ops.jl	area	132:158	d441af1de92ef56eb03da9a64bf4e3a2842ea22db72f1a1f91844166f12cc181	types.jl,ops.jl	140:145>types.jl:0:46
+Geo.jl	ops.jl	show2	159:190	951dee6c2247ea4fee62172ba889bb7999d359448bbeb7d84cb356e54b0c641b	ops.jl	
+Geo.jl	ops.jl	twice	191:204	8ae11c9370300bfd10f9c06e099316a19626cfb84897b5867ed99183eb17fc21	ops.jl	
+Geo.jl	ops.jl	twice	205:225	a00e1868216488d019a914dafc37b2756b414ad19e486bc58e3e3b59408b8361	ops.jl	
+Geo.jl	ops.jl	use_twice	226:249	0cce1d527883b0bedc0f4d7701684f692c77317b90d137514418cb91ecb9c8b4	ops.jl	
+Geo.jl	ops.jl	scaled	250:280	19ffac2add0ee04034967ab0b205d601c4dfaacd718c0a87f4df40102d42fade	types.jl,ops.jl	260:265>types.jl:0:46,269:274>types.jl:178:195
+Geo.jl	ops.jl	show3	281:312	951dee6c2247ea4fee62172ba889bb7999d359448bbeb7d84cb356e54b0c641b	ops.jl	
 Geo.jl	ops.jl	calls_generic	241:246	twice		
-Dyn.jl	Dyn.jl	f	71:86	2bd81a2f341d3e9f6e924f1bbb76b50f55bfd6db091c8a0f3c79e8ad1b9ecbd6	Dyn.jl	
-Dyn.jl	Dyn.jl	g	87:105	e78fd1243cd0ab339c0e26a69c20db71f3dc991d5603c6e55844fcbc403ba670	Dyn.jl,types.jl	94:99>types.jl:0:46
-Dyn.jl	types.jl	Point	0:46	12c4fa0094804fe5d22ca3d1b3f0130c7d94f6f536834ce7d63eea800bf4cf87	types.jl	
-Dyn.jl	types.jl	origin	47:73	644dfe4587e50c29ad6412312d64e35a8261c1c5931515703d9ce607456242e3	types.jl	58:63>types.jl:0:46
-Dyn.jl	types.jl	Wrap	74:107	7dfe86f343b418cf85f1a294254cdb09131beacc9f83bba0208f31f62f48f768	types.jl	98:103>types.jl:0:46
-Dyn.jl	types.jl	parent	108:128	13bf9a3fbc0cb161569500864fc3e77cfb8c9a92468f45cc8bf4a9eab97d4124	types.jl	
-Dyn.jl	types.jl		129:177	c233777df8199e229d032f838ae86da2d7be377d986450b473c70853c59dd31d	types.jl	150:154>types.jl:74:107
-Dyn.jl	types.jl	SCALE	178:195	91bfa8cc1ee6910836cb7c86433d9ebeb0ce52c07d73f0c6c0b5b3562e1ecc77	types.jl	
-Callable.jl	Callable.jl	S	16:39	2c2e59c2650049d78860411c33ca1fdbbfd246e019ecd28eb25785311ab1e85b	Callable.jl	
-Callable.jl	Callable.jl	Box	40:70	da1146db832a221ce3f5740dbbe964596332cd70c6e97534fabb7537ec3db7c1	Callable.jl	
-Callable.jl	Callable.jl		140:194	28aa02f6974295ad3b1a9521a863f330734d9377df88f2b64efea33eaa5f3453	Callable.jl	176:179>Callable.jl:40:70
-Callable.jl	Callable.jl		258:267	43e6abbb21a9774cc9e471c162a9c4a72a7cb8fb2e33a978cb0ebc22abd10126	Callable.jl	
-Callable.jl	Callable.jl	first_of	318:346	1bde4caba1cbf2879891e4ee4dc99630a0d1a5b4012e36e4d2d905d95ad96f62	Callable.jl	
-Callable.jl	Callable.jl	uses_struct	347:370	e5e493c3ec1ce505057a9270cd499211fb34b855a9e5160cb9ae7e8ba89285cb	Callable.jl	362:363>Callable.jl:16:39
-Callable.jl	Callable.jl	apply	371:389	9cd760d2755d41d6c13aa53eca90da979465bcf6f1a36dac06c6d8bbda6d2746	Callable.jl	
-Callable.jl	Callable.jl	apply	390:414	d1304d6d0d7060ee51b875cd3ff85a4889ca8e3ec96af4ee7d0fd523072b3de9	Callable.jl	
-Callable.jl	Callable.jl	twice	480:513	3c374276d42885f4bc9f78e09704f2fa8ffe559583ff90ac877bf293f65e9bfb	Callable.jl	
-Callable.jl	Callable.jl	calls	514:543	8d9986d484d80ef53fd72427654029c8e4c498abe819c519d5103f8109cb6f2a	Callable.jl	
+Dyn.jl	Dyn.jl	f	71:86	b51da76dd60bbb1ddf66e225a0582c1085dd82896bf382e4731b9b8c2aa35bb8	Dyn.jl	
+Dyn.jl	Dyn.jl	g	87:105	cae276be77f0fe08519150dc1f1d74c743a9a6d95fea150fed1eb9f0bf619590	Dyn.jl,types.jl	94:99>types.jl:0:46
+Dyn.jl	types.jl	Point	0:46	5b991bbbd38dbdb48a22894e1df8916f567a3c30a9184ca96b1082dc99143805	types.jl	
+Dyn.jl	types.jl	origin	47:73	dc6af408e7f689e52f9381d2fdca9ac21b596bb7b304400eaa44e55bbbddb8ba	types.jl	58:63>types.jl:0:46
+Dyn.jl	types.jl	Wrap	74:107	3b45c97f8963b825308ac5fa09e66f179d2af5bed755c2b60acd9f040f576c36	types.jl	98:103>types.jl:0:46
+Dyn.jl	types.jl	parent	108:128	2a5622a1b44529e1bd0cc3b1686bd8a93f292ed141023682de5babc26969ebdf	types.jl	
+Dyn.jl	types.jl		129:177	27564101635097aa738e15957874a96d396f797afc6eb66d64a505465b331b20	types.jl	150:154>types.jl:74:107
+Dyn.jl	types.jl	SCALE	178:195	09621f5dc770c2fe7200e42be4f553ccd3f4e1c29a3027d4e2e595e805f41aee	types.jl	
+Callable.jl	Callable.jl	S	16:39	0745fc75cc10a3bc9e3a2cae704f7550b01ee0353edd54702b532a80f8307c51	Callable.jl	
+Callable.jl	Callable.jl	Box	40:70	d5c7400137ed334d1b1e8c0945787f5b3956693df527f2d05b983b7499a86d51	Callable.jl	
+Callable.jl	Callable.jl		140:194	571cf8780c682aa2b2fbd34d308483941638a9c3ff6dcf286dc3e2ada6cde412	Callable.jl	176:179>Callable.jl:40:70
+Callable.jl	Callable.jl		258:267	4ebc22a19891c47b2c473ec8faad8bce1befdc30b709e3e50b7a9813c53b33d0	Callable.jl	
+Callable.jl	Callable.jl	first_of	318:346	d8709b83e9fb3efedd76e557e1606a06cecb9a857804505d0d3d2153cc9d2984	Callable.jl	
+Callable.jl	Callable.jl	uses_struct	347:370	f6e73f5afa0d261864814ff772b823263a901440ddb5c66645f5806cf8fd95ce	Callable.jl	362:363>Callable.jl:16:39
+Callable.jl	Callable.jl	apply	371:389	848a2e0bc07eab02faeca01728ecedbe914a429d22ac82be0b50322eb2d5d431	Callable.jl	
+Callable.jl	Callable.jl	apply	390:414	a951828407a8873027554e61eb1a6b7154eeb9be0816bfaa187830cf40f741d6	Callable.jl	
+Callable.jl	Callable.jl	twice	480:513	d5e9de50ef96683ae1d06f939b5298db2c1241f37ed418d6503faad277f656ad	Callable.jl	
+Callable.jl	Callable.jl	calls	514:543	5275fff73950be33aa9735620e70294539da30f8e5234296f47b5666515a9c18	Callable.jl	
 Callable.jl	Callable.jl	calls_generic	525:530	apply		
-../geometry.jl	geometry.jl	Point	0:46	12c4fa0094804fe5d22ca3d1b3f0130c7d94f6f536834ce7d63eea800bf4cf87	geometry.jl	
-../geometry.jl	geometry.jl	norm2	48:87	f9669392164f9437afb2cda7a1419bb90b1546b9b4dd0ccd4cb8dab8903c6720	geometry.jl	57:62>geometry.jl:0:46
-../geometry.jl	geometry.jl	dist	89:181	4895630127dda74427d5869ab3faa23282982cdff180ab112df855e5a2d326c0	geometry.jl	106:111>geometry.jl:0:46,116:121>geometry.jl:0:46,131:136>geometry.jl:0:46,168:173>geometry.jl:48:87
-../geometry.jl	geometry.jl	iseven2	183:266	f4bf14af4c30a6a893bbad950e3c102d583114b890f101e6d781e347a168bbcf	geometry.jl	249:255>geometry.jl:268:352
-../geometry.jl	geometry.jl	isodd2	268:352	a8b1586ffed1b83db9c40e450e1713a259a5c660270a57a4305ebc94a9e18f78	geometry.jl	334:341>geometry.jl:183:266
-../geometry.jl	geometry.jl	distance	416:513	4895630127dda74427d5869ab3faa23282982cdff180ab112df855e5a2d326c0	geometry.jl	437:442>geometry.jl:0:46,448:453>geometry.jl:0:46,463:468>geometry.jl:0:46,500:505>geometry.jl:48:87
-../scopes.jl	scopes.jl	Band	0:44	5210a27a7f0ada82eca37e8649829e0709613ec554d0448e830db424ac77f3fe	scopes.jl	
-../scopes.jl	scopes.jl	offset	46:80	9f53ba12922886ccb845ba871e69e8e36be9256bd5dcfcf11372dcae09b1b428	scopes.jl	56:60>scopes.jl:0:44
-../scopes.jl	scopes.jl	total	82:215	0b8b61b33671794ecd7247a8a5ae1197cf19af637d10901f360aeb8d6499d9b7	scopes.jl	
-../scopes.jl	scopes.jl	widths	217:329	78a600c79b54a9ead06358901f0f9ea1f55c0b38e4bf1573f1a62814ceaa31b5	scopes.jl	240:244>scopes.jl:0:44
-../scopes.jl	scopes.jl	shifted	331:448	4b03b86866a37bffbf8654b936fb458a6cd4f09ca0904c2d3c45265b6872a6ac	scopes.jl	400:406>scopes.jl:46:80,426:432>scopes.jl:46:80
-../scopes.jl	scopes.jl	guarded	450:610	8b7e0903612b29f786193db6f5da7a113b1faaf4230d978b90a970ef2f536dac	scopes.jl	470:474>scopes.jl:0:44,500:506>scopes.jl:46:80
-../scopes.jl	scopes.jl	countdown	612:682	f91c4c99916e00f3de8b03652e643ec857560bdfa9d8100432eea1baa911c841	scopes.jl	
+Macros.jl	Macros.jl	NoPivot	14:32	110e89aac933bed5f86936f1f983d8baeb22db7694dc549dfa3d91e0bbc2b5e1	Macros.jl	
+Macros.jl	Macros.jl	fact!	33:68	2dfc15666afac0728f2e23be7101fc8d24158ffa2b7bc25b6c65363ab31e43fa	Macros.jl	
+Macros.jl	Macros.jl	twice	287:300	8ae11c9370300bfd10f9c06e099316a19626cfb84897b5867ed99183eb17fc21	Macros.jl	
+Macros.jl	Macros.jl	thrice	334:363	21cd6198a7f951b4a65cda2369e1b894205c745a76a6d53a276df867d1bc2715	Macros.jl	
+Macros.jl	Macros.jl	halve	372:388	bfdfc90ce288c514d0da0160ddd8f72d2fa7aebe6fd9c6daf0c3ccafabd78e4a	Macros.jl	
+Macros.jl	Macros.jl	picked	410:453	90851d8c2cc802aea347c06be2a58e5120bf920039b562c26b0d846387df3b03	Macros.jl	437:442>Macros.jl:287:300
+Macros.jl	Macros.jl	configure	509:544	20e2815d7057f9904c6c8dff41cab27a52e93a11abb6678a8fb743fd9c2ec957	Macros.jl	
+../geometry.jl	geometry.jl	Point	0:46	5b991bbbd38dbdb48a22894e1df8916f567a3c30a9184ca96b1082dc99143805	geometry.jl	
+../geometry.jl	geometry.jl	norm2	48:87	bd134da301cd2d13a2ae15be2965da20e84d7ee59b588d263ef4111e89415af7	geometry.jl	57:62>geometry.jl:0:46
+../geometry.jl	geometry.jl	dist	89:181	b17f03d7c222a9cc2b0e7d029cb6255f93aa8b6dcd503e629187dbb1292ca260	geometry.jl	106:111>geometry.jl:0:46,116:121>geometry.jl:0:46,131:136>geometry.jl:0:46,168:173>geometry.jl:48:87
+../geometry.jl	geometry.jl	iseven2	183:266	5c44b368873585d3a61c2da9cfa099450cecb1f556eaef9c75d88c8f652c8efe	geometry.jl	249:255>geometry.jl:268:352
+../geometry.jl	geometry.jl	isodd2	268:352	71f01a8d85501af2c476343bed309e5b100e4cea5160ad3f67f8f5c80162b0e4	geometry.jl	334:341>geometry.jl:183:266
+../geometry.jl	geometry.jl	distance	416:513	b17f03d7c222a9cc2b0e7d029cb6255f93aa8b6dcd503e629187dbb1292ca260	geometry.jl	437:442>geometry.jl:0:46,448:453>geometry.jl:0:46,463:468>geometry.jl:0:46,500:505>geometry.jl:48:87
+../scopes.jl	scopes.jl	Band	0:44	a1fc6b008d0f1b2bc8794932ba83a4bcece8a04147b32d8004cd13689563737d	scopes.jl	
+../scopes.jl	scopes.jl	offset	46:80	4cc1641629b85b9a7c5d1c4c43a1a77319c4f313bedff6691ae0324cc89ef231	scopes.jl	56:60>scopes.jl:0:44
+../scopes.jl	scopes.jl	total	82:215	357bcb522ae57e5e60b4863919dba752f2185cf86228d780f82797baec8b92fb	scopes.jl	
+../scopes.jl	scopes.jl	widths	217:329	d781fa5680f93e7afb3206758a2b812a9cbaddde212a1b5dcb3dc94484041134	scopes.jl	240:244>scopes.jl:0:44
+../scopes.jl	scopes.jl	shifted	331:448	402197ebfa17461883180fd115ac4102f5517594740a9edd712cd4114ab23e85	scopes.jl	400:406>scopes.jl:46:80,426:432>scopes.jl:46:80
+../scopes.jl	scopes.jl	guarded	450:610	19d1438211830191d36375fe91fe9efded4a2127b30e425e3ac9f0782ee0a804	scopes.jl	470:474>scopes.jl:0:44,500:506>scopes.jl:46:80
+../scopes.jl	scopes.jl	countdown	612:682	7df4563f047b309bf5781881673b45e8632d281fcfc6d4f9c7bf681e22b52cd9	scopes.jl	

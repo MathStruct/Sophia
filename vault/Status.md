@@ -34,7 +34,7 @@
 
   **After the real-code review (2026-10-20,** [[Review 2026-10-20 Real Code (external)]]**):**
   - **Metamath checked:** Sophia's "which axioms does T rest on" agrees with metamath.exe on every theorem checked ([[Metamath Overview]]);
-  - **generic functions are (module, name):** a real bug, fixed; agreement with Julia's own method table on LinearAlgebra 53.7 % → 94.5 % ([[Julia Conformance]]);
+  - **generic functions are (module, name):** a real bug, fixed; agreement with Julia's own method table on LinearAlgebra 53.7 % → 95.1 %; the check found a bug in the shared normaliser, fixed by Moonkale in **v7**, which Sophia now uses (3 416 identical ids) ([[Julia Conformance]]);
   - **record kinds enforced** (SP-012);
   - **new sections:** [[Storage and Materialization]] (finding: the store is about 10× its source and mostly derivable) and [[Languages]] (support levels per language);
   - **AD measured** (E-AD-0): producing a derivative costs 10² to 10⁶ runs of it ([[AD as a Materialization Case]]).

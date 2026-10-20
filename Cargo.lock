@@ -672,7 +672,7 @@ checksum = "ad5208a115eaba24916f7456929832e310a81518c641f93fee4f89aa93aa3675"
 dependencies = [
  "cfg-if",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1303,7 +1303,7 @@ dependencies = [
 [[package]]
 name = "moonkale-content-id"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Moonkale.git?rev=31f0f0d431f65aaf8bec88028b9c74c68cf2bedc#31f0f0d431f65aaf8bec88028b9c74c68cf2bedc"
+source = "git+https://github.com/MathStruct/Moonkale.git?rev=dacef2e6b44140d2bfa48093b11c717d649a1c2b#dacef2e6b44140d2bfa48093b11c717d649a1c2b"
 dependencies = [
  "arborium-julia",
  "arborium-python",
@@ -2057,7 +2057,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",

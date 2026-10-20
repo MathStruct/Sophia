@@ -27,7 +27,7 @@ Two rules:
 |---|---|---|---|---|---|---|---|
 | **sophialang** | [[SophiaLang Overview]] | yes (Julia and Rust profiles round-trip) | yes (`sophialang-core@0`) | yes (elaboration against the store) | it *is* the core | no | no |
 | **Sophia query** | [[Sophia Query Overview]] | yes | yes (exact canonical form) | yes (checked, stratified) | yes (IR; SQL translation) | **yes** (native and SQL, four backends) | differential tests only |
-| **Julia** | [[Julia Overview]] | yes (tree-sitter) | yes (WP-66 v6, shared with Moonkale) | partly: module scope, imports, generic ownership 94.5 % agreement with Julia | no | no | no |
+| **Julia** | [[Julia Overview]] | yes (tree-sitter) | yes (WP-66 v7, shared with Moonkale) | partly: module scope, imports, generic ownership 95.1 % agreement with Julia | no | no | no |
 | **Rust** | [[Rust Overview]] | yes | yes (WP-66) | same-file names only | no | no | no |
 | **Python** | [[Python Overview]] | yes | yes (WP-66) | same-file names only | no | no | no |
 | **Metamath** | [[Metamath Overview]] | yes (full format, except file inclusion) | yes (`sophia-metamath@2`) | yes (labels are global) | stored as statements and proofs | no (proofs are not checked by Sophia) | **dependency analysis checked against metamath.exe** |

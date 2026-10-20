@@ -40,18 +40,18 @@
 - LinearAlgebra's 123 extensions of Base's functions (`*`, `\`, `show`, `getindex`, …) were stored as LinearAlgebra's own functions, so a query for "methods of Base's `*`" could never find them;
 - `Base.show(…)` became a function literally named `` `Base.show` `` inside LinearAlgebra.
 
-Measured against Julia ([[Julia Conformance]]), the old rule gave the right owner for **53.7 %** of LinearAlgebra's methods; the new one for **94.5 %**. The external review predicted the same-name case from reading the code; LinearAlgebra had five real instances, and the import and qualified-head cases were far larger. `tests/generics.rs` now covers unrelated same-named functions in sibling modules, `import M: f` and `import M.f`, relative imports (`import ..A: f`), qualified extensions of Base and of a sibling module, operators (`Base.:+`) and constructors.
+Measured against Julia ([[Julia Conformance]]), the old rule gave the right owner for **53.7 %** of LinearAlgebra's methods; the new one for **94.5 %** (95.1 % on v7). The external review predicted the same-name case from reading the code; LinearAlgebra had five real instances, and the import and qualified-head cases were far larger. `tests/generics.rs` now covers unrelated same-named functions in sibling modules, `import M: f` and `import M.f`, relative imports (`import ..A: f`), qualified extensions of Base and of a sibling module, operators (`Base.:+`) and constructors.
 
 ## What Sophia approximates (and how much it costs)
 
-Measured on LinearAlgebra against Julia's own method table ([[Julia Conformance]]): 2 777 of 2 939 stored methods (94.5 %) have the owner Julia reports.
+Measured on LinearAlgebra against Julia's own method table ([[Julia Conformance]]): 2 777 of 2 920 stored methods (95.1 %, normaliser v7) have the owner Julia reports.
 
 | Approximation | Disagreements | Example | Proper fix |
 |---|---|---|---|
 | **re-exports and aliases** not followed | 86 | `Base.Matrix(…) = …` is a constructor of `Core.Array`; `Base.cbrt` is `Base.Math.cbrt`; `Base.uppercase` is `Base.Unicode.uppercase` | a **binding table** for modules Sophia did not ingest (Base, Core), produced by Julia and stored as a cited environment artifact ([[SP-013 Julia bindings of modules Sophia has not ingested]]) |
-| **definitions inside macro arguments** | 11 | `@deprecate cholesky!(A, ::Val{false}; check::Bool = true) …` yields a unit named `check` | the crate should not treat a keyword default inside a macro call as a definition; reported to Moonkale |
+| ~~definitions inside macro arguments~~ | 0 (11 on v6) | `@deprecate cholesky!(A, ::Val{false}; check::Bool = true) …` yielded a unit named `check` | **fixed in v7** (Moonkale `dacef2e6`): nothing inside a call is a module-level unit |
 | `using` bindings | (included above) | a method for a name brought in by `using` | the binding table, as above |
-| lines Julia never compiles | 65 not found in Julia | `@static if Sys.isapple()` blocks; `function f end` declarations (no method) | correct for a *source* store: platform-dependent code exists; its methods are world- and platform-dependent |
+| lines Julia never compiles | 57 not found in Julia | `@static if Sys.isapple()` blocks; `function f end` declarations (no method) | correct for a *source* store: platform-dependent code exists; its methods are world- and platform-dependent |
 
 ## What Sophia leaves unresolved, on purpose
 

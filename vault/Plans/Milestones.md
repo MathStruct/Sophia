@@ -95,7 +95,7 @@ Foundational invariants (identity, worlds, editable projections) count as settle
 
 - **2026-10-20: real-code review** ([[Review 2026-10-20 Real Code (external)]]):
   - Metamath dependency analysis checked against metamath.exe;
-  - generic functions keyed by (module, name), checked against Julia's method table (53.7 % → 94.5 %);
+  - generic functions keyed by (module, name), checked against Julia's method table (53.7 % → 95.1 %, with v7);
   - record kinds enforced (SP-012);
   - new vault sections [[Storage and Materialization]] and [[Languages]];
   - the experiment order replaced by [[Semantic Boundary Experiments]] (SR-124).

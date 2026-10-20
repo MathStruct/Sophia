@@ -137,7 +137,7 @@ Sophia's resolver matches Moonkale's on all golden fixtures, including the new `
 - The module resolver makes 2 301 references, 880 of them across files.
 - Proposed to Moonkale as normaliser v5.
 
-**Generic functions keyed by module (2026-10-20).** Methods were grouped by bare name, which merged `LinearAlgebra.dot` with `BLAS.dot` and filed 898 methods of Base's functions as LinearAlgebra's own. Now a generic function is (module path, name), and methods written `Base.show(…)` or after `import Base: show` join the function they extend. Against Julia's own method table, the right owner for 94.5 % of methods (53.7 % before): [[Julia Conformance]]. LinearAlgebra now has 804 generic functions (123 of them other modules' functions it extends) with 2 913 methods.
+**Generic functions keyed by module (2026-10-20).** Methods were grouped by bare name, which merged `LinearAlgebra.dot` with `BLAS.dot` and filed 898 methods of Base's functions as LinearAlgebra's own. Now a generic function is (module path, name), and methods written `Base.show(…)` or after `import Base: show` join the function they extend. Against Julia's own method table, the right owner for 94.5 % of methods (53.7 % before): [[Julia Conformance]]. The check also found units inside macro calls; Moonkale fixed that in **v7**, which Sophia now pins: 3 416 identical ids, 798 generic functions (123 of them other modules' functions it extends) with 2 907 methods, 95.1 % agreement.
 
 **The caveat:** ids also depend on **reference resolution**. So "one id in both" needs the same resolver too. The plan has two steps:
 1. Sophia uses the shared normaliser with its own resolver. Golden fixtures from Moonkale show where the two diverge, and the differences get recorded.

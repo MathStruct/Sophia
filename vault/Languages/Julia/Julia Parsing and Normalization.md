@@ -2,7 +2,7 @@
 
 > How Julia source becomes records with content ids: the parser, the WP-66 normal form shared with Moonkale, and what it refuses. Levels L1 and L2 of [[Languages]]. 2026-10-20.
 >
-> Sources: Moonkale `packages/services/content-id` (`lib.rs`, `julia.rs`; normaliser v6, rev `31f0f0d4`); [[SPEC-008 Module-Level Julia Resolution]]; [[Real Code Corpora]] §5; `crates/sophia-ingest/src/code.rs`, `module.rs`.
+> Sources: Moonkale `packages/services/content-id` (`lib.rs`, `julia.rs`; normaliser v7, rev `dacef2e6`); [[SPEC-008 Module-Level Julia Resolution]]; [[Real Code Corpora]] §5; `crates/sophia-ingest/src/code.rs`, `module.rs`.
 
 ## Parser
 
@@ -15,9 +15,9 @@
 
 A **unit** is a definition directly in a module's scope: a function (long or short form, with `where`), a struct, an abstract or primitive type, a constant or global assignment, a macro. A module is a namespace, not a unit. Nested functions are part of their enclosing unit.
 
-**Known wrong unit:** a keyword default inside a macro call at module level (`@deprecate f(x; check::Bool = true) g(x)`) is taken as an assignment unit named `check` (11 cases in LinearAlgebra; reported to Moonkale).
+**Nothing inside a call is a unit** (v7). Under v6 a keyword default inside a module-level call (`@deprecate f(x; check::Bool = true) g(x)`, also `configure(; level::Int = 2)`) became a unit; Sophia's conformance check found it, Moonkale fixed it the same day. Still units: `@inline f(x) = …`, stacked definition macros, `@inline(f(x) = …)`, definitions inside `@static if`.
 
-## The normal form (WP-66 v6)
+## The normal form (WP-66 v7)
 
 A unit's canonical form is a sequence of **parts**: bytes (the normalised syntax) and references (to other units). What the encoding does:
 - drops comments and formatting; docstrings are not part of the content (they are documentation, SP-001);
@@ -26,11 +26,11 @@ A unit's canonical form is a sequence of **parts**: bytes (the normalised syntax
 - a module-level name the resolver bound to exactly one unit becomes a **reference** to that unit's id; recursive groups are hashed together (SCCs, canonical order);
 - any other free name (a Base function, a generic function of the module, a type from another package) stays **as written**: spelling, not identity.
 
-The id is H(language, normaliser version, parts with references replaced by target ids). Version v6 is recorded on each record as `moonkale-wp66@6`.
+The id is H(language, normaliser version, parts with references replaced by target ids). The version is recorded on each record (`moonkale-wp66@7`).
 
 ## What is refused
 
-LinearAlgebra under v6: 136 of 3 571 definitions.
+LinearAlgebra under v7: 136 of 3 552 definitions.
 
 | Reason | Count | What |
 |---|---|---|
