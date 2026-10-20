@@ -28,7 +28,7 @@
 
   **B-16 rung 1 done (2026-10-20):** Metamath set.mm and iset.mm in Sophia, with real queries (the axioms behind 2 + 2 = 4, per library) and four design corrections learned from real data ([[Real Code Corpora]] §4). Daniel: Moonkale, Lenticulum and Sophia are to be thought of together; Lenticulum running in Sophia is a later goal (SR-114, SR-115).
 
-  **B-16 rung 2 started (2026-10-20):** Julia LinearAlgebra through the normaliser shared with Moonkale (identical ids on Moonkale's fixtures). 69 % of real definitions get an id; the rest hit constructs the shared normal form does not cover yet (loops, varargs, destructuring), which is now the bottleneck for Lenticulum ([[Real Code Corpora]] §5).
+  **B-16 rung 2 started (2026-10-20):** Julia LinearAlgebra through the normaliser shared with Moonkale (identical ids on Moonkale's fixtures). 69 % of real definitions got an id under v2; Moonkale's v4 (loops, scopes, varargs, destructuring) raised it to **99 %** ([[Real Code Corpora]] §5).
 
   **Next, in order (SR-113):** B-16 (real code), B-15 (Moonkale edits), the set-oriented executor, then M3b (the agent server).
 - **Specifications:** seven drafts ([[Specifications]]).

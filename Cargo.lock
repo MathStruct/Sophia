@@ -1303,7 +1303,7 @@ dependencies = [
 [[package]]
 name = "moonkale-content-id"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Moonkale.git?rev=48d17bff874a2fabd94e35202592135568280ad4#48d17bff874a2fabd94e35202592135568280ad4"
+source = "git+https://github.com/MathStruct/Moonkale.git?rev=f09b3c4003c6c96545cee32d37d56fdfdcaaeec9#f09b3c4003c6c96545cee32d37d56fdfdcaaeec9"
 dependencies = [
  "arborium-julia",
  "arborium-python",

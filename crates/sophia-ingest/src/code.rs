@@ -146,14 +146,6 @@ pub fn resolve(lang: &str, defs: &[(Def, Syntax)], src: &str) -> Vec<HashMap<(us
         .map(|(d, node)| {
             let locals = local_names(lang, *node, src, d.name_span);
             let mut refs = HashMap::new();
-            // Moonkale resolves a Julia struct's own name as a reference to
-            // itself, and that span is part of the id (a self-edge). Mirrored
-            // so the ids agree; reported to Moonkale (SR-116).
-            if lang == "julia" && d.kind == "struct_definition" {
-                if let (Some(span), Some(me)) = (d.name_span, defs.iter().position(|(x, _)| x == d)) {
-                    refs.insert(span, me);
-                }
-            }
             let mut stack = vec![*node];
             while let Some(n) = stack.pop() {
                 if matches!(n.kind(), "identifier" | "type_identifier") {
@@ -203,15 +195,13 @@ pub fn identify(
     Ok((parts, identities(&units, budget)?))
 }
 
-/// Node kinds the WP-66 v2 normal form refuses inside a definition (its
-/// scoping rules do not cover them yet), as listed in Moonkale's
-/// `normalize.rs`. Used only to explain refusals.
-const REFUSED: [&str; 25] = [
-    "nonlocal_statement", "for_statement", "for_expression", "let_statement", "catch_clause", "except_clause",
-    "with_statement", "let_condition", "while_let_expression", "macro_definition", "arrow_function_expression",
-    "do_clause", "comprehension_expression", "for_clause", "for_binding", "local_statement", "match_statement",
-    "delete_statement", "augmented_assignment", "named_expression", "import_statement", "import_from_statement",
-    "use_declaration", "lambda", "function_definition",
+/// Node kinds the WP-66 v4 normal form still refuses inside a definition
+/// (some only in some languages), from Moonkale's `normalize.rs`. Used only
+/// to explain refusals; the normaliser's own error is authoritative.
+const REFUSED: [&str; 15] = [
+    "named_argument", "global_statement", "macro_definition", "function_definition", "lambda", "class_definition",
+    "match_statement", "delete_statement", "augmented_assignment", "named_expression", "import_statement",
+    "import_from_statement", "use_declaration", "nonlocal_statement", "with_statement",
 ];
 
 /// Why a definition was refused: the first refused construct inside it, or

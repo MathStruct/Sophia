@@ -16,9 +16,9 @@ sophia-store = { path = "../sophia-store", default-features = false }
 thiserror.workspace = true
 # Moonkale's WP-66 normal form, shared so a definition has one id in both
 # (SR-116). Only tree-sitter grammars and blake3.
-moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "48d17bff874a2fabd94e35202592135568280ad4" }
+moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "f09b3c4003c6c96545cee32d37d56fdfdcaaeec9" }
 
 [dev-dependencies]
-moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "48d17bff874a2fabd94e35202592135568280ad4" }
+moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "f09b3c4003c6c96545cee32d37d56fdfdcaaeec9" }
 sophia-store = { path = "../sophia-store" }
 tempfile.workspace = true

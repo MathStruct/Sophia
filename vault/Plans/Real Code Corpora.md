@@ -92,6 +92,13 @@ end
 
 ## 5. Rung 2: Julia LinearAlgebra (2026-10-20)
 
+**Update, normaliser v4 (Moonkale `f09b3c40`).** Moonkale fixed both reported points:
+- the self-edge is gone (v3);
+- Rust struct expressions are uses (v3);
+- every Julia local scope now has its own frame, and loops, varargs, destructuring and anonymous parameters are supported (v4).
+
+Sophia's resolver matches Moonkale's on all golden fixtures, including the new `scopes.jl`, with no exceptions left. **LinearAlgebra: 3 947 of about 3 983 definitions get ids (99 %)**, with 36 refused (nested named functions, a few syntax errors). 894 generic functions with 3 484 methods, and 2 012 same-file references. The numbers below are from v2 and are kept as the record of why v4 was needed.
+
 `sophia ingest-code julia LinearAlgebra <stdlib>/LinearAlgebra/src`, through the shared crate (`crates/sophia-ingest/src/code.rs`).
 
 **Same ids as Moonkale.**

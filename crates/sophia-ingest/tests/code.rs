@@ -6,6 +6,8 @@ use std::collections::{BTreeSet, HashMap};
 use moonkale_content_id::{Budget, parse};
 use sophia_ingest::code::{definitions, file, identify, resolve};
 
+const FILES: [&str; 4] = ["geometry.jl", "geometry.rs", "geometry.py", "scopes.jl"];
+
 const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden-moonkale");
 
 fn tsv(name: &str) -> Vec<Vec<String>> {
@@ -31,7 +33,7 @@ fn lang(file: &str) -> &'static str {
 fn moonkale_spans_give_moonkale_ids() {
     let ids = tsv("ids.tsv");
     let refs = tsv("references.tsv");
-    for f in ["geometry.jl", "geometry.rs", "geometry.py"] {
+    for f in FILES {
         let l = lang(f);
         let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
         let mut budget = Budget::new();
@@ -54,12 +56,11 @@ fn moonkale_spans_give_moonkale_ids() {
     }
 }
 
-/// Sophia's own resolver against Moonkale's spans, with one known
-/// difference.
+/// Sophia's own resolver against Moonkale's spans.
 #[test]
 fn sophia_resolves_like_moonkale() {
     let refs = tsv("references.tsv");
-    for f in ["geometry.jl", "geometry.rs", "geometry.py"] {
+    for f in FILES {
         let l = lang(f);
         let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
         let tree = parse(l, &src, &mut Budget::new()).unwrap();
@@ -77,11 +78,6 @@ fn sophia_resolves_like_moonkale() {
             .filter(|r| r[0] == f)
             .map(|r| (r[1].clone(), r[2].clone(), r[3].clone()))
             .collect();
-        // Known, reported difference: Rust `Point { … }` constructs a Point,
-        // so Sophia counts it as a use; Moonkale's resolver does not (yet).
-        let known: BTreeSet<(String, String, String)> =
-            if f == "geometry.rs" { [("dist".to_string(), "163:168".to_string(), "Point".to_string())].into() } else { BTreeSet::new() };
-        let mine: BTreeSet<_> = mine.difference(&known).cloned().collect();
         assert_eq!(mine, theirs, "{f}: only Sophia {:?}, only Moonkale {:?}", mine.difference(&theirs).collect::<Vec<_>>(), theirs.difference(&mine).collect::<Vec<_>>());
     }
 }
@@ -90,16 +86,11 @@ fn sophia_resolves_like_moonkale() {
 #[test]
 fn stored_ids_are_moonkale_ids() {
     let ids = tsv("ids.tsv");
-    for f in ["geometry.jl", "geometry.rs", "geometry.py"] {
+    for f in FILES {
         let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
         let got = file(lang(f), &src).unwrap();
         for row in ids.iter().filter(|r| r[0] == f) {
             let i = got.defs.iter().position(|d| d.name == row[1]).unwrap();
-            // The known resolver difference changes Rust's `dist` id.
-            if f == "geometry.rs" && row[1] == "dist" {
-                assert_ne!(got.records[i].id.to_hex(), row[2]);
-                continue;
-            }
             assert_eq!(got.records[i].id.to_hex(), row[2], "{f} {}", row[1]);
         }
     }

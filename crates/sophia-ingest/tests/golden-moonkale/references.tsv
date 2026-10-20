@@ -1,5 +1,4 @@
 # file	from	start:end (bytes)	to
-geometry.jl	Point	7:12	Point
 geometry.jl	dist	106:111	Point
 geometry.jl	dist	116:121	Point
 geometry.jl	dist	131:136	Point
@@ -17,7 +16,14 @@ geometry.py	is_even	275:281	is_odd
 geometry.py	is_odd	353:360	is_even
 geometry.rs	dist	124:129	Point
 geometry.rs	dist	135:140	Point
+geometry.rs	dist	163:168	Point
 geometry.rs	dist	205:210	norm2
 geometry.rs	is_even	284:290	is_odd
 geometry.rs	is_odd	362:369	is_even
 geometry.rs	norm2	67:72	Point
+scopes.jl	guarded	470:474	Band
+scopes.jl	guarded	500:506	offset
+scopes.jl	offset	56:60	Band
+scopes.jl	shifted	400:406	offset
+scopes.jl	shifted	426:432	offset
+scopes.jl	widths	240:244	Band
