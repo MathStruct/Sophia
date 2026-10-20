@@ -152,8 +152,14 @@ fn main() {
             theirs.iter().filter(|x| role.get(*x).map(String::as_str) == Some(r)).map(|x| id_of[x]).collect()
         };
         let (mm_ax, mm_df) = (pick("axiom"), pick("definition"));
-        let others: Vec<&String> =
-            theirs.iter().filter(|x| !matches!(role.get(*x).map(String::as_str), Some("axiom" | "definition"))).collect();
+        // A theorem that proves syntax (`$p wff …`: weq, wel, bj-0 in
+        // set.mm) has syntax constructors among its essential steps, and
+        // metamath.exe lists them; Sophia's question is about axioms and
+        // definitions only.
+        let others: Vec<&String> = theirs
+            .iter()
+            .filter(|x| !matches!(role.get(*x).map(String::as_str), Some("axiom" | "definition" | "syntax")))
+            .collect();
         ax_total += mm_ax.len();
         df_total += mm_df.len();
         if *ax == mm_ax && *df == mm_df && others.is_empty() {

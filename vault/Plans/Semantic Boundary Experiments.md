@@ -15,7 +15,7 @@
 
 | # | Experiment | Result |
 |---|---|---|
-| E-0a | Metamath dependency analysis vs metamath.exe | agrees on every theorem checked (3 000 set.mm, 1 001 iset.mm sampled; full run: [[Real Code Corpora]] §4) |
+| E-0a | Metamath dependency analysis vs metamath.exe | agrees on **every theorem** of set.mm (48 083) and iset.mm (16 483), about 6.7 M dependencies |
 | E-1a | Julia generic ownership vs Julia's method table | fixture: all cases; LinearAlgebra: 95.1 % on v7 (53.7 % before the (module, name) fix); found a crate bug, fixed by Moonkale in v7 |
 | E-AD-0 | cost of producing vs running D(f), five AD systems | producing costs 10² to 10⁶ runs; 0.1–6.6 s per function and signature, paid again every Julia session |
 

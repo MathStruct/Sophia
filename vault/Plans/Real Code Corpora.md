@@ -86,7 +86,7 @@ end
 - set.mm, 302 theorems (incl. `2p2e4`, `fta`): **all agree** (8 503 axiom and 24 471 definition dependencies);
 - set.mm, 3 000 theorems: **all agree** (83 671 and 242 975);
 - iset.mm, 1 001 theorems: **all agree** (35 676 and 48 995);
-- FULLRUN
+- **all theorems of both libraries: all agree** — set.mm 48 083 of 48 083 (1 346 571 axiom and 3 934 015 definition dependencies), iset.mm 16 483 of 16 483 (587 185 and 802 318). Sophia 1 139 s and 184 s for the 96 166 and 32 966 queries; metamath.exe 913 s and 142 s. Six theorems prove syntax rather than `|-` statements (`weq`, `wel`, `bj-0`, `sn-wcdeq`; `weq`, `wel` in iset.mm); for those metamath.exe also lists the syntax constructor they are built from, which the checker now counts separately.
 
 This checks the dependency walk, not the proofs: Sophia does not verify proof steps. metamath.exe verifies all 48 083 set.mm proofs in 2.85 s, which makes it the obvious first checker for trust records ([[Metamath Overview]]).
 

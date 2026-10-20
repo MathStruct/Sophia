@@ -24,7 +24,10 @@ Sophia's answer is a query: the closure of a proof's references through proofs, 
 | set.mm | 302 (seed 1, incl. `2p2e4`, `fta`) | 302 | 8 503 axiom, 24 471 definition |
 | set.mm | 3 000 (seed 7) | 3 000 | 83 671 axiom, 242 975 definition |
 | iset.mm | 1 001 (seed 3, incl. `2p2e4`) | 1 001 | 35 676 axiom, 48 995 definition |
-| set.mm, iset.mm | **all theorems** | see [[Real Code Corpora]] §4 (run in progress when this page was written) | |
+| set.mm | **all 48 083** | **48 083** | 1 346 571 axiom, 3 934 015 definition |
+| iset.mm | **all 16 483** | **16 483** | 587 185 axiom, 802 318 definition |
+
+Six theorems prove syntax (`$p wff …`: `weq`, `wel`, `bj-0`, `sn-wcdeq`); for them metamath.exe also lists the syntax constructor they use. Not a disagreement: the question is about axioms and definitions.
 
 So the earlier claim "2 + 2 = 4 rests on 15 axioms in set.mm" is now checked: the same 15 (`ax-mp`, `ax-1` to `ax-9`, `ax-gen`, `ax-ext`, `ax-1cn`, `ax-addcl`, `ax-addass`) and 29 definitions.
 

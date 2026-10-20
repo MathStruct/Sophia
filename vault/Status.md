@@ -33,7 +33,7 @@
   **v6 in both tools (2026-10-20):** Sophia and Moonkale give identical ids on LinearAlgebra (3 435), with module-level references (2 469, 948 across files).
 
   **After the real-code review (2026-10-20,** [[Review 2026-10-20 Real Code (external)]]**):**
-  - **Metamath checked:** Sophia's "which axioms does T rest on" agrees with metamath.exe on every theorem checked ([[Metamath Overview]]);
+  - **Metamath checked:** Sophia's "which axioms does T rest on" agrees with metamath.exe on every theorem of set.mm and iset.mm (64 566) ([[Metamath Overview]]);
   - **generic functions are (module, name):** a real bug, fixed; agreement with Julia's own method table on LinearAlgebra 53.7 % → 95.1 %; the check found a bug in the shared normaliser, fixed by Moonkale in **v7**, which Sophia now uses (3 416 identical ids) ([[Julia Conformance]]);
   - **record kinds enforced** (SP-012);
   - **new sections:** [[Storage and Materialization]] (finding: the store is about 10× its source and mostly derivable) and [[Languages]] (support levels per language);
