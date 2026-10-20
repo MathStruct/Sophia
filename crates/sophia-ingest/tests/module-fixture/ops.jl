@@ -6,3 +6,5 @@ show2(p) = Base.show(stdout, p)
 twice(x) = 2x
 twice(x, y) = 2x + y
 use_twice(x) = twice(x)
+scaled(p::Point) = SCALE * p.x
+show3(w) = Base.show(stdout, w)

@@ -151,14 +151,15 @@ pub fn store_module<B: Backend>(
     store: &Store<B>,
     pkg: &str,
     root: &std::path::Path,
-) -> Result<(CodeReport, usize), Box<dyn std::error::Error>> {
+) -> Result<(CodeReport, usize, usize), Box<dyn std::error::Error>> {
     let d = module::discover(root)?;
     let r = module::ingest(&d)?;
+    let calls = r.calls_generic;
     let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
     let items: Vec<(code::Def, sophia_hash::Record)> = r.files.into_iter().flat_map(|(_, v)| v).collect();
     report.definitions = items.len();
     store_items(store, "julia", pkg, &items, &mut report)?;
-    Ok((report, r.cross_file_references))
+    Ok((report, r.cross_file_references, calls))
 }
 
 /// What a code ingest did.

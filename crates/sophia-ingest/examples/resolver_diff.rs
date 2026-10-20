@@ -30,7 +30,8 @@ fn main() {
         let per_file = sophia_ingest::code::resolve("julia", &defs[f], &file.text);
         for (i, map) in per_file.iter().enumerate() {
             for (span, t) in map {
-                let module_has = r.refs[f][i].get(span).is_some_and(|k| *k == (f, *t));
+                let td = &defs[f][*t].0;
+                let module_has = r.refs[f][i].get(span).is_some_and(|k| *k == (f, td.start, td.end));
                 if module_has {
                     continue;
                 }

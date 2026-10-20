@@ -19,8 +19,41 @@ use crate::code::{CodeError, Def, definitions, local_names, reason, text, to_rec
 pub const MAX_MODULE_FILES: usize = 1024;
 pub const MAX_MODULE_BYTES: usize = 32 * 1024 * 1024;
 
-/// A definition's key: (file index, definition index in that file).
-pub type Key = (usize, usize);
+/// A definition's key: (file index, start byte, end byte) of its node.
+/// Spans, not traversal indices, so that two tools that find definitions
+/// differently cannot silently disagree (SPEC-008 §4).
+pub type Key = (usize, usize, usize);
+
+/// Work bounds of one module request. They are **normative**: a budget
+/// failure means no ids, so both tools must use the same numbers.
+pub const MODULE_STEPS_BASE: usize = 1_000_000;
+pub const MODULE_STEPS_PER_BYTE: usize = 64;
+
+/// Definition kinds a module-level name may resolve to. Not modules (a
+/// namespace), macros, or non-`const` globals (reassignable at run time).
+pub fn resolvable(kind: &str) -> bool {
+    matches!(
+        kind,
+        "struct_definition" | "abstract_definition" | "primitive_definition" | "const_statement" | "function_definition" | "assignment"
+    )
+}
+
+/// Julia's `module … end` is a namespace, not a unit (SPEC-008 §5a).
+fn is_unit(d: &Def) -> bool {
+    d.kind != "module_definition"
+}
+
+/// The caller's job (SPEC-008 §4): a package's root is `src/<name>.jl`,
+/// where `<name>` is `Project.toml`'s `name`. Returns (name, root).
+pub fn package_root(dir: &Path) -> Option<(String, PathBuf)> {
+    let toml = std::fs::read_to_string(dir.join("Project.toml")).ok()?;
+    let name = toml.lines().find_map(|l| {
+        let (k, v) = l.split_once('=')?;
+        (k.trim() == "name").then(|| v.trim().trim_matches('"').to_string())
+    })?;
+    let root = dir.join("src").join(format!("{name}.jl"));
+    root.exists().then_some((name, root))
+}
 
 /// The normaliser recorded on records resolved this way: WP-66 with
 /// module-level resolution, which is not yet Moonkale's (until v5).
@@ -178,11 +211,19 @@ fn imported(tree: &Tree, src: &str, base: &[String]) -> Vec<(Vec<String>, String
 
 /// The result for one module.
 pub struct Resolved {
-    /// Per file, per definition: span → target.
+    /// Per file, per definition (in `definitions` order; modules have an
+    /// empty map): span → target.
     pub refs: Vec<Vec<HashMap<(usize, usize), Key>>>,
     /// Per definition: the files its id depends on (its own and those of
     /// every definition it reaches through references), for cache keys.
     pub depends_on: HashMap<Key, BTreeSet<usize>>,
+    /// Calls to a name with several bindings in the module (a generic
+    /// function): (file, span, name). Drawn as Calls edges; not in ids.
+    pub calls_generic: Vec<(usize, (usize, usize), String)>,
+}
+
+fn key(f: usize, d: &Def) -> Key {
+    (f, d.start, d.end)
 }
 
 /// One module, parsed.
@@ -217,16 +258,18 @@ pub fn resolve(m: &Module, defs: &[Vec<(Def, Syntax)>], dynamic: &[(usize, Vec<S
         p
     };
     for (f, fd) in defs.iter().enumerate() {
-        for (i, (d, node)) in fd.iter().enumerate() {
-            if d.name.is_empty() || d.qualified || nested_in_definition(*node) {
+        for (d, node) in fd {
+            if d.name.is_empty() || d.qualified || nested_in_definition(*node) || !is_unit(d) {
                 continue;
             }
             if matches!(d.kind.as_str(), "function_definition" | "assignment") {
-                functions.insert((f, i));
+                functions.insert(key(f, d));
             }
-            scope.entry((full_module(f, *node), d.name.clone())).or_default().push((f, i));
+            scope.entry((full_module(f, *node), d.name.clone())).or_default().push(key(f, d));
         }
     }
+    let kind_of: HashMap<Key, String> =
+        defs.iter().enumerate().flat_map(|(f, fd)| fd.iter().map(move |(d, _)| (key(f, d), d.kind.clone()))).collect();
     // Names that may come from elsewhere: imported or used explicitly.
     let mut blocked: HashSet<(Vec<String>, String)> = HashSet::new();
     for (f, t) in m.trees.iter().enumerate() {
@@ -235,31 +278,50 @@ pub fn resolve(m: &Module, defs: &[Vec<(Def, Syntax)>], dynamic: &[(usize, Vec<S
     let dynamic_modules: HashSet<&Vec<String>> = dynamic.iter().map(|(_, p)| p).collect();
 
     let mut refs: Vec<Vec<HashMap<(usize, usize), Key>>> = Vec::new();
+    let mut calls_generic = Vec::new();
     for (f, fd) in defs.iter().enumerate() {
         let src = &m.files[f].text;
         let mut file_refs = Vec::new();
         for (d, node) in fd {
+            let mut map = HashMap::new();
+            if !is_unit(d) {
+                file_refs.push(map);
+                continue;
+            }
             let module = full_module(f, *node);
             let locals = local_names("julia", *node, src, d.name_span);
-            let mut map = HashMap::new();
             let mut stack = vec![*node];
             while let Some(n) = stack.pop() {
                 if n.kind() == "identifier" {
                     let span = (n.start_byte(), n.end_byte());
                     let t = text(n, src);
+                    let parent = n.parent();
                     // `x.name`: the field is not a module-level name.
-                    let field = n.parent().is_some_and(|p| {
+                    let field = parent.is_some_and(|p| {
                         p.kind() == "field_expression" && p.child_by_field_name("value").is_none_or(|v| v.id() != n.id())
                     });
-                    let key = (module.clone(), t.to_string());
-                    if Some(span) != d.name_span && !field && !locals.contains(t) && !blocked.contains(&key) {
-                        if let Some([target]) = scope.get(&key).map(Vec::as_slice) {
-                            // A dynamic include in this module could add
-                            // methods to a function: functions stay open.
-                            let open = dynamic_modules.contains(&module) && functions.contains(target);
-                            if !open {
-                                map.insert(span, *target);
+                    // `struct W; parent::Int; end`: a field declaration's
+                    // name is not a reference (its type is).
+                    let struct_field = parent.is_some_and(|p| {
+                        let declares = p.kind() == "typed_expression" && p.named_child(0).is_some_and(|c| c.id() == n.id());
+                        let bare = p.kind() == "block";
+                        (declares && p.parent().is_some_and(|b| b.kind() == "block" && b.parent().is_some_and(|s| s.kind() == "struct_definition")))
+                            || (bare && p.parent().is_some_and(|s| s.kind() == "struct_definition"))
+                    });
+                    let k = (module.clone(), t.to_string());
+                    if Some(span) != d.name_span && !field && !struct_field && !locals.contains(t) && !blocked.contains(&k) {
+                        match scope.get(&k).map(Vec::as_slice) {
+                            Some([target]) if resolvable(&kind_of[target]) => {
+                                // A dynamic include in this module could add
+                                // methods to a function: functions stay open.
+                                if !(dynamic_modules.contains(&module) && functions.contains(target)) {
+                                    map.insert(span, *target);
+                                }
                             }
+                            Some(several) if several.len() > 1 && several.iter().all(|t| functions.contains(t)) => {
+                                calls_generic.push((f, span, t.to_string()));
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -278,23 +340,26 @@ pub fn resolve(m: &Module, defs: &[Vec<(Def, Syntax)>], dynamic: &[(usize, Vec<S
     }
 
     // Files each definition's id depends on: transitively through refs.
+    let index: HashMap<Key, (usize, usize)> =
+        defs.iter().enumerate().flat_map(|(f, fd)| fd.iter().enumerate().map(move |(i, (d, _))| (key(f, d), (f, i)))).collect();
     let mut depends_on: HashMap<Key, BTreeSet<usize>> = HashMap::new();
-    for (f, fr) in refs.iter().enumerate() {
-        for i in 0..fr.len() {
+    for (f, fd) in defs.iter().enumerate() {
+        for (d, _) in fd.iter().filter(|(d, _)| is_unit(d)) {
             let mut files = BTreeSet::new();
             let mut seen = HashSet::new();
-            let mut stack = vec![(f, i)];
+            let mut stack = vec![key(f, d)];
             while let Some(k) = stack.pop() {
                 if !seen.insert(k) {
                     continue;
                 }
                 files.insert(k.0);
-                stack.extend(refs[k.0][k.1].values().copied());
+                let (kf, ki) = index[&k];
+                stack.extend(refs[kf][ki].values().copied());
             }
-            depends_on.insert((f, i), files);
+            depends_on.insert(key(f, d), files);
         }
     }
-    Resolved { refs, depends_on }
+    Resolved { refs, depends_on, calls_generic }
 }
 
 /// What ingesting a module produced.
@@ -304,6 +369,8 @@ pub struct Ingested {
     pub refused: BTreeMap<String, usize>,
     pub references: usize,
     pub cross_file_references: usize,
+    /// Calls to generic functions (several methods): drawn, not in ids.
+    pub calls_generic: usize,
     pub depends_on: HashMap<Key, BTreeSet<usize>>,
 }
 
@@ -318,13 +385,13 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
     loop {
         let before = failed.len();
         for (f, fd) in defs.iter().enumerate() {
-            for (i, (_, node)) in fd.iter().enumerate() {
-                let k = (f, i);
-                if failed.contains_key(&k) || parts.contains_key(&k) {
+            for (i, (def, node)) in fd.iter().enumerate() {
+                let k = key(f, def);
+                if !is_unit(def) || failed.contains_key(&k) || parts.contains_key(&k) {
                     continue;
                 }
                 // v4's budget is sized for one file: one per definition
-                // here, and a module-sized budget is part of the proposal.
+                // here; the crate's v5 uses a module budget (SPEC-008 §3).
                 match definition("julia", *node, &m.files[f].text, &r.refs[f][i], &mut Budget::new()) {
                     Ok(p) => {
                         parts.insert(k, p);
@@ -344,7 +411,7 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
                 let n = map.len();
                 map.retain(|_, t| !failed.contains_key(t));
                 if map.len() != n {
-                    parts.remove(&(f, i));
+                    parts.remove(&key(f, &defs[f][i].0));
                 }
             }
         }
@@ -354,9 +421,10 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
     let mut files = Vec::new();
     for (f, fd) in defs.iter().enumerate() {
         let mut out = Vec::new();
-        for (i, (d, _)) in fd.iter().enumerate() {
-            if ids.contains_key(&(f, i)) {
-                out.push((d.clone(), to_record("julia", d, &parts[&(f, i)], &ids, (f, i), &norm)));
+        for (d, _) in fd {
+            let k = key(f, d);
+            if ids.contains_key(&k) {
+                out.push((d.clone(), to_record("julia", d, &parts[&k], &ids, k, &norm)));
             }
         }
         files.push((m.files[f].path.clone(), out));
@@ -368,5 +436,5 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
     let references = r.refs.iter().flatten().map(HashMap::len).sum();
     let cross_file_references =
         r.refs.iter().enumerate().flat_map(|(f, fr)| fr.iter().flat_map(move |m| m.values().filter(move |t| t.0 != f))).count();
-    Ok(Ingested { files, refused, references, cross_file_references, depends_on: r.depends_on })
+    Ok(Ingested { files, refused, references, cross_file_references, calls_generic: r.calls_generic.len(), depends_on: r.depends_on })
 }

@@ -16,15 +16,18 @@ fn edges(root: &str) -> (Edges, HashMap<String, BTreeSet<String>>) {
     let defs = m.definitions();
     let r = resolve(&m, &defs, &d.dynamic);
     let base = |f: usize| Path::new(&m.files[f].path).file_name().unwrap().to_string_lossy().to_string();
+    let name_at = |k: &(usize, usize, usize)| defs[k.0].iter().find(|(d, _)| d.start == k.1 && d.end == k.2).unwrap().0.name.clone();
     let mut out = BTreeSet::new();
     let mut deps = HashMap::new();
     for (f, fr) in r.refs.iter().enumerate() {
         for (i, map) in fr.iter().enumerate() {
-            let from = defs[f][i].0.name.clone();
+            let d = &defs[f][i].0;
             for t in map.values() {
-                out.insert((from.clone(), defs[t.0][t.1].0.name.clone(), base(t.0)));
+                out.insert((d.name.clone(), name_at(t), base(t.0)));
             }
-            deps.insert(from, r.depends_on[&(f, i)].iter().map(|&x| base(x)).collect());
+            if let Some(files) = r.depends_on.get(&(f, d.start, d.end)) {
+                deps.insert(d.name.clone(), files.iter().map(|&x| base(x)).collect());
+            }
         }
     }
     (out, deps)
@@ -64,6 +67,25 @@ fn references_resolve_across_files_conservatively() {
     // The files an id depends on (Moonkale's cache key).
     assert_eq!(deps["dist"], BTreeSet::from(["ops.jl".to_string(), "types.jl".to_string()]));
     assert_eq!(deps["twice"], BTreeSet::from(["ops.jl".to_string()]));
+    // A struct field's name is not a reference; its type is (Moonkale's
+    // review): `parent::Point` in Wrap, with a function `parent` around.
+    assert!(!has(&e, "Wrap", "parent"));
+    assert!(has(&e, "Wrap", "Point"));
+    // A const resolves.
+    assert!(has(&e, "scaled", "SCALE"));
+    // A qualified call never resolves to the package's own `Base.show`.
+    assert!(!has(&e, "show3", "show"));
+    // Modules are namespaces, not units.
+    assert!(!deps.contains_key("Geo") && !deps.contains_key("Inner"));
+}
+
+#[test]
+fn calls_to_generic_functions_are_returned_separately() {
+    let d = discover(&Path::new(DIR).join("Geo.jl")).unwrap();
+    let m = Module::new(&d).unwrap();
+    let defs = m.definitions();
+    let r = resolve(&m, &defs, &d.dynamic);
+    assert!(r.calls_generic.iter().any(|(_, _, n)| n == "twice"), "{:?}", r.calls_generic);
 }
 
 #[test]

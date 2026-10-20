@@ -395,18 +395,22 @@ fn run<B: Backend + Sync>(
             }
             files.sort();
             let t = std::time::Instant::now();
-            let root = std::path::Path::new(dir).join(format!("{pkg}.jl"));
+            // A package's root: `src/<name>.jl` named by Project.toml
+            // (SPEC-008 §4), or DIR/PKG.jl.
+            let root = sophia_ingest::module::package_root(std::path::Path::new(dir))
+                .map(|(_, r)| r)
+                .unwrap_or_else(|| std::path::Path::new(dir).join(format!("{pkg}.jl")));
             let r = if lang == "julia" && root.exists() && !args.iter().any(|a| a == "--per-file") {
                 // A Julia package with a root file: one module, resolved
                 // module-wide (SPEC-008).
-                let (r, cross) = sophia_ingest::store_module(store, pkg, &root)?;
-                println!("module mode: {cross} of {} references cross files", r.references);
+                let (r, cross, generic) = sophia_ingest::store_module(store, pkg, &root)?;
+                println!("module mode: {cross} of {} references cross files; {generic} calls to generic functions", r.references);
                 r
             } else {
                 sophia_ingest::store_code(store, lang, pkg, &files)?
             };
             println!(
-                "{pkg}: {} files, {} definitions, {} new records, {} generic functions with {} methods, {} same-file references; {:.2?}",
+                "{pkg}: {} files, {} definitions, {} new records, {} generic functions with {} methods, {} resolved references; {:.2?}",
                 r.files, r.definitions, r.new_records, r.generics, r.methods, r.references, t.elapsed()
             );
             for (f, e) in &r.refused {
