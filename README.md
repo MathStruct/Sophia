@@ -122,3 +122,7 @@ The store is content-addressed, so it is not trusted: any node can be re-verifie
 ## Prior art
 
 The closest existing system is [Unison](https://www.unison-lang.org/), which content-addresses code by the hash of its syntax tree. Sophia borrows that and adds persisted IR layers, a multi-language frontend story, and equivalence edges carrying evidence. What is genuinely new — and genuinely risky — is the last of those; see `vault/Design/Open Problems and Risks.md`.
+
+## License and contributing
+
+MIT ([LICENSE](LICENSE)). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md); instructions for AI agents: [AGENTS.md](AGENTS.md).

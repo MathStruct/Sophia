@@ -30,6 +30,8 @@ const config: QuartzConfig = {
       ".tikz-cache",
       // repository documentation; the site has its own landing page (index.md)
       "README.md",
+      "AGENTS.md",
+      "CONTRIBUTING.md",
       // working material (the prompts used while drafting the vault), not part of the design
       "meta",
       // sources and manifests: every .rs/.jl has a .md sibling that *is* published
