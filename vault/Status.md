@@ -39,6 +39,12 @@
   - **new sections:** [[Storage and Materialization]] (finding: the store is about 10× its source and mostly derivable) and [[Languages]] (support levels per language);
   - **AD measured** (E-AD-0): producing a derivative costs 10² to 10⁶ runs of it ([[AD as a Materialization Case]]).
 
+  **After the second real-code review (2026-10-20,** [[Review 2026-10-20 Real Code 2 (external)]]**):**
+  - **reconstruction before compaction:** sources and an ingest manifest are stored; every LinearAlgebra (3 284) and set.mm (98 136) record rebuilds identically from the store alone, tested on four backends;
+  - **a compiled derivative restored in a fresh process** (Reactant, bit-identical); Enzyme via Julia's pkgimage segfaults;
+  - **Mathlib exported and measured:** 71 % of its term graph is needed only by proofs; nothing has been kernel-checked locally yet;
+  - **S-ADR-0012 accepted.**
+
   **Next (SR-124 to SR-126):** the [[Semantic Boundary Experiments]] (small, each with an oracle), and B-15 (Moonkale edits) as soon as Moonkale is on the current revision. LuxCore is dropped as a step; full Lux.jl after the AD and Reactant experiments, Lenticulum after that. No storage-layout change without Daniel's agreement.
 - **Specifications:** eight drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first), S-ADR-0009 (relations tracked), S-ADR-0010 (amended), S-ADR-0011 (own query algebra).

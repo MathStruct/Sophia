@@ -100,7 +100,9 @@ Foundational invariants (identity, worlds, editable projections) count as settle
   - new vault sections [[Storage and Materialization]] and [[Languages]];
   - the experiment order replaced by [[Semantic Boundary Experiments]] (SR-124).
 
-**Order from here (SR-113, revised by SR-124 to SR-126):**
+- **2026-10-20: second real-code review** ([[Review 2026-10-20 Real Code 2 (external)]]): reconstruction from stored sources (four backends, LinearAlgebra and set.mm at full scale), E-AD-1 (restored derivative in a fresh process), Mathlib export measured, S-ADR-0012 accepted.
+
+**Order from here (SR-113, revised by SR-124 to SR-126 and SR-139):**
 1. **Semantic boundaries:** [[Semantic Boundary Experiments]] E-0 to E-7 (trust records, Julia conformance, cross-language structure, dispatch facts, macros, AD, Reactant), each small, with an oracle. Full Lux.jl and Lenticulum.jl after.
 2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision (SR-125: a priority, in parallel).
 3. **The set-oriented native executor:** a prefix access path, anti-joins for negation over scans, borrowed field reads.

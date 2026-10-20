@@ -125,4 +125,4 @@ The closest existing system is [Unison](https://www.unison-lang.org/), which con
 
 ## License and contributing
 
-MIT ([LICENSE](LICENSE)). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md); instructions for AI agents: [AGENTS.md](AGENTS.md).
+MIT ([LICENSE](LICENSE)). MIT permits any reuse, including in proprietary software: derived work does not have to stay open source. How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md); instructions for AI agents: [AGENTS.md](AGENTS.md).

@@ -19,6 +19,12 @@
 | E-1a | Julia generic ownership vs Julia's method table | fixture: all cases; LinearAlgebra: 95.1 % on v7 (53.7 % before the (module, name) fix); found a crate bug, fixed by Moonkale in v7 |
 | E-AD-0 | cost of producing vs running D(f), six AD systems (Reactant on CPU) | producing costs 10² to 10⁶ runs; 0.1–5 s per function and signature, paid again every Julia session |
 
+| E-AD-1 | first call split; restore a compiled derivative in a fresh process | Reactant: transformation 55 ms, XLA 34 ms, Julia compiling 1.9 s + 12 s start-up; restored executable runs bit-identically in a new process (23 ms restore vs 12.6 s compile). Enzyme via pkgimage: segfault |
+| E-10a | Mathlib export measured | 520 k theorems, 106 M shared nodes, 71 % needed only by proofs; 54 k theorems share a statement expression ([[Lean Overview]]) |
+| S-0 | reconstruction before compaction | all 3 284 LinearAlgebra and 98 136 set.mm records rebuilt identically from stored sources + manifest; four backends tested ([[Current Inventory]]) |
+
+**Order after the second real-code review (SR-139):** finish Mathlib (E-10) and Reactant (E-7) → storage compaction measured against reconstruction (M-1, M-2) → B-15 Moonkale end-to-end editing → cross-session artifacts beyond Reactant → compact edges (SP-011) → only then other compilers or the agent server.
+
 ## The experiments, in order
 
 ### E-0 Evidence with trust: Metamath proof checking
@@ -84,6 +90,14 @@
 - **Measures:** compile time vs step time; artifact bytes; bitwise reproducibility.
 - **Fails if:** artifacts are not reproducible (then A must include a nonce, and persisting is the only way to have them again).
 - **Prerequisite:** done. Reactant is installed in `experiments/ad-materialization` with its CPU build (`LocalPreferences.toml`); E-AD-0 measured it on toy functions. The GPU build would need the NVIDIA driver visible to Julia (as LenticulumLM's `.#gpu` shell does).
+
+### E-10 Mathlib: statements, proofs and their checker
+
+- **Hypothesis:** with statements as identity (as for Metamath), Mathlib's repeated statements collapse to one identity with several proofs; proof terms, 71 % of the graph, can be stored as evidence apart from statements.
+- **Method:** inspect the 16 423 repeated-statement groups; measure α-equivalence (binder names erased); per theorem, constants used by the statement vs by the proof; re-check a part (then all) with `lean4checker` to turn "checked on CI" into "checked here".
+- **Measures:** repeat groups by cause (aliases, generated lemmas, true duplicates); statement-vs-proof dependency counts; re-check time.
+- **Fails if:** most repeats are artefacts of the export rather than real repeated statements; or re-checking is impractical (then the trust record says so).
+- **Teaches:** whether the Metamath design scales to a dependently typed library; the cost of turning trusted evidence into checked evidence.
 
 ### E-8 Full Lux.jl
 

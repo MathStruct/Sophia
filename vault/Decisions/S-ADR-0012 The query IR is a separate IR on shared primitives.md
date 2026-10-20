@@ -1,6 +1,6 @@
 #design
 
-> **Status: proposed (2026-10-20, Claude).** It answers the review's question ([[Review 2026-10-20 Query Language (external)]]): should a query be a special sophialang DSL node, a separate IR sharing common primitives, or both? Related: [[SPEC-007 Sophia Query Language]] §3.4, §9; [[SPEC-003 Sophialang Core v0]]; SR-97, SR-99.
+> **Status: accepted (2026-10-20).** Proposed by Claude; accepted on the review Daniel forwarded ([[Review 2026-10-20 Real Code 2 (external)]] §1: "keep the query algebra separate, sharing identity, types and evidence infrastructure with SophiaLang"). It answers the review's question ([[Review 2026-10-20 Query Language (external)]]): should a query be a special sophialang DSL node, a separate IR sharing common primitives, or both? Related: [[SPEC-007 Sophia Query Language]] §3.4, §9; [[SPEC-003 Sophialang Core v0]]; SR-97, SR-99.
 
 ## Context
 

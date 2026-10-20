@@ -1,0 +1,7 @@
+name = "ADCache"
+uuid = "5d1c8b2a-7e3f-4a6b-9c0d-2f4e6a8b1c3d"
+version = "0.1.0"
+
+[deps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"

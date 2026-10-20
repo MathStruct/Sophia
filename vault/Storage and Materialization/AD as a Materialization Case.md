@@ -84,3 +84,43 @@ Run of 2026-10-20 (`results.txt`). The functions use one-element slices (`x[1:1]
 - **The derived program is expensive to make and probably cheap to keep**: an adjoint is IR of a size comparable to f's own (its size is not measured yet). A category 5 object with a high C(x) and a small S(x): the [[Materialization Policy]] inequality favours keeping it as soon as F(x) > 1.
 - **The numbers mix two costs**: the AD transformation and Julia's compilation of the result. Separating them (Zygote's `@code_adjoint`, Mooncake's `build_rrule` vs first call) is the next step, because only the first is a pure function of Sophia-visible inputs.
 - **Caveat:** three toy functions, one argument size, one machine. Enough to show the order of magnitude, not to model it.
+
+## E-AD-1: where the first call goes, and restoring in a fresh process (2026-10-20)
+
+The external review's point ([[Review 2026-10-20 Real Code 2 (external)]]): E-AD-0's "first call" mixes transformation, compilation and execution, and a fast second call in one process says nothing about persistence. `experiments/ad-materialization/reactant_persist.jl` ([[reactant_persist]]) separates the parts and tries the real thing. Raw output: `results-persist.txt`.
+
+**The first call of a Reactant derivative, split** (f(x) = Σx² · sin x₁, x ∈ ℝ¹⁰⁰⁰, CPU):
+
+| Part | Time | What it is |
+|---|---|---|
+| Reactant's session start-up | 12.1 s | first use of Reactant in a process, on an unrelated function |
+| Julia compiling the tracer for f | 1.89 s | Julia's own compile time (`Base.cumulative_compile_time_ns`) |
+| deriving the program (trace + Enzyme-MLIR AD + passes) | 55 ms | the **transformation** proper, once Julia's code is compiled |
+| XLA compilation | ≈ 34 ms | StableHLO → machine code |
+| first execution | 15 ms | includes Julia compiling the call glue |
+| steady execution | 2.4 µs | |
+
+So for this function the transformation and the XLA compile are small; the cost is **Julia compiling code**, Reactant's and the tracer's. A derivative program saved as StableHLO would skip only 55 ms of 2 s; the executable skips everything.
+
+**Restoring in a fresh process.** A Reactant thunk is three things, and all three were saved: the XLA executable (11 KB, PJRT serialization), the Julia glue that flattens arguments and rebuilds results (1.3 KB, generated at compile time), and the argument types. The StableHLO module (1.2 KB) was saved as the portable form. In a new process:
+
+| Step | Time |
+|---|---|
+| start Julia and load Reactant | 2.9 s |
+| restore executable + glue | 23 ms |
+| first execution after restore | 215 ms (Julia compiles the call method) |
+| steady execution | 2.6 µs |
+| **result** | **bit-identical gradient** to the saving process |
+| for comparison: `@compile` from scratch in the same new process | 12.6 s |
+
+**So a compiled derivative can be persisted and reused across processes, for Reactant**, saving about 12 s of the first gradient in a new session. Conditions, all of which belong in its artifact id A (SPEC-006 §3):
+- the same Julia, Reactant and Reactant_jll versions (the loader checks and refuses otherwise);
+- the same host: XLA's CPU executable is machine code for this CPU; the StableHLO module is the portable fallback (compiling it in a new process was not tested yet);
+- the glue is a Julia expression from Reactant internals (`Compiler.Thunk`, `__thunk_fwd_body_cache`), not a public API, so this works for this Reactant version and is fragile across versions.
+
+**The Julia-native route failed.** An Enzyme gradient compiled into a package image (`ADCache`, PrecompileTools workload) **segfaults** at its first call in a fresh process, reproducibly; the same package's non-precompiled gradient works (396 ms first call). The restored code jumps to an address that was only valid in the precompiling process. Observed, not investigated upstream. That is the review's warning made concrete: restoring an *executable* needs every runtime reference it holds to be valid again, and a system that did not design for it does not get it by accident.
+
+**What Sophia learns.**
+1. A persistable compiled artifact is not one blob: executable, calling glue, argument types, and the environment (versions, host) are all part of it, and the environment belongs in its id.
+2. The derived *program* (StableHLO, 1.2 KB) is small and portable; the *executable* (11 KB) is fast to restore but host- and version-bound. Keep the program as the durable object and the executable as a cache keyed by A.
+3. Whether persisting pays depends on where the time goes; here it is Julia compiling, which only an executable-level cache avoids.

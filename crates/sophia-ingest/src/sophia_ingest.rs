@@ -4,6 +4,7 @@
 pub mod code;
 pub mod metamath;
 pub mod module;
+pub mod source;
 
 use std::collections::BTreeMap;
 
@@ -236,6 +237,26 @@ pub fn store_module<B: Backend>(
     root: &std::path::Path,
 ) -> Result<(CodeReport, usize, usize), Box<dyn std::error::Error>> {
     let d = module::discover(root)?;
+    // The authority first: sources and how they are read (source.rs), so
+    // every record below can be rebuilt and checked from the store alone.
+    let base = root.parent().unwrap_or(std::path::Path::new("."));
+    let manifest = source::Manifest {
+        frontend: source::JULIA_MODULE_FRONTEND.into(),
+        normaliser: module::normaliser(),
+        package: pkg.into(),
+        files: d
+            .files
+            .iter()
+            .map(|f| source::ManifestFile {
+                path: std::path::Path::new(&f.path).strip_prefix(base).map(|p| p.display().to_string()).unwrap_or_else(|_| f.path.clone()),
+                source: source::source_record("", &f.text).id,
+                base_module: f.base_module.clone(),
+            })
+            .collect(),
+        dynamic: d.dynamic.iter().map(|(i, m)| (*i as u32, m.clone())).collect(),
+    };
+    let texts: Vec<&str> = d.files.iter().map(|f| f.text.as_str()).collect();
+    source::store_manifest(store, &source::manifest_name("jl", pkg), &manifest, &texts)?;
     let r = module::ingest(&d)?;
     let calls = r.calls_generic.len();
     let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
@@ -243,6 +264,31 @@ pub fn store_module<B: Backend>(
     report.definitions = items.len();
     store_items(store, "julia", pkg, &items, &r.uses_generic, &mut report)?;
     Ok((report, r.cross_file_references, calls))
+}
+
+/// Stores a Metamath database from its text: the source and its manifest
+/// first (source.rs), then everything `store_metamath` stores. Returns the
+/// report and the manifest's id.
+pub fn store_metamath_source<B: Backend>(
+    store: &Store<B>,
+    db: &str,
+    text: &str,
+    batch: usize,
+) -> Result<(Report, sophia_hash::Digest), Box<dyn std::error::Error>> {
+    let manifest = source::Manifest {
+        frontend: source::METAMATH_FRONTEND.into(),
+        normaliser: metamath::NORMALISER.into(),
+        package: db.into(),
+        files: vec![source::ManifestFile {
+            path: format!("{db}.mm"),
+            source: source::source_record("", text).id,
+            base_module: Vec::new(),
+        }],
+        dynamic: Vec::new(),
+    };
+    let id = source::store_manifest(store, &source::manifest_name("mm", db), &manifest, &[text])?;
+    let parsed = metamath::parse(text)?;
+    Ok((store_metamath(store, db, &parsed, batch)?, id))
 }
 
 /// What a code ingest did.

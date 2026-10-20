@@ -2,7 +2,13 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "b694a8bcd64f648f88cb762319f65e2576f1f699"
+project_hash = "a323d4c79af95bf4399066c1348efe1d7987d097"
+
+[[deps.ADCache]]
+deps = ["Enzyme", "PrecompileTools"]
+path = "ADCache"
+uuid = "5d1c8b2a-7e3f-4a6b-9c0d-2f4e6a8b1c3d"
+version = "0.1.0"
 
 [[deps.ADTypes]]
 deps = ["PrecompileTools"]

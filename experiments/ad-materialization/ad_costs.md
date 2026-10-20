@@ -19,3 +19,7 @@ Reactant: `julia112 --project=. -e 'using Pkg; Pkg.add(["Reactant", "Reactant_jl
 `LocalPreferences.toml` (`gpu = "none"`, the CPU build) applies to it: Julia reads preferences
 only for packages the project lists. Without it, Reactant picks its ROCm build for the
 integrated AMD GPU and fails to load.
+
+## E-AD-1: restoring a compiled derivative in a fresh process
+
+`reactant_persist.jl save DIR` compiles D(f) with Reactant, times the parts of the first call, and saves the three things a Reactant thunk is: the XLA executable (PJRT `PjRtLoadedExecutableSerialize`), the generated Julia glue that calls it (from Reactant's `__thunk_fwd_body_cache`), and its argument types; plus the StableHLO module as the portable form. `reactant_persist.jl load DIR` runs in a new process, refuses an artifact from another Julia or Reactant version, rebuilds the thunk from the files, runs it and compares the gradient. `ADCache/` and `pkgimage_reuse.jl` try the Julia-native route: an Enzyme gradient compiled into a package image by a PrecompileTools workload; `pkgimage_control.jl` is the control. Results: `results-persist.txt`; discussion in [[AD as a Materialization Case]].

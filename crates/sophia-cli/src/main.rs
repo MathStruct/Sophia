@@ -34,7 +34,7 @@ use sophia_store::{Backend, Store, Target};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]|ingest-mm FILE [DB]|ingest-code LANG PKG DIR>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]|ingest-mm FILE [DB]|ingest-code LANG PKG DIR|reconstruct NAME>"
 }
 
 fn main() -> ExitCode {
@@ -433,21 +433,44 @@ fn run<B: Backend + Sync>(
             });
             let t = std::time::Instant::now();
             let text = std::fs::read_to_string(file)?;
-            let parsed = sophia_ingest::metamath::parse(&text)?;
-            let parse_time = t.elapsed();
-            let r = sophia_ingest::store_metamath(store, &db, &parsed, 1000)?;
+            // The source and its manifest are stored too, so the records can
+            // be rebuilt and checked (`reconstruct ingest.mm.<db>`).
+            let (r, _) = sophia_ingest::store_metamath_source(store, &db, &text, 1000)?;
             println!(
-                "{}: {} assertions and {} proofs, {} new records ({} already stored); parsed in {:.2?}, total {:.2?}",
+                "{}: {} assertions and {} proofs, {} new records ({} already stored); total {:.2?}",
                 db,
                 r.assertions,
                 r.proofs,
                 r.new_records,
                 (r.assertions + r.proofs).saturating_sub(r.new_records),
-                parse_time,
                 t.elapsed()
             );
             for (k, n) in &r.kinds {
                 println!("  {k}: {n}");
+            }
+        }
+        "reconstruct" => {
+            // Rebuild an ingest's records from its stored sources and manifest,
+            // and compare them with the stored ones (source.rs).
+            let name = args.first().ok_or("reconstruct NAME (e.g. ingest.jl.LinearAlgebra)")?;
+            let m = store.resolve(name)?.ok_or_else(|| format!("no name {name}"))?.target.digest();
+            let r = sophia_ingest::source::reconstruct(store, &m)?;
+            println!(
+                "{name} ({}): {} sources, {} bytes; {} records rebuilt, {} identical, {} missing, {} differing; {:.2?}",
+                r.frontend,
+                r.sources,
+                r.source_bytes,
+                r.rebuilt,
+                r.identical,
+                r.missing.len(),
+                r.differing.len(),
+                r.time
+            );
+            for (id, f) in r.differing.iter().take(10) {
+                println!("  {} differs in {f}", id.to_hex());
+            }
+            if !r.ok() {
+                return Err("reconstruction does not match the store".into());
             }
         }
         other => return Err(format!("unknown command {other:?}\n{}", usage()).into()),

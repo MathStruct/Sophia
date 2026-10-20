@@ -26,3 +26,5 @@ Being an axiom, or the proof chosen for a statement, is a **library's** choice, 
 - **generic uses** as `nominal_refs`, keyed the same way (the crate resolves a use in its own module).
 
 `CodeReport::extended` counts the generic functions of other top-level modules (Base's, mostly) that the package adds methods to. Tested by `tests/generics.rs` on `tests/julia-semantics/generics`; checked against Julia itself by `examples/julia_conformance.rs`.
+
+**Sources and manifests (2026-10-20).** `store_module` and `store_metamath_source` first store the source files and an ingest manifest ([[source]]), so every record can be rebuilt from the store alone (`sophia reconstruct ingest.jl.<pkg>`). `store_metamath` (parsed assertions only) remains for callers that have no text.

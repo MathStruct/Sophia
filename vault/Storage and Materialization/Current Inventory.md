@@ -20,7 +20,7 @@
 | `t_log` | the change log | 3 | **authoritative** (the history) |
 | `t_meta` | settings, rendering profiles, **cached query results** (`query-result/<id>`), saved queries | 3 / 5 | profiles and saved queries authoritative; **query results a cache with no eviction** ([[SP-014 The query result cache is never evicted]]) |
 
-**Not stored at all today:** the **source text** of ingested files. For ingested code that is the authoritative object, and everything Sophia stores about it is derived from it.
+**Source text** of ingested files was not stored before 2026-10-20 (see below). For ingested code it is the authoritative object, and everything Sophia stores about it is derived from it.
 
 ## Measured: Julia LinearAlgebra (module mode, v6)
 
@@ -59,6 +59,22 @@ Source: **51.7 MB** (17.0 MB with zstd -9). Store: **567 MiB** SQLite, 98 136 re
 4. **The log records the ingest itself.** For a deterministic ingest (source, frontend version) one log entry naming the source blob and the frontend would replace thousands of entries: the ingest is a **transformation record** (SPEC-006 §6a), not a series of edits.
 5. **Query results accumulate forever** in `t_meta` ([[SP-014 The query result cache is never evicted]]).
 6. **Not all of this is waste.** Rebuilding the canonical bytes of one definition requires parsing its file. If Moonkale shows a definition's canonical form often, keeping it (compressed) may be right. That is a measured decision, per [[Materialization Policy]].
+
+## Sources and manifests, and reconstruction (2026-10-20)
+
+The external review ([[Review 2026-10-20 Real Code 2 (external)]]) made the precondition explicit: before any derived bytes are dropped, the store must hold an immutable source and everything needed to rebuild and verify each record from it. Now it does, for module-mode Julia and for Metamath ([[source]]):
+- each source file is a content-addressed record (language `source`);
+- an **ingest manifest** records the frontend and its version, the normaliser, the package, and per file its path, source id and include module, in reading order;
+- `sophia reconstruct NAME` rebuilds every record from the store alone and compares it field by field.
+
+| Corpus | Sources | Records rebuilt | Identical | Time | Store growth |
+|---|---|---|---|---|---|
+| Julia LinearAlgebra | 34 files, 1.34 MB | 3 284 | **3 284** | 2.0 s | 17.7 → 19.1 MB |
+| Metamath set.mm | 1 file, 51.7 MB | 98 136 | **98 136** | 17.5 s | 567 → 617 MiB |
+
+Tested on all four backends (`crates/sophia-ingest/tests/reconstruct.rs`), including that a changed source is detected and that every stored Julia record is among the rebuilt ones. Sources are stored uncompressed for now; compressing them is [[Compression]] item 4.
+
+This makes items 1 and 2 of [[Compression]] **safe to try**, as measurements on a copy, each followed by `reconstruct`. Nothing has been dropped yet.
 
 ## What is not changed yet
 

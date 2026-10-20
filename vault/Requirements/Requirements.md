@@ -183,6 +183,20 @@ Daniel's requests with the fourth external review ([[Review 2026-10-20 Real Code
 | SR-131 | A record's kind follows from its content; a conflicting kind is refused (SP-012). | R4 §7 | now | done (`StoreError::KindConflict`) |
 | SR-132 | Physical storage may use compact local keys for edges; content hashes stay the public identity. | R4 §3 | later (measure first) | proposed ([[Compression]], SP-011) |
 
+## From the second real-code review, 2026-10-20
+
+From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5 §n"), forwarded by Daniel.
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-133 | Before any canonical or derived bytes are dropped, every record must be rebuildable from immutable stored sources plus a versioned manifest (frontend, normaliser, paths, environment), and verified against its stored identity; tested on all backends. | R5 §1, §3 | now | done for module-mode Julia and Metamath (`source.rs`, `tests/reconstruct.rs`) |
+| SR-134 | Authoritative sources, canonical representations, derived indexes and cached artifacts stay separate categories. | R5 §5 | now | adopted ([[Object Categories]]) |
+| SR-135 | AD and compiler measurements separate transformation, compilation, execution and restoration time. | R5 §2 | now | done for Reactant (E-AD-1) |
+| SR-136 | Persistent artifact reuse is claimed only after an artifact has been restored and run in a fresh process with the same result. | R5 §2 | now | Reactant: shown; Julia pkgimage + Enzyme: fails |
+| SR-137 | For Lean, source syntax, elaborated terms, kernel declarations and proof objects are distinct objects; every claim of verification names its checker and where it ran. | R5 §4 | now | specified ([[Lean Overview]]) |
+| SR-138 | S-ADR-0012 accepted: the query algebra stays a separate IR sharing identity, types and evidence infrastructure with sophialang. | R5 §1 | now | accepted |
+| SR-139 | Next order: finish Mathlib and Reactant; reconstruction before compaction; Moonkale's end-to-end edit benchmark; cross-session artifacts; compact edges; only then other compilers or the agent server. | R5 §4 | now | adopted ([[Semantic Boundary Experiments]]) |
+
 ## From Moonkale
 
 Each row cites the Moonkale page or section it comes from. Moonkale will cite these numbers back from its Code Graph Schema.
@@ -213,6 +227,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-133 to SR-139 added (the second real-code review).
 - 2026-10-20: SR-119 to SR-132 added (storage and materialisation, language folders, semantic-boundary experiments; the real-code review).
 - 2026-10-20: SR-114 to SR-118 added (the three projects together; real-code corpora).
 - 2026-10-20: SR-107 to SR-113 added from the review of M3a.

@@ -1,0 +1,28 @@
+E-AD-1, 2026-10-20, Julia 1.12.7, Reactant (CPU build), Linux x86-64. f(x) = sum(abs2, x) * sin(sum(x[1:1])), x ∈ R^1000.
+
+== reactant_persist.jl save ==
+session start-up (unrelated fn):    12074.9 ms
+derive StableHLO, first:             1944.9 ms  (of which Julia compiling the tracer:    1886.2 ms)
+derive StableHLO, Julia warm:          55.0 ms
+@compile (derive + XLA):               88.5 ms  => XLA compile ≈      33.6 ms
+first execution:                       15.3 ms
+steady execution:                       2.4 µs
+executable type: Reactant.XLA.PJRT.LoadedExecutable
+saved: executable 10984 bytes, StableHLO 1214 bytes, glue 1334 bytes
+
+== reactant_persist.jl load (fresh process) ==
+Julia + Reactant loaded:             2932.7 ms
+restore executable + glue:             23.2 ms
+first device array:                    25.5 ms
+first execution after restore:        214.6 ms
+steady execution:                       2.6 µs
+same gradient as the saving process: true (max |Δ| = 0.0)
+for comparison, @compile here:      12570.7 ms
+process total so far:               13256.0 ms
+
+== pkgimage_reuse.jl (Enzyme gradient precompiled into ADCache's pkgimage), fresh process, twice ==
+signal 11 (2): Segmentation fault, at the first call of the precompiled gradient
+  jfptr_gradient_3813 at ~/.julia/compiled/v1.12/ADCache/Uj44Q_ETOnA.so -> unknown function (ip: 0x7ffff05432a0)
+
+== pkgimage_control.jl (same package, function not precompiled), fresh process ==
+first gradient, not precompiled: 395.8 ms; finite: true
