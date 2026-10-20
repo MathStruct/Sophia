@@ -33,4 +33,6 @@
 | B-13 | compiled code against C, Rust and Julia on the same kernels | SR-52: within 1.2× | M5 |
 | B-14 | GC pause times and throughput; marking on a separate core | SR-56 | M7 |
 | B-15 | **edit-to-updated-graph latency** through `sophia-interface`: fetch, edit, parse, normalise, store, the change feed, and Moonkale's refresh (measured on Moonkale's side). Cold and warm; p50/p90/p99 | Moonkale stays interactive: < 50 ms p99 for one definition on 10⁵ stores | review §7 |
+
+**B-15 measurement plan (agreed with the Moonkale agent, 2026-10-20).** Moonkale's graph panel refreshes on a `graph_epoch` bump after its own saves, not through the change feed. So the measured path is: `apply()` returns → the epoch bump → the renderer payload is delivered, timed with tracing timestamps, p50/p99 over about 200 saves. Paint time on the agent's headless sway with Mesa software GL is CPU-bound and is reported separately, marked "software GL, not hardware". The real paint number comes from Daniel's desktop.
 | B-16 | real corpora: a substantial Julia package, a Rust workspace, a theorem library (Metamath set.mm), and a code base with many tiny definitions. These need frontends or Moonkale's WP-66 normal forms | H1, H3, H4 on real code | review §7 |
