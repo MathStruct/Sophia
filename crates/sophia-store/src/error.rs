@@ -18,4 +18,8 @@ pub enum StoreError {
     InvalidPath { path: String, segment: String },
     #[error("query refused: {0}")]
     QueryRefused(String),
+    /// A record arrived with an id already stored under another kind. A
+    /// kind must follow from content (SP-012), so this is a frontend bug.
+    #[error("record {id} is stored with kind {stored:?}, not {new:?}")]
+    KindConflict { id: String, stored: String, new: String },
 }

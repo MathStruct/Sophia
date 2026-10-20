@@ -410,8 +410,8 @@ fn run<B: Backend + Sync>(
                 sophia_ingest::store_code(store, lang, pkg, &files)?
             };
             println!(
-                "{pkg}: {} files, {} definitions, {} new records, {} generic functions with {} methods, {} resolved references; {:.2?}",
-                r.files, r.definitions, r.new_records, r.generics, r.methods, r.references, t.elapsed()
+                "{pkg}: {} files, {} definitions, {} new records, {} generic functions ({} extending other modules) with {} methods, {} resolved references; {:.2?}",
+                r.files, r.definitions, r.new_records, r.generics, r.extended, r.methods, r.references, t.elapsed()
             );
             for (f, e) in &r.refused {
                 println!("  refused file {f}: {e}");

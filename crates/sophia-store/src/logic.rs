@@ -139,6 +139,12 @@ impl<B: Backend> Store<B> {
                 tx.put_record(r)?;
                 self.log(tx, LogOp::AddDefinition, r.kind.clone(), None, Some(r.id))?;
                 new += 1;
+            } else if let Some(stored) = tx.kind_of(&r.id)? {
+                // SP-012: a kind is a function of content. The same content
+                // under another kind means a frontend put a role in the kind.
+                if stored != r.kind {
+                    return Err(StoreError::KindConflict { id: r.id.to_hex(), stored, new: r.kind.clone() });
+                }
             }
         }
         Ok(new)

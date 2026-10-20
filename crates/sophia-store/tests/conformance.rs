@@ -208,6 +208,21 @@ fn failed_writes_roll_back<B: Backend>(s: Store<B>) {
     let _ = records;
 }
 
+/// SP-012: the same content under another kind is refused, and nothing of
+/// the batch is written.
+fn kinds_follow_from_content<B: Backend>(s: Store<B>) {
+    let (_, records) = populated(&s);
+    let seq = s.last_seq().unwrap();
+    let mut other = records[0].clone();
+    other.kind = format!("{}-as-role", other.kind);
+    let fresh = add_one_more(7);
+    let err = s.put_records(&[fresh.clone(), other]).unwrap_err();
+    assert!(matches!(err, sophia_store::StoreError::KindConflict { .. }), "{err}");
+    assert_eq!(s.last_seq().unwrap(), seq);
+    assert!(s.record(&fresh.id).unwrap().is_none(), "the batch rolled back");
+    assert_eq!(s.put_records(&records).unwrap(), 0, "the same kind is fine");
+}
+
 macro_rules! suite {
     ($module:ident, $make:expr) => {
         mod $module {
@@ -223,7 +238,7 @@ macro_rules! suite {
                 update_moves_name_extends_lineage_reports_dependants, update_is_optimistic_and_reingest_is_a_noop,
                 recursive_groups_share_a_component, incomplete_definitions_store, methods_change_no_ids_and_stale_facts,
                 annotations_attach_to_subjects, changes_since_pages_through_the_log, meta_round_trips,
-                failed_writes_roll_back);
+                failed_writes_roll_back, kinds_follow_from_content);
         }
     };
     (@tests $($t:ident),*) => {

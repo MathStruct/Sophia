@@ -28,3 +28,7 @@ harness = false
 [[bin]]
 name = "sophia-bench-report"
 path = "src/bin/sophia-bench-report.rs"
+
+[[bin]]
+name = "sophia-mm-check"
+path = "src/bin/sophia-mm-check.rs"

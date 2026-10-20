@@ -30,10 +30,19 @@
 
   **B-16 rung 2 started (2026-10-20):** Julia LinearAlgebra through the normaliser shared with Moonkale (identical ids on Moonkale's fixtures). 69 % of real definitions got an id under v2; Moonkale's v4 (loops, scopes, varargs, destructuring) raised it to **99 %** ([[Real Code Corpora]] §5).
 
-  **Next, in order (SR-113):** B-16 (real code), B-15 (Moonkale edits), the set-oriented executor, then M3b (the agent server).
-- **Specifications:** seven drafts ([[Specifications]]).
+  **v6 in both tools (2026-10-20):** Sophia and Moonkale give identical ids on LinearAlgebra (3 435), with module-level references (2 469, 948 across files).
+
+  **After the real-code review (2026-10-20,** [[Review 2026-10-20 Real Code (external)]]**):**
+  - **Metamath checked:** Sophia's "which axioms does T rest on" agrees with metamath.exe on every theorem checked ([[Metamath Overview]]);
+  - **generic functions are (module, name):** a real bug, fixed; agreement with Julia's own method table on LinearAlgebra 53.7 % → 94.5 % ([[Julia Conformance]]);
+  - **record kinds enforced** (SP-012);
+  - **new sections:** [[Storage and Materialization]] (finding: the store is about 10× its source and mostly derivable) and [[Languages]] (support levels per language);
+  - **AD measured** (E-AD-0): producing a derivative costs 10² to 10⁶ runs of it ([[AD as a Materialization Case]]).
+
+  **Next (SR-124 to SR-126):** the [[Semantic Boundary Experiments]] (small, each with an oracle), and B-15 (Moonkale edits) as soon as Moonkale is on the current revision. LuxCore is dropped as a step; full Lux.jl after the AD and Reactant experiments, Lenticulum after that. No storage-layout change without Daniel's agreement.
+- **Specifications:** eight drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first), S-ADR-0009 (relations tracked), S-ADR-0010 (amended), S-ADR-0011 (own query algebra).
-- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale; SR-75 to SR-89 from the first external review; SR-90 to SR-106 from Daniel's query-language proposal; SR-107 to SR-113 from the review of M3a.
+- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale; SR-75 to SR-89 from the first external review; SR-90 to SR-106 from Daniel's query-language proposal; SR-107 to SR-113 from the review of M3a; SR-114 to SR-118 (the three projects); SR-119 to SR-132 from Daniel's storage and language requests and the real-code review.
 - **Daniel's answers of 2026-10-20 (second message):** push; delete the Julia skeleton (done); M2 starts with the interface crate. Relations: S-ADR-0009 proposed (tracked), awaiting confirmation.
 - **Daniel's answers so far:**
   - Q1: keep both Unison and Sophia.

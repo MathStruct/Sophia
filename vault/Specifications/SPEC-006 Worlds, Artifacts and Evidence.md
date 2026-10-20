@@ -25,6 +25,23 @@ Written `Members(N, v) = {d₁ … dₙ}`, it serves:
 
 The evaluator decides what the members mean. The store only versions them.
 
+## 1a. Generic identity, method table, dispatch result (SR-130)
+
+Added 2026-10-20 after the review of the real-code work ([[Review 2026-10-20 Real Code (external)]] §5). Three objects that must never be conflated:
+
+| Object | Identity | Changes when | Stored as |
+|---|---|---|---|
+| **generic identity** g | a nominal id, named by (module path, name) | never: it is a binding | a nominal entity (`jl.Base.show`) |
+| **method table** MT(g, w) | g plus a world w | a method is added, replaced or removed | `Members(g, v)`; frozen per world (§2) |
+| **dispatch result** dispatch(g, argument types, w) | input-addressed: H(g, argument types, w, implementation) | MT(g) changes in an overlapping signature | a derived fact citing w (not computed yet) |
+
+Rules:
+- **Content ids cover only generic identities.** A caller's id says "calls g", never "calls method m of g" (SP-006).
+- **A generic is keyed by module and name**, never by name alone: `A.f` and `B.f` are different functions, and a method written `Base.show(…)` or after `import Base: show` belongs to `Base.show` ([[Julia Name Resolution]]).
+- **Dispatch results come from the language's implementation** when Sophia cannot compute them: for Julia, `which(g, Tuple{…})` in a recorded environment, stored with `tested` trust (§5).
+- **Anything compiled or derived from code that dispatches** (a specialisation, an AD derivative, a staged executable) cites the world, because it may embed dispatch results (§3).
+- **Derived programs whose transformation consults a method table** (AD rules are methods of `rrule`) cite the world as an input too ([[AD as a Materialization Case]]).
+
 ## 2. World snapshots (SR-76)
 
 A **world** is an immutable, content-addressed snapshot of every nominal entity's member set:
@@ -122,6 +139,7 @@ Transformation {
 | Part | Status |
 |---|---|
 | §1 nominal collections | implemented (methods, relations) |
+| §1a generic / method table / dispatch | generics and method tables implemented (module-qualified since 2026-10-20); dispatch facts not computed |
 | §2 world snapshots | implemented in the store; citing worlds in facts comes with M4 |
 | §3 artifact identity | M5 (compilation) |
 | §4 parameter artifacts | specified; needed when Lenticulum's models enter (with M4 execution) |

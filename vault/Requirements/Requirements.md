@@ -157,10 +157,31 @@ Daniel: "Moonkale was meant as an editor for Lenticulum.jl. Now Sophia is somewh
 | # | Requirement | Origin | When | Status |
 |---|---|---|---|---|
 | SR-114 | Moonkale, Lenticulum.jl and Sophia are designed together: Moonkale edits, Sophia stores (and later runs), Lenticulum is the program. | Daniel | now | plan ([[Real Code Corpora]] §1) |
-| SR-115 | Lenticulum.jl runs in Sophia: a goal, but a later one; easier Julia packages first. | Daniel | later | planned (corpus rung 4) |
+| SR-115 | Lenticulum.jl runs in Sophia: a goal, but a later one; easier Julia packages first. | Daniel | later | planned (E-9, after the semantic-boundary experiments, SR-124) |
 | SR-116 | Sophia's Julia (and Rust, Python) ingestion uses the same normal form as Moonkale's WP-66 content ids, ideally the same code. | follows from SR-114 | rung 2 | in use (2026-10-20): the shared crate `moonkale-content-id` gives identical ids on Moonkale's golden fixtures; one resolver difference reported |
 | SR-117 | Real-code corpora: linear algebra (BLAS-like, in Julia and Rust), Metamath, then Lean. | Daniel | now | Metamath done; ladder in [[Real Code Corpora]] |
 | SR-118 | Large breaking changes are acceptable while there are no users: prefer the right design over compatibility. | Daniel | now | adopted |
+
+## From Daniel and the real-code review, 2026-10-20
+
+Daniel's requests with the fourth external review ([[Review 2026-10-20 Real Code (external)]], "R4 §n"). Daniel: "keep extensive documentation in the vault on what statements should actually be saved in the database and what intermediate statements can be cheaply generated. I kinda don't mind if for a short time the memory usage goes high, but once the thing is computed not everything needs to be stored." And: "a folder for each language where the parsing and interoperability with sophialang is documented." On LuxCore as the next step: it "proves relatively little as it avoids possibly the AD and Reactant or other backend libraries that full Lux.jl brings with it."
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-119 | The vault documents, per kind of object, what is persisted and what is computed and discarded: identity and provenance, reconstruction cost, reproducibility, invalidation, materialisation and eviction, garbage collection, compression, benchmarks. | Daniel | now | done ([[Storage and Materialization]]) |
+| SR-120 | High transient memory is acceptable if released after the computation; permanent storage holds only what cannot be cheaply had again. | Daniel | now | policy ([[Materialization Policy]]); queries already budgeted |
+| SR-121 | An object's logical identity is separate from whether its bytes are materialised; dropping bytes never changes an id. | Daniel, R4 | now | invariant ([[Storage and Materialization]]) |
+| SR-122 | One vault folder per language (sophialang, Julia, Rust, Python, Lisp, Metamath, Lean, …) documenting parsing, canonicalisation, name resolution, types, runtime semantics, interoperability with sophialang, compilation and limitations. | Daniel | now | done ([[Languages]]) |
+| SR-123 | Support is stated per level (parsed, normalised, resolved, lowered, executable, verified) and per feature, with evidence; never as a percentage of definitions with ids. | Daniel, R4 | now | adopted ([[Languages]]) |
+| SR-124 | Experiments target semantic boundaries (dispatch, macros, AD, compiler transformations, Reactant/MLIR) rather than ingesting ever larger packages; full Lux.jl later, LuxCore alone not; Lenticulum after. Each experiment has hypotheses, failure criteria and measurements. | Daniel, R4 §6 | now | plan ([[Semantic Boundary Experiments]]) |
+| SR-125 | Moonkale integration and editing performance remain priorities. | Daniel | now | B-15 waits for Moonkale's revision |
+| SR-126 | For now: specifications, small experiments and benchmarks, not new major subsystems; no automatic caching system before workloads are measured; document before changing the storage layout. | Daniel | now | adopted |
+| SR-127 | A generic function is identified by (module, binding name), never by name alone; methods that extend another module's function belong to it. | R4 §4 | now | done ([[Julia Name Resolution]]; `tests/generics.rs`) |
+| SR-128 | Proof-dependency answers are checked against an independent implementation before they are trusted. | R4 §2 | now | done for Metamath (`sophia-mm-check` vs metamath.exe) |
+| SR-129 | A semantic conformance suite per language compares Sophia's facts with the language implementation's, classifying each as known, approximated, left open or wrong. | R4 §6 | now | Julia parts 1–2 done ([[Julia Conformance]]) |
+| SR-130 | Generic identity, method table at a world, and dispatch result are distinct objects; derived and compiled code that depends on dispatch cites the world. | R4 §5 | now (spec) | specified (SPEC-006 §1a) |
+| SR-131 | A record's kind follows from its content; a conflicting kind is refused (SP-012). | R4 §7 | now | done (`StoreError::KindConflict`) |
+| SR-132 | Physical storage may use compact local keys for edges; content hashes stay the public identity. | R4 §3 | later (measure first) | proposed ([[Compression]], SP-011) |
 
 ## From Moonkale
 
@@ -192,6 +213,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-119 to SR-132 added (storage and materialisation, language folders, semantic-boundary experiments; the real-code review).
 - 2026-10-20: SR-114 to SR-118 added (the three projects together; real-code corpora).
 - 2026-10-20: SR-107 to SR-113 added from the review of M3a.
 - 2026-10-20: SR-90 to SR-106 added from Daniel's query-language proposal and its forwarded review; SR-32 updated (the `query` dialect).

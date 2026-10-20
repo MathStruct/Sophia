@@ -25,7 +25,7 @@ Each rung is a benchmark (B-16) and an experiment with a written result (SR-73).
 | 1 | **Metamath `set.mm`** (≈ 45 000 theorems; also `iset.mm`) | A real theorem library with a trivially parseable format and a huge, real dependency graph. Daniel named it | content addressing of a real library (renaming invariance, duplicate theorems); ingest at 10⁵-scale; deep transitive queries ("which axioms does `2p2e4` use?") | a Metamath frontend (`sophia-ingest`), no external tools |
 | 2 | **Julia `LinearAlgebra` (generic parts)**, then **Octavian.jl** (BLAS written in Julia) | "Linear algebra is fundamental"; pure Julia; multiple dispatch everywhere | methods and generic functions (nominal entities, SP-006), dispatch-heavy reference graphs | a Julia frontend on the WP-66 normal form |
 | 3 | **Rust `matrixmultiply`** (a pure-Rust gemm) | the same algorithm as rung 2 in another language | cross-language comparison: does Sophia find the same structure in Rust and Julia? (SR-73, the reuse dream) | a Rust frontend on WP-66 |
-| 4 | **LuxCore.jl, then Lenticulum.jl** | the goal (SR-115) | a real project of the user's own, edited in Moonkale through Sophia | rung 2's frontend, plus macros and modules |
+| 4 | ~~LuxCore.jl, then Lenticulum.jl~~ **superseded (2026-10-20)** by [[Semantic Boundary Experiments]]: dispatch, macros, AD, Reactant; then full Lux.jl (E-8), then Lenticulum.jl (E-9). Daniel: LuxCore "proves relatively little as it avoids the AD and Reactant or other backend libraries that full Lux.jl brings with it" | the goal (SR-115) | a real project of the user's own, edited in Moonkale through Sophia | rung 2's frontend, plus macros and modules |
 | 5 | **Lean 4 / Mathlib** (via `lean4export`) | a dependently typed theorem library | terms with real dependent types; Mathlib's scale | a Lean toolchain (not installed here) and an export reader |
 
 Rung 1 does not contradict [[S-ADR-0008 Sophialang before Metamath or Lisp]]. That decision is about which **language Sophia implements** first. Here Metamath is **data to store and query**, through a small frontend.
@@ -66,7 +66,7 @@ end
   - set theory: `ax-ext`;
   - complex numbers: `ax-1cn`, `ax-addcl`, `ax-addass`.
   
-  That is the list I would expect; it has not been cross-checked against `metamath.exe`.
+  **Checked against `metamath.exe` (2026-10-20, SR-128):** the same 15 axioms and 29 definitions. See below.
 - In iset.mm, the same statement rests on intuitionistic axioms (`ax-ia1`, `ax-io`, …) and **not on `ax-3`**.
 - The fundamental theorem of algebra rests on 46 set.mm axioms.
 
@@ -81,6 +81,14 @@ end
 **Two weaknesses found** ([[SP-011 Reference edges dominate storage on real code]]):
 - **The store is large:** 564 MiB on SQLite for a 52 MB source. About 1.5 M reference edges (about 31 per proof, against 3 in the synthetic generator) take 42 % of the database, stored twice with 32-byte ids, plus a third copy on each record. H3 ("local ids save little") was refuted on synthetic code; on real code it is the main cost.
 - **The planner guessed selectivity wrongly** twice: a lookup by kind, and by collection, is wide. It now knows that, and magic sets also apply to negated calls (SPEC-007 §6). Cost-based planning is the real fix.
+
+**Cross-check against metamath.exe (2026-10-20).** The external review asked for it before trusting the dependency analysis. `sophia-mm-check` ([[sophia-mm-check]]) builds no shared code with metamath.exe (built from source, commit `9898f5d`) and compares "which axioms and definitions does T rest on", by statement id:
+- set.mm, 302 theorems (incl. `2p2e4`, `fta`): **all agree** (8 503 axiom and 24 471 definition dependencies);
+- set.mm, 3 000 theorems: **all agree** (83 671 and 242 975);
+- iset.mm, 1 001 theorems: **all agree** (35 676 and 48 995);
+- FULLRUN
+
+This checks the dependency walk, not the proofs: Sophia does not verify proof steps. metamath.exe verifies all 48 083 set.mm proofs in 2.85 s, which makes it the obvious first checker for trust records ([[Metamath Overview]]).
 
 **Next rungs:** a Julia frontend on Moonkale's WP-66 normal form (rung 2).
 
@@ -128,6 +136,8 @@ Sophia's resolver matches Moonkale's on all golden fixtures, including the new `
 - Per-file resolution is not only incomplete for Julia; it is partly wrong. About 1 940 per-file references in LinearAlgebra link a call to one method of a generic function, or a field `x.name` to a definition of that name.
 - The module resolver makes 2 301 references, 880 of them across files.
 - Proposed to Moonkale as normaliser v5.
+
+**Generic functions keyed by module (2026-10-20).** Methods were grouped by bare name, which merged `LinearAlgebra.dot` with `BLAS.dot` and filed 898 methods of Base's functions as LinearAlgebra's own. Now a generic function is (module path, name), and methods written `Base.show(…)` or after `import Base: show` join the function they extend. Against Julia's own method table, the right owner for 94.5 % of methods (53.7 % before): [[Julia Conformance]]. LinearAlgebra now has 804 generic functions (123 of them other modules' functions it extends) with 2 913 methods.
 
 **The caveat:** ids also depend on **reference resolution**. So "one id in both" needs the same resolver too. The plan has two steps:
 1. Sophia uses the shared normaliser with its own resolver. Golden fixtures from Moonkale show where the two diverge, and the differences get recorded.

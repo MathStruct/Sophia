@@ -14,7 +14,7 @@ use moonkale_content_id::julia::{self, DefKey, ModuleFile};
 use moonkale_content_id::{Budget, ContentIdError, Identity, Syntax, Tree, definition, is_definition, parse};
 use sophia_hash::Record;
 
-use crate::code::{CodeError, Def, definitions, to_record};
+use crate::code::{CodeError, Def, JuliaScopes, definitions, julia_extends, julia_scopes, to_record};
 
 pub use moonkale_content_id::julia::{MAX_MODULE_BYTES, MAX_MODULE_FILES, MODULE_STEPS_BASE, MODULE_STEPS_PER_BYTE};
 
@@ -123,9 +123,10 @@ pub struct Ingested {
     pub calls_generic: Vec<(u32, (usize, usize), String)>,
     /// The crate's result, for checks.
     pub module: julia::JuliaModule,
-    /// For each identified definition (by record id), the names of the
-    /// generic functions it uses (from `calls_generic`).
-    pub uses_generic: HashMap<sophia_hash::Digest, Vec<String>>,
+    /// For each identified definition (by record id), the generic
+    /// functions it uses (from `calls_generic`), each as module path plus
+    /// name: the crate resolves a use in the user's own module.
+    pub uses_generic: HashMap<sophia_hash::Digest, Vec<Vec<String>>>,
 }
 
 /// The definition node with exactly this span.
@@ -171,6 +172,12 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
         .zip(&trees)
         .map(|(f, t)| definitions("julia", t.root_node(), &f.text).into_iter().map(|(x, _)| ((x.start, x.end), x)).collect())
         .collect();
+    // Modules and `import`s across all files: which function a method
+    // extends depends on them (a generic is (module, name), not a name).
+    let mut scopes = JuliaScopes::default();
+    for (f, t) in d.files.iter().zip(&trees) {
+        julia_scopes(t.root_node(), &f.text, &f.base_module, &mut scopes);
+    }
     let norm = normaliser();
     let mut out: Vec<(String, Vec<(Def, Record)>)> = d.files.iter().map(|f| (f.path.clone(), Vec::new())).collect();
     let mut budget = Budget::with_steps(MODULE_STEPS_BASE + MODULE_STEPS_PER_BYTE * d.files.iter().map(|f| f.text.len()).sum::<usize>());
@@ -182,20 +189,24 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
         let node = node_at(&trees[f], start, end).ok_or_else(|| ModuleError::Io(format!("no definition at {start}:{end}")))?;
         let refs: HashMap<(usize, usize), DefKey> = x.references.iter().copied().collect();
         let parts = definition("julia", node, &d.files[f].text, &refs, &mut budget)?;
-        let def = mine[f].get(&(start, end)).cloned().unwrap_or(Def {
+        let mut def = mine[f].get(&(start, end)).cloned().unwrap_or(Def {
             name: x.name.clone().unwrap_or_default(),
             kind: node.kind().to_string(),
             start,
             end,
             name_span: None,
             qualified: x.name.is_none(),
+            module: Vec::new(),
+            extends: None,
         });
+        def.module = x.module.clone();
+        julia_extends(&mut def, &scopes);
         out[f].1.push((def.clone(), to_record("julia", &def, &parts, &ids, x.key, &norm)));
     }
     // Which definition each generic use is in: the innermost one around
     // its span. Since v6 the crate reports only uses the encoding read as
     // non-local names, so parameters and type parameters are not listed.
-    let mut uses_generic: HashMap<sophia_hash::Digest, Vec<String>> = HashMap::new();
+    let mut uses_generic: HashMap<sophia_hash::Digest, Vec<Vec<String>>> = HashMap::new();
     for (f, span, name) in &jm.calls_generic {
         let around = jm
             .definitions
@@ -204,9 +215,11 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
             .min_by_key(|x| x.key.2 - x.key.1);
         let Some(around) = around else { continue };
         if let Some(id) = ids.get(&around.key) {
+            let mut g = around.module.clone();
+            g.push(name.clone());
             let v = uses_generic.entry(sophia_hash::Digest(id.digest)).or_default();
-            if !v.contains(name) {
-                v.push(name.clone());
+            if !v.contains(&g) {
+                v.push(g);
             }
         }
     }

@@ -39,8 +39,11 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `ir.rs`, `syntax.rs`, `canon.rs` | [[ir]], [[syntax]], [[canon]] | the IR; Julia-flavoured syntax and printers; canonical form and ids |
 | | `check.rs`, `plan.rs`, `magic.rs` | [[check]], [[plan]], [[magic]] | sorts, safety, strata; literal ordering; the magic-set rewrite |
 | | `eval.rs`, `sql.rs` | [[eval]], [[sql]] | the native executor; the SQL translation |
-| `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs`, `code.rs`, `module.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]], [[code]], [[module]] | frontends for real code (B-16): Metamath into statements, proofs and library collections; Julia, Rust and Python through Moonkale's shared WP-66 normal form |
+| `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs`, `code.rs`, `module.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]], [[code]], [[module]] | frontends for real code (B-16): Metamath into statements, proofs and library collections; Julia, Rust and Python through Moonkale's shared WP-66 normal form; generic functions keyed by (module, name) |
+| | `examples/julia_conformance.rs`, `tests/julia-semantics/methods.jl` | [[julia_conformance]], [[methods]] | Sophia's generic-function grouping against Julia's own method table ([[Julia Conformance]]) |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
+| | `bin/sophia-mm-check.rs` | [[sophia-mm-check]] | Metamath dependency answers against metamath.exe |
+| `experiments/ad-materialization` | `ad_costs.jl` | [[ad_costs]] | E-AD-0: cost of producing vs running a derivative (Julia) |
 | `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 
 The comment-only crates of the first vault (`sophia-core`, `sophia-equiv`, `sophia-emit`, `sophia-frontend-metamath`) are kept as ideas in `attic/`: [[sophia_core]], [[elaborate]], [[effects]], [[sophia_equiv]], [[egraph]], [[witness]], [[sophia_emit]], [[metamath]].

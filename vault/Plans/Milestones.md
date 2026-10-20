@@ -91,9 +91,18 @@ Foundational invariants (identity, worlds, editable projections) count as settle
   - planner selectivity classes;
   - magic sets for negated calls.
 
-**Order from here (SR-113):**
-1. **B-16, real code:** ingest real Julia and Rust code (and a theorem library) and rerun B-03 to B-07 and B-17 on it.
-2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision.
+- **2026-10-20: B-16 rung 2, Julia LinearAlgebra** through the shared normaliser v6, identical ids to Moonkale ([[Real Code Corpora]] §5).
+
+- **2026-10-20: real-code review** ([[Review 2026-10-20 Real Code (external)]]):
+  - Metamath dependency analysis checked against metamath.exe;
+  - generic functions keyed by (module, name), checked against Julia's method table (53.7 % → 94.5 %);
+  - record kinds enforced (SP-012);
+  - new vault sections [[Storage and Materialization]] and [[Languages]];
+  - the experiment order replaced by [[Semantic Boundary Experiments]] (SR-124).
+
+**Order from here (SR-113, revised by SR-124 to SR-126):**
+1. **Semantic boundaries:** [[Semantic Boundary Experiments]] E-0 to E-7 (trust records, Julia conformance, cross-language structure, dispatch facts, macros, AD, Reactant), each small, with an oracle. Full Lux.jl and Lenticulum.jl after.
+2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision (SR-125: a priority, in parallel).
 3. **The set-oriented native executor:** a prefix access path, anti-joins for negation over scans, borrowed field reads.
 4. **M3b:** the agent server, with a hard memory bound for untrusted queries (SR-108).
 

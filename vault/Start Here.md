@@ -15,11 +15,14 @@ The vault is the whole repository. Its notes sit in four places:
 | `vault/Plans/` | **milestones, benchmark plan and results** | `Milestones.md` |
 | `vault/Theory/` | **theory** specific to Sophia's decisions (general mathematics stays in the CT-ML wiki) | `Type Taxonomy.md` |
 | `vault/Research/` | **research notes**: questions answered, comparisons, analyses | `Compression and Canonical Form.md` |
+| `vault/Storage and Materialization/` | **what is kept and what is recomputed**: object categories, inventory, policy, garbage collection | `Current Inventory.md` |
+| `vault/Languages/` | **one folder per language**: parsing, normalisation, resolution, semantics, interoperability with sophialang, support levels | `Languages/Julia/Julia Name Resolution.md` |
 | `vault/templates/` | templates for ADRs, problems and specifications | |
 | `vault/Design/` | **design notes** from the first version of the vault: ideas, not requirements (see *Reading of the Earlier Vault*): what Sophia is supposed to be, made precise | `vault/Design/Hashing and Identity.md` |
 | `vault/State of the Art/` | **surveys** of prior art, one area per note | `State of the Art - Equality Saturation and E-Graphs.md` |
 | `vault/Background/` | **background cards** on engineering topics: LLVM, MLIR, Julia internals, hashing, Unison | `vault/Background/Hashing/Merkle DAG.md` |
 | `crates/*/src/*.md`, `src/*.md` | **per-file design notes**, one beside each Rust or Julia file | `crates/sophia-hash/src/merkle.md` beside `merkle.rs` |
+| `experiments/*/` | **measurement scripts** in the language being measured (Julia for AD), with a note beside each | `experiments/ad-materialization/ad_costs.md` |
 | `meta/` | working material: the prompts used while drafting (not published) | |
 
 The **mathematics** — categorical semantics, logical relations, e-graphs as algebra, conjunctive queries, fixed points, incremental computation — is not repeated here. It lives in the [CT-ML wiki](https://mathstruct.org/CategoryTheory-ML-Wiki/), the root vault this one builds on, whose *Track F* in [Start Here](https://mathstruct.org/CategoryTheory-ML-Wiki/Start-Here) leads up to every concept Sophia uses. This vault keeps what is specific to Sophia: the design decisions, the engineering background, and the honest list of what may not work.

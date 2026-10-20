@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: rule adopted (2026-10-20); to be enforced.** Related: [[Real Code Corpora]] §4, `crates/sophia-ingest/src/metamath.md`, SPEC-001 §4.
+> **Status: rule adopted and enforced (2026-10-20).** Related: [[Real Code Corpora]] §4, `crates/sophia-ingest/src/metamath.md`, SPEC-001 §4.
 
 **Problem.** A record's `kind` is stored with it but is not part of its id. When two records with the same id arrive with different kinds, the first one wins. Metamath showed this is a real error, not a corner case. A statement is an axiom in one library and a theorem in another, and with identity by statement only one label survives.
 
@@ -10,5 +10,5 @@
 - in a name (a label).
 
 **To do.**
-- `Store::add` should reject a record whose id exists with a different kind, rather than keep the first silently. Today the second is skipped.
+- ~~`Store::add` should reject a record whose id exists with a different kind, rather than keep the first silently.~~ **Done (2026-10-20):** `put_records`, `add` and every other write that stores records refuse it with `StoreError::KindConflict`, and the batch rolls back. Conformance test `kinds_follow_from_content` on all four backends. set.mm, iset.mm and LinearAlgebra ingested into one store raise no conflict.
 - The sophialang normaliser already derives kinds from content.

@@ -125,6 +125,12 @@ Then, unchanged: `definition(lang, node, text, &references[f][i], budget)` per d
 3. ~~Calls to generic functions~~ **Decided: returned as `calls_generic`** (§2). Moonkale draws Calls edges to a generic-function node; Sophia will record them as nominal uses.
 4. **Base and other packages:** names from `using LinearAlgebra` (exported) stay unresolved. Cross-package resolution is a later step, with packages as modules of their own.
 
+## 5a. Sophia's side: which generic function a method belongs to (2026-10-20)
+
+The crate resolves references and generic **uses** per module. Which generic function a **method** belongs to is Sophia's storage decision, and it was wrong: methods were grouped by bare name. Since 2026-10-20 the key is (module path, name), and methods that extend another module's function (a qualified head, or a name imported with `import`) join that function. Agreement with Julia's own method table on LinearAlgebra: 53.7 % before, 94.5 % after. Rules, approximations and the remaining disagreements: [[Julia Name Resolution]], [[Julia Conformance]], [[SP-013 Julia bindings of modules Sophia has not ingested]].
+
+One finding for the crate (reported to Moonkale): a keyword default inside a module-level macro call (`@deprecate f(x; check::Bool = true) g(x)`) is taken as a unit named `check` (11 in LinearAlgebra).
+
 ## 6. Status
 
 **v5 in both tools (2026-10-20).**

@@ -85,15 +85,20 @@ pub fn store_metamath<B: Backend>(
 }
 
 /// Stores identified definitions: records, names for non-functions, and
-/// functions grouped by name into generic functions. `uses_generic` maps a
-/// record id to the generic functions it calls: they become the record's
-/// `nominal_refs` (queryable as `uses(d, g)`), which do not affect its id.
+/// functions grouped into generic functions. A generic function is keyed by
+/// **(module path, name)**, never by name alone: `A.f` and `B.f` are two
+/// functions, and a method written `Base.show(…) = …` (or `show(…) = …`
+/// after `import Base: show`) is a method of `Base.show`, whose entity is
+/// `jl.Base.show`. Outside Julia, and for Julia without modules, the module
+/// is `pkg`. `uses_generic` maps a record id to the generic functions it
+/// calls (module path plus name): they become the record's `nominal_refs`
+/// (queryable as `uses(d, g)`), which do not affect its id.
 fn store_items<B: Backend>(
     store: &Store<B>,
     lang: &str,
     pkg: &str,
     items: &[(code::Def, sophia_hash::Record)],
-    uses_generic: &std::collections::HashMap<sophia_hash::Digest, Vec<String>>,
+    uses_generic: &std::collections::HashMap<sophia_hash::Digest, Vec<Vec<String>>>,
     report: &mut CodeReport,
 ) -> Result<(), StoreError> {
     let prefix = match lang {
@@ -101,39 +106,37 @@ fn store_items<B: Backend>(
         "rust" => "rs",
         _ => "py",
     };
-    let mut methods: BTreeMap<String, Vec<sophia_hash::Digest>> = BTreeMap::new();
-    let mut named: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
+    let mut methods: BTreeMap<Vec<String>, Vec<sophia_hash::Digest>> = BTreeMap::new();
+    let mut named: BTreeMap<Vec<String>, sophia_hash::Digest> = BTreeMap::new();
     for (d, r) in items {
-        if d.name.is_empty() {
-            continue;
-        }
-        let function = matches!(d.kind.as_str(), "function_definition" | "assignment" | "function_item" | "function_signature_item");
-        if function {
-            methods.entry(d.name.clone()).or_default().push(r.id);
-        } else {
-            named.entry(d.name.clone()).or_insert(r.id);
+        match binding(d, pkg) {
+            Some(Binding::Method(k)) => methods.entry(k).or_default().push(r.id),
+            Some(Binding::Named(k)) => {
+                named.entry(k).or_insert(r.id);
+            }
+            None => {}
         }
     }
     // Generic functions first, so records can refer to them.
-    let mut generics: BTreeMap<String, sophia_hash::Digest> = BTreeMap::new();
-    for n in methods.keys() {
-        let mut path = format!("{prefix}.{pkg}.{}", segment(n));
-        if named.contains_key(n) {
+    let mut generics: BTreeMap<Vec<String>, sophia_hash::Digest> = BTreeMap::new();
+    for k in methods.keys() {
+        let mut path = entity_path(prefix, k);
+        if named.contains_key(k) {
             path.push_str(".new");
         }
         let generic = match store.resolve(&path)? {
             Some(e) => e.target.digest(),
             None => store.new_nominal(lang, "generic", &path)?,
         };
-        generics.insert(n.clone(), generic);
+        generics.insert(k.clone(), generic);
     }
     let records: Vec<sophia_hash::Record> = items
         .iter()
         .map(|(_, r)| {
             let mut r = r.clone();
-            if let Some(names) = uses_generic.get(&r.id) {
-                for n in names {
-                    if let Some(g) = generics.get(n) {
+            if let Some(keys) = uses_generic.get(&r.id) {
+                for k in keys {
+                    if let Some(g) = generics.get(k) {
                         if !r.nominal_refs.contains(g) {
                             r.nominal_refs.push(*g);
                         }
@@ -146,8 +149,8 @@ fn store_items<B: Backend>(
     report.new_records += store.put_records(&records)?;
     let mut names: Vec<(String, usize, Visibility)> = Vec::new();
     let mut named_records = Vec::new();
-    for (n, id) in &named {
-        let path = format!("{prefix}.{pkg}.{}", segment(n));
+    for (k, id) in &named {
+        let path = entity_path(prefix, k);
         if store.resolve(&path)?.is_none() {
             if let Some(r) = store.record(id)? {
                 names.push((path, named_records.len(), Visibility::Public));
@@ -156,15 +159,71 @@ fn store_items<B: Backend>(
         }
     }
     store.add(&named_records, &names)?;
-    for (n, ms) in &methods {
+    // The package's own top-level modules; a function under any other is
+    // another package's (or Base's) that this one extends.
+    let roots: std::collections::HashSet<String> = items.iter().map(|(d, _)| home(d, pkg)[0].clone()).collect();
+    for (k, ms) in &methods {
         let mut ms = ms.clone();
         ms.sort();
         ms.dedup();
         report.methods += ms.len();
         report.generics += 1;
-        store.add_members(&generics[n], &ms)?;
+        if !roots.contains(&k[0]) {
+            report.extended += 1;
+        }
+        store.add_members(&generics[k], &ms)?;
     }
     Ok(())
+}
+
+/// What a definition binds, as Sophia stores it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Binding {
+    /// A method of the generic function (module path, name).
+    Method(Vec<String>),
+    /// A directly named definition (type, constant, macro, module item).
+    Named(Vec<String>),
+}
+
+fn home(d: &code::Def, pkg: &str) -> Vec<String> {
+    if d.module.is_empty() { vec![pkg.to_string()] } else { d.module.clone() }
+}
+
+/// The one grouping rule ([[Julia Name Resolution]]): a function is a
+/// method of `extends` if set, else of (its module, its name); other
+/// definitions are named (module, name). A qualified method that could not
+/// be placed (`Base.$f`), and anything unnamed, binds nothing.
+pub fn binding(d: &code::Def, pkg: &str) -> Option<Binding> {
+    if d.name.is_empty() {
+        return None;
+    }
+    let function = matches!(d.kind.as_str(), "function_definition" | "assignment" | "function_item" | "function_signature_item");
+    if function {
+        if d.qualified && d.extends.is_none() {
+            return None;
+        }
+        Some(Binding::Method(d.extends.clone().unwrap_or_else(|| {
+            let mut k = home(d, pkg);
+            k.push(d.name.clone());
+            k
+        })))
+    } else if d.qualified {
+        None
+    } else {
+        let mut k = home(d, pkg);
+        k.push(d.name.clone());
+        Some(Binding::Named(k))
+    }
+}
+
+/// `jl` + `[LinearAlgebra, BLAS, gemm!]` → `jl.LinearAlgebra.BLAS.gemm!`.
+pub fn entity_path(prefix: &str, key: &[String]) -> String {
+    let mut s = prefix.to_string();
+    for k in key {
+        s.push('.');
+        s.push_str(&segment(k));
+    }
+    s
 }
 
 /// Stores a whole Julia module through the crate's module-level resolver
@@ -197,8 +256,11 @@ pub struct CodeReport {
     pub refused_definitions: BTreeMap<String, usize>,
     pub definitions: usize,
     pub new_records: usize,
-    /// Generic functions (one name, its methods as members).
+    /// Generic functions (one (module, name), its methods as members).
     pub generics: usize,
+    /// Of those, functions owned by another top-level module that this
+    /// package adds methods to (`Base.show`, `Base.:+`).
+    pub extended: usize,
     pub methods: usize,
     /// Resolved same-file references.
     pub references: usize,
