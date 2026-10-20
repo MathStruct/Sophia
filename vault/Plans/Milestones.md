@@ -104,7 +104,7 @@ Foundational invariants (identity, worlds, editable projections) count as settle
 
 **Order from here (SR-113, revised by SR-124 to SR-126 and SR-139):**
 1. **Semantic boundaries:** [[Semantic Boundary Experiments]] E-0 to E-7 (trust records, Julia conformance, cross-language structure, dispatch facts, macros, AD, Reactant), each small, with an oracle. Full Lux.jl and Lenticulum.jl after.
-2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision (SR-125: a priority, in parallel).
+2. **B-15:** measured on Moonkale's side (p99 2.4–3.5 ms on 10⁵ definitions); open: the change-feed path (polling 500 ms), the workspace's re-fetch, and paint on Daniel's desktop (SR-125).
 3. **The set-oriented native executor:** a prefix access path, anti-joins for negation over scans, borrowed field reads.
 4. **M3b:** the agent server, with a hard memory bound for untrusted queries (SR-108).
 

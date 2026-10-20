@@ -44,6 +44,7 @@
   - **a compiled derivative restored in a fresh process** (Reactant, bit-identical); Enzyme via Julia's pkgimage segfaults;
   - **Mathlib exported and measured:** 71 % of its term graph is needed only by proofs; nothing has been kernel-checked locally yet;
   - **S-ADR-0012 accepted.**
+  - **B-15 measured with Moonkale** (its `edit_loop`, Moonkale `26752448` on Sophia `202e137a`): the whole edit loop's p99 is 2.4–3.5 ms on 10⁵ definitions (target < 50 ms); Moonkale's 500 ms change-feed polling is what a user would wait on ([[Benchmark Results]]).
 
   **Next (SR-124 to SR-126):** the [[Semantic Boundary Experiments]] (small, each with an oracle), and B-15 (Moonkale edits) as soon as Moonkale is on the current revision. LuxCore is dropped as a step; full Lux.jl after the AD and Reactant experiments, Lenticulum after that. No storage-layout change without Daniel's agreement.
 - **Specifications:** eight drafts ([[Specifications]]).

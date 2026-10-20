@@ -2,6 +2,29 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
+## 2026-10-20 (late night): B-15, Moonkale's edit loop through Sophia
+
+**The first end-to-end measurement with Moonkale.** Moonkale (`26752448`, on Sophia `202e137a`) times its own edit path through the `Source` trait: resolve and fetch a definition, save an edited text with `apply`, read the name's new id, list the definitions that still reference the old id. Script: `experiments/b15-edit-loop/run.sh` ([[run]]); 200 runs per store, each alternating the original and the edited text; release build; this machine (see the B-16 section for hardware).
+
+| Store | Edited definition | Dependants | fetch | save | new id | dependants | whole loop p50 | p90 | **p99** |
+|---|---|---|---|---|---|---|---|---|---|
+| SPEC-004 sample (in memory) | `sample.add` | 1 | 50 µs | 186 µs | 17 µs | 17 µs | 0.27 ms | 0.35 ms | **1.0 ms** |
+| 1 000 synthetic | 8.8 KB of text | 22 | 2.0 ms | 3.4 ms | 31 µs | 164 µs | 5.6 ms | 6.1 ms | **7.0 ms** |
+| 10 000 synthetic | 52 B | 119 | 71 µs | 324 µs | 35 µs | 969 µs | 1.4 ms | 1.7 ms | **3.5 ms** |
+| 100 000 synthetic (3 runs, file pre-read) | 71 B | 85 | 64 µs | 310–331 µs | 29 µs | 0.96–1.05 ms | 1.3 ms | 1.5–1.6 ms | **2.4–3.5 ms** |
+
+Step columns are medians. **The target, < 50 ms p99 for one definition on a 10⁵ store, is met by more than an order of magnitude.**
+
+**Cold first save** (the only slow one):
+- on a store file already in the OS page cache: first save 8–19 ms, first dependants query 2.2–2.6 ms (whole first loop 11–22 ms);
+- on a freshly copied file (btrfs: a copy starts with a cold page cache): up to 0.65 s for the save and 0.2–1.5 s for the dependants, all of it waiting for the disk. Sophia's `Interface` called directly (`crates/sophia-interface/examples/edit_timing.rs`) shows the same pattern: 208 ms on a cold file, 2 ms once the file has been read. So the cold cost is the operating system's, not Sophia's or Moonkale's adapter.
+
+**What this says.**
+- **Store size does not matter** between 10⁴ and 10⁵ definitions; what grows the loop is the edited definition's **text length** (fetch and save parse, elaborate, normalise and print it: 8.8 KB takes 5 ms) and its **number of dependants** (about 10 µs each to list).
+- **Moonkale's adapter adds little**: its steps are within a few µs to tens of µs of the direct `Interface` calls.
+- **The user-visible latency is dominated by something else:** Moonkale's change feed polls every 500 ms. Edits take a millisecond, so the feed should push (SR-37 allows a push subscription), or poll much faster when idle costs allow.
+- Not measured: the workspace's re-fetch after save, the change-feed path, and paint (needs Daniel's desktop), as the Moonkale agent listed.
+
 ## 2026-10-20 (night): B-16 on a real library, Metamath set.mm
 
 - Machine: as below.
