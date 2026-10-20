@@ -22,6 +22,7 @@ The vault is the whole repository. Its notes sit in four places:
 | `vault/State of the Art/` | **surveys** of prior art, one area per note | `State of the Art - Equality Saturation and E-Graphs.md` |
 | `vault/Background/` | **background cards** on engineering topics: LLVM, MLIR, Julia internals, hashing, Unison | `vault/Background/Hashing/Merkle DAG.md` |
 | `crates/*/src/*.md`, `src/*.md` | **per-file design notes**, one beside each Rust or Julia file | `crates/sophia-hash/src/merkle.md` beside `merkle.rs` |
+| `flake.nix` | **the tools** (Rust, Julia 1.13 and 1.12, metamath, sqlite3; elan in `.#lean`) and corpus scripts (`sophia-corpora`, `sophia-mathlib`) | `nix develop` |
 | `experiments/*/` | **measurement scripts** in the language being measured (Julia for AD), with a note beside each | `experiments/ad-materialization/ad_costs.md` |
 | `meta/` | working material: the prompts used while drafting (not published) | |
 

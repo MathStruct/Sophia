@@ -50,6 +50,12 @@ index.md, site/     the website (Quartz)
 
 Every `.rs` file has a `.md` sibling of the same name explaining it. The index is `vault/Design/Code Map.md`.
 
+**Tools** come from `flake.nix`:
+- `nix develop` gives Rust, sqlite3, zstd, metamath, Julia 1.13 (`julia`) and 1.12 (`julia112`);
+- `nix develop .#lean` adds elan;
+- `sophia-corpora` clones set.mm into `$SOPHIA_CORPORA` (default `~/.cache/sophia-corpora`);
+- `sophia-mathlib` fetches Mathlib with its build cache and builds lean4export (several GB).
+
 ```sh
 cargo test --workspace                       # identity properties, store conformance and interface acceptance on both backends, syntax round trips
 cargo run -p sophia-cli -- sample            # load the sample program into .sophia/store.sqlite
@@ -59,6 +65,7 @@ cargo run -p sophia-cli -- profile rust         # the same code, Rust-flavoured
 cargo run -p sophia-cli -- sql "SELECT kind, count(*) FROM definitions GROUP BY kind"
 cargo run -p sophia-cli -- query 'select k, count(d) where def(d, k)'   # Sophia's own query language, any backend
 cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000,10000,100000
+cargo run --release -p sophia-bench --bin sophia-mm-check -- --exe "$(command -v metamath)" "$SOPHIA_CORPORA/set.mm/set.mm" --sample 300
 ```
 
 ## Website
