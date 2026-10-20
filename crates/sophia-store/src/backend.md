@@ -16,3 +16,5 @@
 **Why typed operations rather than a raw key-value interface:** SQLite can then keep real tables, which the read-only `sql` views need, while a key-value store keeps byte tables. The rules live once, in [[logic]].
 
 **Why closures:** a transaction's lifetime is tied to the backend's own transaction type. Closures keep that out of the public types, which Moonkale's adapter needs to be free of driver types (SPEC-004).
+
+**Access paths for the query executor** (2026-10-20, [[SPEC-007 Sophia Query Language]] §2): `kind_of`, `refs_of`, `all_kinds`, `all_refs` and `nominal_ids` have default implementations built on the other reads, so every backend answers Sophia's queries. A backend overrides one when an index answers it without decoding records (SQLite, DuckDB, and the key-value backends for the two scans).

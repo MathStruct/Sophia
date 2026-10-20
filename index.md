@@ -31,7 +31,8 @@ Formulas are Typst, diagrams are TikZ, both rendered at build time.
 | M0 | identity: hashing, components, sophialang's core and normaliser | done |
 | M1 | the store: SQLite and redb backends, names, lineages, method tables, facts, CLI, benchmarks | done (DuckDB and LMDB move to M2) |
 | M2 | **the Moonkale interface**: rendering profiles in the database, the Julia-flavoured printer and parser, `sophia-interface`; four backends compared | done |
-| M3 | tools: an MCP server for agents, the `datalog` dialect | |
+| M3a | **Sophia's own query language** (stratified Datalog, Julia-flavoured syntax, content ids, all four backends, magic sets, SQL translation, the `query` dialect for Moonkale) | done, first form |
+| M3b | tools: an MCP server for agents over the query API | |
 | M4 | running code: interpreter, dispatch facts, cached test results | |
 | M5 | compiling: LLVM, minimal binaries | |
 | M6 | self-hosting starts | |

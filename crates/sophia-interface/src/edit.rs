@@ -39,6 +39,30 @@ pub struct Written {
 
 type R<T> = Result<T, EditError>;
 
+/// Text that starts with `query` or `select` is a query (SPEC-007 §8);
+/// neither is a sophialang keyword.
+fn looks_like_query(text: &str) -> bool {
+    let first = text.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with('#')).unwrap_or("");
+    first.starts_with("query ") || first.starts_with("select ")
+}
+
+fn parse_query(text: &str) -> R<sophia_query::Prepared> {
+    sophia_query::prepare_text(text).map_err(|e| match e {
+        sophia_query::Error::Parse { at, message } => {
+            let end = text[at.min(text.len())..].chars().next().map(|c| at + c.len_utf8()).unwrap_or(at);
+            EditError::Diagnostics(vec![Diagnostic::error(sophialang_syntax::Span::new(at, end), message)])
+        }
+        e => EditError::Diagnostics(vec![Diagnostic::error(Default::default(), e.to_string())]),
+    })
+}
+
+fn query_error(e: sophia_query::Error) -> EditError {
+    match e {
+        sophia_query::Error::Store(s) => EditError::Store(s),
+        e => EditError::Refused(e.to_string()),
+    }
+}
+
 fn abs(ns: &str, name: &str) -> String {
     if ns.is_empty() { name.to_string() } else { format!("{ns}.{name}") }
 }
@@ -194,6 +218,9 @@ impl<B: Backend + Sync> Interface<B> {
             Key::Derived(s) if s.starts_with("name:") => {
                 let path = s[5..].to_string();
                 let ns = parent_ns(&path).to_string();
+                if self.is_query(&path)? {
+                    return self.write_query(&path, expected, text);
+                }
                 let (items, warnings) = self.parse(&ns, text)?;
                 let short = last_segment(&path);
                 if !items.iter().any(|i| i.name() == short) {
@@ -226,6 +253,32 @@ impl<B: Backend + Sync> Interface<B> {
         }
     }
 
+    fn is_query(&self, path: &str) -> R<bool> {
+        Ok(match self.store.resolve(path)?.map(|n| n.target) {
+            Some(Target::Content(d)) => self.store.record(&d)?.is_some_and(|r| r.lang == sophia_query::canon::LANG),
+            _ => false,
+        })
+    }
+
+    /// Replaces a stored query by edited text: the name moves to the new
+    /// query's id, like any edit.
+    fn write_query(&self, path: &str, expected: u64, text: &str) -> R<Written> {
+        let p = parse_query(text)?;
+        let found = self.text_token(path)?;
+        if found != expected {
+            return Err(EditError::Conflict { expected, found });
+        }
+        let seq = self.store.resolve(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?.seq;
+        let record = self.store.read(|tx| p.record(tx).map_err(|e| StoreError::Backend(e.to_string())))?;
+        let report = self.store.update(path, &[record], 0, seq)?;
+        Ok(Written {
+            version: self.text_token(path)?,
+            targets: vec![(path.to_string(), p.id)],
+            warnings: Vec::new(),
+            stale_dependants: report.dependants_of_old,
+        })
+    }
+
     /// Creates definitions from text under a namespace. `name` is Moonkale's
     /// relative path of the new node (`a/b` puts the text in sub-namespace `a`).
     /// Returns the key of `name` if the text defines it.
@@ -235,6 +288,12 @@ impl<B: Backend + Sync> Interface<B> {
         let rel = path_from_moonkale(name);
         let full = abs(base, &rel);
         let ns = parent_ns(&full).to_string();
+        if looks_like_query(text) {
+            let p = parse_query(text)?;
+            sophia_query::save(&self.store, &p, Some(&full)).map_err(query_error)?;
+            let version = self.text_token(&full)?;
+            return Ok((Key::name(&full), Written { version, targets: vec![(full, p.id)], warnings: Vec::new(), stale_dependants: Vec::new() }));
+        }
         let (items, warnings) = self.parse(&ns, text)?;
         if items.is_empty() {
             return Err(EditError::Diagnostics(vec![Diagnostic::error(Default::default(), "the text defines nothing")]));

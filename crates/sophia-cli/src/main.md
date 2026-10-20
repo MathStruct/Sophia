@@ -16,3 +16,5 @@ sophia [--store PATH] [--backend sqlite|redb] init | sample | gen N [SEED] | ls 
 - Names and ids are interchangeable arguments, and an unambiguous hex prefix works too.
 
 **Known rough edge:** piping into `head` panics with "Broken pipe" instead of exiting quietly.
+
+**`sophia query Q [ARG..]`** (2026-10-20): Q is query text, `@FILE`, or the name of a stored query. Arguments follow the parameters in order; an `Id` argument may be a name. `--explain` prints the canonical text, the id, the result type and the program the executor runs (with magic sets, in Datalog notation). `--sql` prints the SQL translation. `--plain` runs without magic sets. `--save NAME` stores the query.

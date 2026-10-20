@@ -15,3 +15,5 @@ A directory holds `data.mdb`. `Lmdb::open` reserves 64 GiB of address space (`op
 - **Keys are limited to 511 bytes**, so name paths and meta keys must stay below about 470 bytes. Moonkale's paths are far shorter, but the limit is not yet enforced with a clear error.
 - **A fixed map size:** a store that outgrows it needs reopening with a larger one.
 - **One writer at a time**, as with every backend here (all use one connection or one write transaction).
+
+**`with_record_bytes`** (2026-10-20): hands a closure each record's stored bytes, borrowed from the memory map inside one read transaction, with no copy and no decode. It exists for the zero-copy measurements ([[Zero-Copy Storage of Canonical Graphs]]) and is the prototype of a borrowing access path.

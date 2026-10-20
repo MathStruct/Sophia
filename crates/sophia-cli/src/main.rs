@@ -16,6 +16,9 @@
 //!   verify                    rehash every definition
 //!   stats                     counts and size on disk
 //!   sql QUERY                 a read-only query over the views (SQLite only)
+//!   query Q [ARG..] [FLAGS]   a query in Sophia's query language (SPEC-007);
+//!                             Q is text, @FILE, or the name of a stored query;
+//!                             --explain, --sql, --plain, --save NAME
 //! ```
 
 use std::path::PathBuf;
@@ -29,7 +32,7 @@ use sophia_store::{Backend, Store, Target};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]>"
 }
 
 fn main() -> ExitCode {
@@ -97,6 +100,76 @@ fn actor() -> String {
 
 fn sql<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, q: &str) -> AnyResult<()> {
     let t = sophia_store::query::ReadOnlyQuery::query_readonly(store.backend(), q, QueryLimits::default())?;
+    print_table(&t);
+    Ok(())
+}
+
+/// `sophia query`: text, @FILE or a stored query's name, then arguments in
+/// parameter order (an `Id` argument may be a name), then flags.
+fn query<B: Backend + Sync>(store: &Store<B>, args: &[String]) -> AnyResult<()> {
+    use sophia_query::{Limits, Profile, Sort, Strategy, Val};
+    let q = args.first().ok_or("query Q [ARG..]")?;
+    let mut rest: Vec<&String> = args[1..].iter().collect();
+    let flag = |rest: &mut Vec<&String>, f: &str| match rest.iter().position(|a| *a == f) {
+        Some(i) => {
+            rest.remove(i);
+            true
+        }
+        None => false,
+    };
+    let (explain, show_sql, plain) = (flag(&mut rest, "--explain"), flag(&mut rest, "--sql"), flag(&mut rest, "--plain"));
+    let save = match rest.iter().position(|a| *a == "--save") {
+        Some(i) if i + 1 < rest.len() => {
+            let n = rest[i + 1].clone();
+            rest.drain(i..=i + 1);
+            Some(n)
+        }
+        Some(_) => return Err("--save NAME".into()),
+        None => None,
+    };
+    let p = if let Some(file) = q.strip_prefix('@') {
+        sophia_query::prepare_text(&std::fs::read_to_string(file)?)?
+    } else if q.trim_start().starts_with("query ") || q.trim_start().starts_with("select ") {
+        sophia_query::prepare_text(q)?
+    } else {
+        sophia_query::load(store, q)?
+    };
+    if let Some(name) = save {
+        sophia_query::save(store, &p, Some(&name))?;
+        println!("saved {} as {name}", p.id.to_hex());
+        return Ok(());
+    }
+    if rest.len() != p.query.params.len() {
+        return Err(format!("{} takes {} arguments ({})", p.names.query, p.query.params.len(), p.names.params.join(", ")).into());
+    }
+    let mut params = Vec::new();
+    for (a, s) in rest.iter().zip(&p.query.params) {
+        params.push(match s {
+            Sort::Id => Val::Id(lookup(store, a)?.digest()),
+            Sort::Text => Val::Text(a.to_string()),
+            Sort::Int => Val::Int(a.parse()?),
+        });
+    }
+    let strategy = if plain { Strategy::Plain } else { Strategy::Auto };
+    if explain {
+        println!("# id {}\n{}", p.id.to_hex(), p.print(Profile::Julia));
+        println!("# result: ({})", p.checked.columns.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
+        println!("# program ({}):\n{}", if plain || p.magic.is_none() { "as written" } else { "magic sets" }, p.explain(strategy));
+        return Ok(());
+    }
+    if show_sql {
+        println!("{}", p.to_sql(&params, strategy)?);
+        return Ok(());
+    }
+    let t0 = std::time::Instant::now();
+    let rows = store.read(|tx| p.run(tx, &params, Limits::default(), strategy).map_err(|e| sophia_store::StoreError::QueryRefused(e.to_string())))?;
+    let took = t0.elapsed();
+    print_table(&rows.to_table());
+    eprintln!("({} rows, {:.2?}; {} lookups, {} scans, {} derived)", rows.rows.len(), took, rows.stats.lookups, rows.stats.scans, rows.stats.derived);
+    Ok(())
+}
+
+fn print_table(t: &sophia_store::query::Table) {
     println!("{}", t.columns.join("\t"));
     for row in &t.rows {
         let cells: Vec<String> = row
@@ -114,7 +187,6 @@ fn sql<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, q: &st
     if t.truncated {
         eprintln!("(truncated at {} rows)", t.rows.len());
     }
-    Ok(())
 }
 
 fn lookup<B: Backend>(store: &Store<B>, what: &str) -> AnyResult<Target> {
@@ -294,6 +366,7 @@ fn run<B: Backend + Sync>(
             }
         }
         "sql" => sql(store, args.first().ok_or("sql QUERY")?)?,
+        "query" => query(store, args)?,
         other => return Err(format!("unknown command {other:?}\n{}", usage()).into()),
     }
     Ok(())

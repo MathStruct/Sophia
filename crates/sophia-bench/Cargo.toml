@@ -14,6 +14,7 @@ path = "src/sophia_bench.rs"
 sophia-hash.workspace = true
 sophialang-core.workspace = true
 sophia-store = { workspace = true, features = ["lmdb", "duckdb"] }
+sophia-query = { workspace = true, features = ["lmdb", "duckdb"] }
 tempfile.workspace = true
 
 [dev-dependencies]

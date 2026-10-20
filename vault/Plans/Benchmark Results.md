@@ -2,6 +2,159 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
+## 2026-10-20 (evening): B-17, Sophia's own query language (SPEC-007), and the zero-copy breakdown
+
+- Machine: AMD Ryzen 7 7800X3D, 8 threads, 30 GiB RAM, Linux 7.2.9-arch1-1.
+- Commit: the M3a commit (`sophia-query`).
+- Commands:
+  - `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000 --query-size 10000 --only-queries`
+  - `… --query-size 100000 --zero-copy --skip-queries --only-queries`
+  - `… --query-size 100000 --backends sqlite,redb,lmdb --only-queries` (DuckDB left out at 10⁵: ingest takes about 17 minutes)
+- Workload: the synthetic corpus (seed 42). Per-probe workloads use 20 random probes, and report time and rows per probe.
+- "No magic sets" runs compute the whole relation whatever the probe, so they are timed **once, on the first probe** (its row count is that probe's, not the average).
+- Native step limit: 50M join steps. SQL step limit: 50M SQLite VM steps. The two limits are not comparable.
+
+### B-17 at 10 000 definitions
+
+| backend | definitions | workload | executor | rows (per probe) | median |
+|---|---|---|---|---|---|
+| sqlite | 10000 | direct dependants | native | 2 | 0.005 ms |
+| sqlite | 10000 | direct dependants | SQL | 2 | 0.005 ms |
+| sqlite | 10000 | transitive dependants | native | 101 | 0.171 ms |
+| sqlite | 10000 | transitive dependants | native, no magic sets (1 probe) | 0 | 6160.590 ms |
+| sqlite | 10000 | transitive dependants | SQL | 101 | 0.167 ms |
+| sqlite | 10000 | transitive dependants | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 10000 | transitive dependencies | native | 406 | 0.970 ms |
+| sqlite | 10000 | transitive dependencies | native, no magic sets (1 probe) | 689 | 7358.344 ms |
+| sqlite | 10000 | transitive dependencies | SQL | 406 | 0.839 ms |
+| sqlite | 10000 | transitive dependencies | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 10000 | count by kind | native | 1 | 10.068 ms |
+| sqlite | 10000 | count by kind | SQL | 1 | 4.622 ms |
+| sqlite | 10000 | unreferenced definitions | native | 1 | 19.895 ms |
+| sqlite | 10000 | unreferenced definitions | SQL | 1 | 2.742 ms |
+| sqlite | 10000 | names by prefix | native | 100 | 3.818 ms |
+| sqlite | 10000 | names by prefix | SQL | 100 | 0.443 ms |
+| redb | 10000 | direct dependants | native | 2 | 0.002 ms |
+| redb | 10000 | transitive dependants | native | 101 | 0.180 ms |
+| redb | 10000 | transitive dependants | native, no magic sets (1 probe) | 0 | 5945.146 ms |
+| redb | 10000 | transitive dependencies | native | 406 | 1.219 ms |
+| redb | 10000 | transitive dependencies | native, no magic sets (1 probe) | 689 | 7286.904 ms |
+| redb | 10000 | count by kind | native | 1 | 5.438 ms |
+| redb | 10000 | unreferenced definitions | native | 1 | 13.600 ms |
+| redb | 10000 | names by prefix | native | 100 | 3.485 ms |
+| lmdb | 10000 | direct dependants | native | 2 | 0.002 ms |
+| lmdb | 10000 | transitive dependants | native | 101 | 0.132 ms |
+| lmdb | 10000 | transitive dependants | native, no magic sets (1 probe) | 0 | 5954.229 ms |
+| lmdb | 10000 | transitive dependencies | native | 406 | 0.995 ms |
+| lmdb | 10000 | transitive dependencies | native, no magic sets (1 probe) | 689 | 7523.000 ms |
+| lmdb | 10000 | count by kind | native | 1 | 4.794 ms |
+| lmdb | 10000 | unreferenced definitions | native | 1 | 8.254 ms |
+| lmdb | 10000 | names by prefix | native | 100 | 3.005 ms |
+| duckdb | 10000 | direct dependants | native | 2 | 0.336 ms |
+| duckdb | 10000 | transitive dependants | native | 101 | 18.754 ms |
+| duckdb | 10000 | transitive dependants | native, no magic sets (1 probe) | 0 | 8273.397 ms |
+| duckdb | 10000 | transitive dependencies | native | 406 | 146.489 ms |
+| duckdb | 10000 | transitive dependencies | native, no magic sets (1 probe) | 689 | 9887.424 ms |
+| duckdb | 10000 | count by kind | native | 1 | 7.601 ms |
+| duckdb | 10000 | unreferenced definitions | native | 1 | 1982.238 ms |
+| duckdb | 10000 | names by prefix | native | 100 | 6.366 ms |
+
+### B-17 at 100 000 definitions (SQLite, redb, LMDB)
+
+The first attempt at this size was stopped by hand: the non-magic closure grew past 14 GB before reaching the 50M-step limit. That is how the **derived-tuple cap** (5M by default) came about: the step budget alone does not bound memory. With the cap, the run stayed near 2 GB.
+
+| backend | definitions | workload | executor | rows (per probe) | median |
+|---|---|---|---|---|---|
+| sqlite | 100000 | direct dependants | native | 2 | 0.004 ms |
+| sqlite | 100000 | direct dependants | SQL | 2 | 0.006 ms |
+| sqlite | 100000 | transitive dependants | native | 225 | 0.643 ms |
+| sqlite | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| sqlite | 100000 | transitive dependants | SQL | 225 | 0.611 ms |
+| sqlite | 100000 | transitive dependants | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependencies | native | 2055 | 7.572 ms |
+| sqlite | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| sqlite | 100000 | transitive dependencies | SQL | 2055 | 6.903 ms |
+| sqlite | 100000 | transitive dependencies | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | count by kind | native | 1 | 105.918 ms |
+| sqlite | 100000 | count by kind | SQL | 1 | 57.352 ms |
+| sqlite | 100000 | unreferenced definitions | native | 1 | 309.679 ms |
+| sqlite | 100000 | unreferenced definitions | SQL | 1 | 32.478 ms |
+| sqlite | 100000 | names by prefix | native | 100 | 38.649 ms |
+| sqlite | 100000 | names by prefix | SQL | 100 | 4.823 ms |
+| redb | 100000 | direct dependants | native | 2 | 0.002 ms |
+| redb | 100000 | transitive dependants | native | 225 | 0.494 ms |
+| redb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| redb | 100000 | transitive dependencies | native | 2055 | 6.854 ms |
+| redb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| redb | 100000 | count by kind | native | 1 | 65.018 ms |
+| redb | 100000 | unreferenced definitions | native | 1 | 167.503 ms |
+| redb | 100000 | names by prefix | native | 100 | 39.374 ms |
+| lmdb | 100000 | direct dependants | native | 2 | 0.001 ms |
+| lmdb | 100000 | transitive dependants | native | 225 | 0.368 ms |
+| lmdb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| lmdb | 100000 | transitive dependencies | native | 2055 | 5.853 ms |
+| lmdb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the derived-tuple limit |
+| lmdb | 100000 | count by kind | native | 1 | 51.038 ms |
+| lmdb | 100000 | unreferenced definitions | native | 1 | 98.657 ms |
+| lmdb | 100000 | names by prefix | native | 100 | 31.189 ms |
+
+### Zero-copy breakdown (LMDB, 100 000 definitions)
+
+| step | ns per record |
+|---|---|
+| get, borrowed from the map (no copy) | 207 |
+| get + copy into a Vec | 620 |
+| get + walk the framing in place (no allocation) | 323 |
+| `ReadTx::record` (copy + decode the record) | 868 |
+| record + decode the core term (heap objects) | 11597 |
+
+### What this says
+
+**Magic sets are the first-order effect.**
+- Without them, "transitive dependants of X" evaluates the closure of the whole store:
+  - 6–8 s per query natively;
+  - over the step limit in SQL.
+- With them, it takes 0.13–0.18 ms on SQLite, redb and LMDB. That is 4.5 orders of magnitude, far more than any backend difference.
+- The rewrite is an IR → IR transformation, so the SQL translation benefits identically (0.167 ms).
+
+**At 10⁵ the shape holds.** With magic sets, transitive dependants take:
+- 0.37 ms on LMDB;
+- 0.49 ms on redb;
+- 0.64 ms on SQLite natively, and 0.61 ms as SQL.
+
+Without magic sets, every executor stops at its limit. Native count-by-kind and negation scale linearly (LMDB: 51 ms and 99 ms; SQLite SQL: 57 ms and 32 ms).
+
+**Backend independence costs little on recursive queries.**
+- On SQLite, the native executor and SQLite's own engine running the translated SQL are equal: 0.171 against 0.167 ms for transitive dependants, 0.97 against 0.84 ms for dependencies.
+- LMDB is the fastest native backend (0.132 ms). It has no query language of its own, so this is exactly the case S-ADR-0011 was for.
+
+**Set-at-a-time workloads favour SQL by 2–9× on SQLite:**
+
+| Workload | Native | SQL |
+|---|---|---|
+| count by kind | 10.1 ms | 4.6 ms |
+| unreferenced definitions | 19.9 ms | 2.7 ms |
+| names by prefix | 3.8 ms | 0.44 ms |
+
+The native executor works tuple at a time:
+- with `Val` allocations per tuple;
+- one `dependants` lookup per definition for the negation;
+- a full name scan where a prefix range scan would do.
+
+These are known, fixable costs (SPEC-007 §11):
+- a prefix access path;
+- set-at-a-time anti-joins for negation over a scanned relation;
+- borrowed field reads.
+
+LMDB natively is already within 2× of SQLite's SQL on count by kind.
+
+**DuckDB runs the native executor correctly but slowly on point lookups** (about 0.3 ms each): 18.8 ms for transitive dependants, 2 s for the negation. It was 1.9 s for count by kind before its set-at-a-time access paths (`all_kinds`, `all_refs`) were added, and 7.6 ms after. Confirms S-ADR-0010: DuckDB is for analytics, not a primary.
+
+**Zero-copy (SR-101):** see [[Zero-Copy Storage of Canonical Graphs]].
+- Borrowed LMDB reads cost 0.21 µs; the store's copy-and-decode costs 0.87 µs.
+- Decoding the core term into heap objects costs 11.6 µs.
+- The database is not where time is lost. Heap term construction is.
+
 ## 2026-10-20 (later): four backends (SQLite, redb, LMDB, DuckDB)
 
 - **Machine and workload:** as below (Ryzen 7 7800X3D, synthetic corpus, seed 42, batches of 1000).

@@ -567,6 +567,30 @@ impl ReadTx for DuckTx<'_> {
         let v: Vec<_> = st.query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
         v.into_iter().map(|r| r.map_err(be)).collect()
     }
+
+    fn kind_of(&self, id: &Digest) -> Result<Option<String>> {
+        let mut st = self.tx.prepare_cached("SELECT kind FROM t_definition WHERE id = $1").map_err(be)?;
+        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, String>(0)).map_err(be)?.collect();
+        v.into_iter().next().transpose().map_err(be)
+    }
+
+    fn refs_of(&self, id: &Digest) -> Result<Vec<Digest>> {
+        let mut st = self.tx.prepare_cached("SELECT dst FROM t_ref WHERE src = $1 ORDER BY dst").map_err(be)?;
+        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
+    }
+
+    fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
+        let mut st = self.tx.prepare_cached("SELECT id, kind FROM t_definition").map_err(be)?;
+        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, String>(1)?))).map_err(be)?.collect();
+        v.into_iter().map(|r| { let (i, k) = r.map_err(be)?; Ok((dg(i)?, k)) }).collect()
+    }
+
+    fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
+        let mut st = self.tx.prepare_cached("SELECT src, dst FROM t_ref").map_err(be)?;
+        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
+        v.into_iter().map(|r| { let (a, b) = r.map_err(be)?; Ok((dg(a)?, dg(b)?)) }).collect()
+    }
 }
 
 impl WriteTx for DuckTx<'_> {

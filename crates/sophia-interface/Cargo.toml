@@ -12,14 +12,15 @@ path = "src/sophia_interface.rs"
 
 [features]
 default = ["sqlite", "redb"]
-sqlite = ["sophia-store/sqlite"]
-redb = ["sophia-store/redb"]
-lmdb = ["sophia-store/lmdb"]
-duckdb = ["sophia-store/duckdb"]
+sqlite = ["sophia-store/sqlite", "sophia-query/sqlite"]
+redb = ["sophia-store/redb", "sophia-query/redb"]
+lmdb = ["sophia-store/lmdb", "sophia-query/lmdb"]
+duckdb = ["sophia-store/duckdb", "sophia-query/duckdb"]
 
 [dependencies]
 sophia-hash.workspace = true
 sophia-store = { path = "../sophia-store", default-features = false }
+sophia-query = { path = "../sophia-query", default-features = false }
 sophialang-core.workspace = true
 sophialang-syntax.workspace = true
 thiserror.workspace = true

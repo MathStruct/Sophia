@@ -210,7 +210,7 @@ Typings are derived facts of kind `typing`, carrying `system` (for example `soph
   - `facts(id, kind, subject_id, by, stale)`
   - `log(seq, op, subject, old, new)`
 - How it is enforced read-only is in [[SPEC-004 Moonkale Interface]] §5.
-- **Later: `datalog`**, evaluated by Sophia (semi-naive), over the same relations. The design target (Q4) is for it to be the same Datalog as sophialang's own relations and rules ([[Theory of the v0 Store]] §5).
+- **Now (2026-10-20): `query`, Sophia's own language** ([[SPEC-007 Sophia Query Language]], [[S-ADR-0011 Sophia has its own query algebra]]). It is stratified Datalog over base relations, with a Julia-flavoured syntax, content ids, and semi-naive evaluation with magic sets, on **every** backend. This replaces the planned `datalog` dialect. `sql` stays as a dialect for ad hoc analytics on SQLite and DuckDB. The design target (Q4) is unchanged: the query language and sophialang's own relations and rules should converge ([[Theory of the v0 Store]] §5; SPEC-007 §9).
 
 ## 12. Storage backends (SR-17, 39, 64)
 

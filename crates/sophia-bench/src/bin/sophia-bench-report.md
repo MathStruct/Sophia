@@ -12,3 +12,8 @@ It reports:
 - the machine;
 - canonical size statistics: median, p90, mean, references per definition, and the share of reference digests in the bytes, with the saving that 8-byte local ids would give;
 - per backend and size: ingest time and rate, size on disk, bytes per definition, the median latency of a record lookup by id, a name lookup and a dependants lookup (1000 random probes), the closure of the last definition, and a full read of the change feed.
+
+**B-17 and zero-copy** (2026-10-20):
+- `--query-size N` sets the size for the query workloads (B-17); `--skip-queries` and `--only-queries` select them.
+- `--zero-copy` adds the LMDB read breakdown.
+- Bare flags go through `flag()`. Before that fix, `arg()` expected a value after every flag, so `--skip-analytics` never worked.

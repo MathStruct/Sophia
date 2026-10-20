@@ -112,6 +112,30 @@ An external review (ChatGPT) of commit `27cb3a7`, passed on by Daniel, who asked
 | SR-88 | Migrations separate canonical identity (normaliser, hash) from physical encoding. | Rev §8.7 | later | specified (SPEC-006 §6) |
 | SR-89 | **P0 gate:** foundational invariants count as settled only after the three acceptance demonstrations pass: symmetric recursion, two-view editing, reproducible dispatch. | Rev §9, §10 | now | Sophia side: demonstrations 1 and 3 (store level) pass; 2 passes on Sophia's side, Moonkale's client side open |
 
+## From Daniel's query-language proposal, 2026-10-20
+
+Daniel proposed a native query language and forwarded an external review of the proposal as his direction ([[Review 2026-10-20 Query Language (external)]]). "Q §n" cites the review's sections; "Q msg" its suggested message, which Daniel sent on.
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-90 | Sophia has its **own storage-independent query algebra and query language**. SQL is one frontend or translation target, not the fundamental interface. | Q §1, Q msg | now | done (SPEC-007; [[S-ADR-0011 Sophia has its own query algebra]]) |
+| SR-91 | Queries are first-class Sophia statements, stored in the graph. | Q §3, Q msg 1 | now | done (SPEC-007 §8) |
+| SR-92 | Queries have a canonical representation and stable content ids; their physical encoding may be compressed. | Q §3, Q msg 2 | now | done, except literal order (SPEC-007 §4.1, SP-009) |
+| SR-93 | Proofs, optimisations, compiled implementations and benchmark results can be attached to queries. | Q §3, Q msg 3 | later | possible today through annotations and facts on the query id (SPEC-007 §8); nothing produces them yet |
+| SR-94 | Query results are identified by query, snapshot and parameters, not by the query's hash. | Q §3, Q msg 4 | now | done, with a coarse snapshot (SPEC-007 §4.3, SP-010) |
+| SR-95 | Several syntax frontends, Julia-like by default. | Q §5, Q msg 5 | now | done: `julia` (parse and print), `datalog` (print) (SPEC-007 §5) |
+| SR-96 | Query semantics are independent of storage. Backends expose access paths and capabilities; the planner decides. The algebra depends on neither SQL nor LMDB's key order. | Q §1, §6, Q msg 6 | now | done (SPEC-007 §2, §6; all four backends) |
+| SR-97 | The query DSL can eventually be implemented in sophialang itself. | Q msg 7 | M6 | planned (SPEC-007 §9, S-ADR-0012) |
+| SR-98 | Query planning, optimisation and incremental view maintenance are extensible components. | Q msg 8 | now (planner, rewrite); later (incremental) | partly done: greedy planner, magic sets as IR → IR (SPEC-007 §6) |
+| SR-99 | Ordinary sophialang evaluation and declarative relational query semantics stay distinct; queries are a typed DSL `Query{S, A, E}`. | Q §5, Q msg 9 | now | done (SPEC-007 §3.4; [[S-ADR-0012 The query IR is a separate IR on shared primitives]]) |
+| SR-100 | Moonkale and AI agents use the same typed query interface, not backend-specific SQL. | Q msg 10 | now (Moonkale); M3b (agents) | done for Moonkale (the `query` dialect, SPEC-007 §8) |
+| SR-101 | Investigate storing Sophia's canonical graph almost directly as LMDB values: binary encoding, but no JSON or SQL layer; zero-copy is an optimisation, never a correctness requirement. | Q §4, Q msg | now (measure) | measured ([[Zero-Copy Storage of Canonical Graphs]]) |
+| SR-102 | Datalog (recursive rules) is part of the query algebra from the start, even if an executor supports only a subset. | Q §6 | now | done |
+| SR-103 | Study TypeQL, CQL and Datalog; adopt ideas, not systems. | Q §2, Q msg | now | done ([[Query Languages for Sophia]]) |
+| SR-104 | No permanent backend before Moonkale's edit-latency benchmarks; LMDB's single writer is measured before it serves a multi-agent server. | Q §6, Q msg | before the choice | accepted ([[S-ADR-0010 Primary backend and an analytics replica]]) |
+| SR-105 | The query IR and Moonkale integration come before more storage backends; no new database engine is built. | Q msg | now | followed |
+| SR-106 | Long-term: program and query optimisation converge. Queries become compiled functions, functions are partially evaluated against database state, proofs establish query equivalences, materialised views are reusable computations. Only after a small, correct algebra works on at least two backends. | Q msg (end) | later | direction (SPEC-007 §11) |
+
 ## From Moonkale
 
 Each row cites the Moonkale page or section it comes from. Moonkale will cite these numbers back from its Code Graph Schema.
@@ -120,7 +144,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 |---|---|---|---|---|
 | SR-30 | A Rust crate that a Moonkale source adapter wraps as a `moonkale_core::Source`. A server mode comes later. | M (reply §2; ADR-0005) | v0 | specified (SPEC-004 §1–3) |
 | SR-31 | Browsing through `Query::{Node, Children, Neighbours, All}`. | M (reply §2; `core/src/source/query.rs`) | v0 | specified (SPEC-004 §2) |
-| SR-32 | A named `Query::Text` dialect for Sophia's own query language, with a stated result shape (table, subgraph, or both). | M (reply §2; North Star §8) | v0: `sql` read-only; later: `datalog` | specified (SPEC-001 §11) |
+| SR-32 | A named `Query::Text` dialect for Sophia's own query language, with a stated result shape (table, subgraph, or both). | M (reply §2; North Star §8) | v0: `sql` read-only; now also `query` | done: `sql` (SPEC-001 §11) and `query`, Sophia's own language, on every backend (SPEC-007 §8) |
 | SR-33 | Structural edits through `Source::apply`: add, replace or delete a definition, rename (move a name), add or remove an annotation. Edits are revision-checked and return the new content ids. | M (reply §2; Code Graph Schema §5) | v0 (without annotations) | specified (SPEC-004 §1–3.3) |
 | SR-34 | A canonical printer that turns a definition into text, plus a parser from text back into the graph that reports errors as diagnostics. | M (reply §2; ADR-0028) | v0 | specified (SPEC-005) |
 | SR-35 | Typechecking and elaboration on demand. The results are L3 nodes with provenance (`by`, `by_version`, `input`, `derived_at`), so stale results show as stale. | M (Code Graph Schema §7; North Star §5) | later (one simple checker in v0.x) | specified (SPEC-001 §8) |
@@ -142,6 +166,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-90 to SR-106 added from Daniel's query-language proposal and its forwarded review; SR-32 updated (the `query` dialect).
 - 2026-10-20: SR-75 to SR-89 added from the external review.
 - 2026-10-20: SR-25 to SR-29 and SR-51 to SR-74 added from Daniel's message of 2026-10-20 (the SR-25 to SR-29 block was still free).
 - 2026-10-17: SR-50 added from the Moonkale agent's review.

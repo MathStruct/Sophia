@@ -50,3 +50,5 @@ None of them is a Moonkale, driver or async type.
 
 - **A deadlock:** `neighbours` called `children` inside an open read, and SQLite's connection mutex is not reentrant. Fixed with `children_in(tx, …)`. Rule kept for this crate: never call a public method from inside a `store.read` closure.
 - **Not atomic across steps:** an edit is several store transactions (add records, update names, attach relation members). A failure halfway leaves a consistent but partial state, never a corrupt one. A single-transaction batch API is a later improvement ([[SP-008 Edits span several transactions]]).
+
+**The `query` dialect** (2026-10-20, [[SPEC-007 Sophia Query Language]] §8): `query(text, limits)` runs Sophia's own query language on any backend and returns the table (ids as hex text) plus a node for every id cell. `classify("query")` is `ReadOnly`. A stored query's name prints in the query syntax (`print_target`).

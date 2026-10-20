@@ -171,7 +171,47 @@ fn all_draws_structure<B: Backend + Sync>(i: Interface<B>) {
     assert!(small.truncated && small.nodes.len() == 5);
 }
 
-both!(all_draws_structure, group_members_cannot_be_overwritten_silently, browsing, editing, renaming_and_feed, profiles_switch, creating);
+/// SPEC-007 §8: the `query` dialect, and queries stored, printed and edited
+/// as definitions through the same text operations as code.
+fn queries_through_the_interface<B: Backend + Sync>(i: Interface<B>) {
+    assert_eq!(Interface::<B>::classify("query"), Risk::ReadOnly);
+    // The dialect: who uses `sample.add`, transitively.
+    let text = r#"query users
+        uses_(a, b) = refs(a, b)
+        uses_(a, c) = refs(a, b) && uses_(b, c)
+        select a, p where name("sample.add", t) && uses_(a, t) && name(p, a)
+    end"#;
+    let (table, g) = i.query(text, Default::default()).unwrap();
+    assert_eq!(table.columns, vec!["a", "p"]);
+    assert!(table.rows.iter().any(|r| r[1] == sophia_store::query::Value::Text("sample.add_test".into())), "{table:?}");
+    assert!(!g.nodes.is_empty(), "id cells become nodes");
+
+    // Stored as a definition under a name, printed back as query text.
+    let (key, w) = i.create_text(&Key::ns("sample"), "queries/users", text).unwrap();
+    assert_eq!(key, Key::name("sample.queries.users"));
+    let (printed, token) = i.fetch_text(&key).unwrap();
+    assert_eq!(token, w.version);
+    assert!(printed.starts_with("query users"), "{printed}");
+    let node = i.node(&Key::Content(w.targets[0].1)).unwrap().unwrap();
+    assert!(node.props.contains(&("lang".into(), Prop::Text("sophia-query".into()))));
+
+    // Edited through the text, with the usual token check.
+    let edited = printed.replace("select a, p", "select p");
+    let w2 = i.write_text(&key, token, &edited).unwrap();
+    assert_ne!(w2.targets[0].1, w.targets[0].1, "an edit gives a new query id");
+    assert!(matches!(i.write_text(&key, token, &edited), Err(EditError::Conflict { .. })));
+    // Bad text is a diagnostic with a position, and nothing changes.
+    match i.write_text(&key, w2.version, "query users
+ select p where nope(p)
+end") {
+        Err(EditError::Diagnostics(d)) => assert!(d[0].message.contains("nope")),
+        other => panic!("{other:?}"),
+    }
+    let (_, t3) = i.fetch_text(&key).unwrap();
+    assert_eq!(t3, w2.version);
+}
+
+both!(all_draws_structure, group_members_cannot_be_overwritten_silently, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {
     fn open_existing_for_test(i: &Self, reader: &str) -> String;

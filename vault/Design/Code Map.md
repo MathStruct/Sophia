@@ -35,6 +35,10 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `print.rs`, `profile.rs`, `diagnostic.rs` | [[print]], [[profile]], [[diagnostic]] | core → text; profiles; diagnostics |
 | `sophia-interface` | `sophia_interface.rs` | [[sophia_interface]] | what Moonkale's adapter wraps (SPEC-004) |
 | | `edit.rs`, `profiles.rs` | [[edit]], [[profiles]] | edits through text; profiles in the database |
+| `sophia-query` | `sophia_query.rs` | [[sophia_query]] | Sophia's own query language (SPEC-007): prepare, run, SQL, cache, store |
+| | `ir.rs`, `syntax.rs`, `canon.rs` | [[ir]], [[syntax]], [[canon]] | the IR; Julia-flavoured syntax and printers; canonical form and ids |
+| | `check.rs`, `plan.rs`, `magic.rs` | [[check]], [[plan]], [[magic]] | sorts, safety, strata; literal ordering; the magic-set rewrite |
+| | `eval.rs`, `sql.rs` | [[eval]], [[sql]] | the native executor; the SQL translation |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
 | `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 

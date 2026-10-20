@@ -236,6 +236,26 @@ impl<X: Kv> ReadTx for X {
             .map(|(k, v)| Ok((String::from_utf8(k).map_err(|_| StoreError::Codec("meta key".into()))?, v)))
             .collect()
     }
+
+    fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
+        self.scan(Table::Kind, &[], &[], ALL_ROWS)?
+            .iter()
+            .map(|(k, _)| {
+                let kind = std::str::from_utf8(&k[..k.len().saturating_sub(33)]).map_err(|_| StoreError::Codec("kind".into()))?;
+                Ok((tail_digest(k)?, kind.to_string()))
+            })
+            .collect()
+    }
+
+    fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
+        self.scan(Table::RefRev, &[], &[], ALL_ROWS)?
+            .iter()
+            .map(|(k, _)| {
+                let dst = Digest::from_slice(k.get(..32).unwrap_or_default()).ok_or_else(|| StoreError::Codec("key".into()))?;
+                Ok((tail_digest(k)?, dst))
+            })
+            .collect()
+    }
 }
 
 impl<X: KvWrite> WriteTx for X {

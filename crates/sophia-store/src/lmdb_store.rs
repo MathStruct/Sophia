@@ -54,6 +54,18 @@ impl Lmdb {
         Ok(Lmdb { env, dbs, path: path.as_ref().to_path_buf() })
     }
 
+    /// Calls `f` with each record's stored bytes, borrowed straight from the
+    /// memory map, inside one read transaction: no copy, no decode. For the
+    /// zero-copy measurements of [[Zero-Copy Storage of Canonical Graphs]].
+    pub fn with_record_bytes(&self, ids: &[sophia_hash::Digest], mut f: impl FnMut(Option<&[u8]>)) -> Result<()> {
+        let txn = self.env.read_txn().map_err(be)?;
+        let db = self.db(Table::Rec);
+        for id in ids {
+            f(db.get(&txn, id.as_bytes()).map_err(be)?);
+        }
+        Ok(())
+    }
+
     fn db(&self, t: Table) -> Db {
         self.dbs[Table::ALL.iter().position(|x| *x == t).expect("table")]
     }

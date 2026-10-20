@@ -1,0 +1,28 @@
+# Sophia's own query language: IR, syntax, canonical identity, executors.
+# See src/sophia_query.md and vault/Specifications/SPEC-007 Sophia Query Language.md.
+[package]
+name = "sophia-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/sophia_query.rs"
+
+[features]
+default = ["sqlite", "redb"]
+sqlite = ["sophia-store/sqlite"]
+redb = ["sophia-store/redb"]
+lmdb = ["sophia-store/lmdb"]
+duckdb = ["sophia-store/duckdb"]
+
+[dependencies]
+sophia-hash.workspace = true
+sophia-store = { path = "../sophia-store", default-features = false }
+thiserror.workspace = true
+
+[dev-dependencies]
+sophialang-core.workspace = true
+tempfile.workspace = true
+proptest.workspace = true

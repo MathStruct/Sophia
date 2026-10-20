@@ -44,6 +44,51 @@ pub trait ReadTx {
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>>;
     /// Meta rows whose key starts with `prefix`, sorted by key.
     fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>>;
+
+    // Access paths for the query executor (SPEC-007 §6). The defaults are
+    // correct on every backend; a backend overrides one when it has an index
+    // that answers it without decoding records.
+
+    /// A definition's kind.
+    fn kind_of(&self, id: &Digest) -> Result<Option<String>> {
+        Ok(self.record(id)?.map(|r| r.kind))
+    }
+
+    /// The definitions `id` references directly.
+    fn refs_of(&self, id: &Digest) -> Result<Vec<Digest>> {
+        Ok(self.record(id)?.map(|r| r.refs).unwrap_or_default())
+    }
+
+    /// Every definition with its kind.
+    fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
+        let mut out = Vec::new();
+        for id in self.records_of_kind(None, usize::MAX)? {
+            if let Some(k) = self.kind_of(&id)? {
+                out.push((id, k));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Every reference edge (from, to).
+    fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
+        let mut out = Vec::new();
+        for id in self.records_of_kind(None, usize::MAX)? {
+            for r in self.refs_of(&id)? {
+                out.push((id, r));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Every nominal entity's id.
+    fn nominal_ids(&self) -> Result<Vec<NominalId>> {
+        Ok(self
+            .meta_prefix("nominal-index/")?
+            .into_iter()
+            .filter_map(|(k, _)| k["nominal-index/".len()..].parse().ok())
+            .collect())
+    }
 }
 
 /// Writes, inside a transaction. Every write is part of one atomic commit.

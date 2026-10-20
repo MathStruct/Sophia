@@ -10,3 +10,4 @@
 | [[SPEC-004 Moonkale Interface]] | the boundary Moonkale wraps (WP-68); the first priority | draft; its 2026-10-17 form was reviewed by the Moonkale agent |
 | [[SPEC-006 Worlds, Artifacts and Evidence]] | world snapshots, artifact identity and evidence, parameter artifacts, proof trust, migration | draft (from the external review) |
 | [[SPEC-005 Rendering Profiles]] | display as user settings stored in the database; the Julia-flavoured default | draft |
+| [[SPEC-007 Sophia Query Language]] | Sophia's own storage-independent query language: stratified Datalog over base relations, Julia-flavoured syntax, content ids, result ids, native executor, magic sets, SQL translation | draft; implemented (`sophia-query`) |

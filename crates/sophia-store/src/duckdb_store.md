@@ -32,3 +32,5 @@ It does **not** restrict queries to the documented views: tables can be read, re
 - **`LIMIT -1` is an error** in DuckDB, while SQLite reads it as "no limit". "No limit" was passed as `usize::MAX as i64`, which is −1. It is now clamped in both backends.
 - **About 100× slower than SQLite on Sophia's workload** of many small transactions (about 100 definitions/s ingest, about 200 µs lookups), and **3–20× faster on analytical joins and scans**. So DuckDB belongs as an analytics replica loaded in bulk (the Appender API), not as the primary store.
 - **The bundled build compiles DuckDB's C++ engine** (minutes on first build). The backend is behind the `duckdb` feature and is not in Moonkale's default build.
+
+**Access paths** (2026-10-20): DuckDB overrides `kind_of`, `refs_of`, `all_kinds` and `all_refs` with SQL. Without the scan overrides, Sophia's "count by kind" query made 10⁴ point queries and took 1.9 s; with them it takes 7.6 ms.

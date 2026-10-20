@@ -19,3 +19,5 @@
 - **`create_text`, `create_dir`, `rename`, `delete`:** as SPEC-004 §3. An empty namespace is a meta row `ns/<path>`.
 - **The settings node:** writing it replaces the reader's personal profile `reader-<id>` (`based_on` plus overrides), points the reader's default at it, and bumps the reader's settings version. It is one logged transaction, so Moonkale sees `reprint_all`.
 - **`load_sample`:** the 16 sample definitions, the two relations as nominal entities with their members, and the built-ins.
+
+**Queries as text** (2026-10-20): `create_text` with text whose first line starts with `query` or `select` stores a query under the new name (`sophia_query::save`). `write_text` on a name that points at a query re-parses it, checks the edit token, and moves the name with `Store::update`. Query parse errors become diagnostics with byte spans.

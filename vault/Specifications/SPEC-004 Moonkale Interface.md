@@ -113,7 +113,8 @@ The `Version` returned with a name's text is an **edit token**: a hash over ever
   - a row cap that sets `Table.truncated`;
   - a step budget.
 - `Source::classify(dialect, text) → Risk` is implemented, so Moonkale's policy can gate queries written by agents.
-- `datalog` later needs a new `TextDialect` variant, on Moonkale's side.
+- **`Query::Text { dialect: "query" }`** (2026-10-20) runs Sophia's own query language ([[SPEC-007 Sophia Query Language]]) on **every backend**. The result is a `Table` (ids as hex text, like the `sql` views), and every id cell that names a definition or nominal entity is also returned as a node. It is read-only by construction: the language has no writes. It is bounded by a join-step budget, a row cap and a derived-tuple cap (memory), and the parser is bounded in size. `classify("query")` is `ReadOnly`. On Moonkale's side it needs a `TextDialect` variant (this replaces the planned `datalog`).
+- **Stored queries are definitions.** `create_text` with text starting with `query` or `select` stores a query under the new name. `fetch_text` prints it in the query syntax, and `write_text` re-parses it with the usual edit-token check. So Moonkale can show, edit and keep queries next to code with no new operations (SPEC-007 §8).
 - For a non-SQLite backend, `sql` runs against the backend's equivalent views where it has them (DuckDB). Otherwise the query is refused, and the backend's own dialect (for example Cypher on LadybugDB) is offered as an additional dialect.
 
 ## 6. The change feed

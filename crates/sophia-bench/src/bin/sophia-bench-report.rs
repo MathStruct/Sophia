@@ -3,6 +3,7 @@
 //! report for vault/Plans/Benchmark Results.md.
 //!
 //! Usage: sophia-bench-report [--sizes 1000,10000,100000] [--backends sqlite,redb,lmdb,duckdb] [--seed N]
+//!        [--analytics-size N] [--skip-analytics] [--query-size N] [--skip-queries] [--only-queries] [--zero-copy]
 
 use std::time::{Duration, Instant};
 
@@ -14,6 +15,11 @@ use sophialang_core::Term;
 fn arg(name: &str) -> Option<String> {
     let args: Vec<String> = std::env::args().collect();
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
+}
+
+/// A flag without a value.
+fn flag(name: &str) -> bool {
+    std::env::args().any(|a| a == name)
 }
 
 fn machine() -> String {
@@ -111,6 +117,142 @@ fn analytics<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, 
     }
 }
 
+/// B-17: query workloads in Sophia's query language (SPEC-007), on every
+/// backend with the native executor, and on SQLite also through the SQL
+/// translation. Times are medians of 5 runs; per-probe workloads are divided
+/// by the number of probes.
+const WORKLOADS: [(&str, &str, bool); 6] = [
+    ("direct dependants", "query w(t::Id)\n select a where refs(a, t)\nend", true),
+    (
+        "transitive dependants",
+        "query w(t::Id)\n dep(a, b) = refs(a, b)\n dep(a, c) = refs(a, b) && dep(b, c)\n select a where dep(a, t)\nend",
+        true,
+    ),
+    (
+        "transitive dependencies",
+        "query w(t::Id)\n dep(a, b) = refs(a, b)\n dep(a, c) = dep(a, b) && refs(b, c)\n select c where dep(t, c)\nend",
+        true,
+    ),
+    ("count by kind", "select k, count(d) where def(d, k)", false),
+    ("unreferenced definitions", "select count(d) where def(d, _) && !refs(_, d)", false),
+    ("names by prefix", "select p where name(p, _) && startswith(p, \"gen.m00001\")", false),
+];
+
+type SqlRun<'a> = &'a dyn Fn(&sophia_query::Prepared, &[sophia_query::Val], sophia_query::Strategy) -> sophia_query::Result<sophia_query::Rows>;
+
+fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usize, sql: Option<SqlRun>) {
+    use sophia_query::{Limits, Strategy, Val, prepare_text};
+    let mut rng = Rng::new(0x5150);
+    let probes: Vec<Val> = (0..20).map(|_| Val::Id(records[rng.below(records.len() as u64) as usize].id)).collect();
+    let limits = Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Limits::default() };
+    let name = store.backend().name();
+    for (label, text, per_probe) in WORKLOADS {
+        let p = prepare_text(text).unwrap();
+        let args: Vec<Vec<Val>> = if per_probe { probes.iter().map(|v| vec![v.clone()]).collect() } else { vec![vec![]] };
+        let mut strategies = vec![("native", Strategy::Auto)];
+        if p.magic.is_some() {
+            strategies.push(("native, no magic sets (1 probe)", Strategy::Plain));
+        }
+        let mut cells = Vec::new();
+        for (exec, strategy) in strategies {
+            // Without magic sets a run computes the whole relation whatever
+            // the probe, so one probe, once, is enough to show the cost.
+            let (args, runs) = if strategy == Strategy::Plain { (&args[..1], 1) } else { (&args[..], 5) };
+            let mut rows = 0;
+            let mut failed = None;
+            let t = median_time(runs, || {
+                rows = 0;
+                for a in args {
+                    match store.read(|tx| Ok(p.run(tx, a, limits, strategy))).unwrap() {
+                        Ok(r) => rows += r.rows.len(),
+                        Err(e) => failed = Some(e.to_string()),
+                    }
+                }
+            });
+            cells.push((exec.to_string(), t / args.len() as u32, rows / args.len(), failed));
+        }
+        if let Some(run_sql) = sql {
+            for (exec, strategy) in [("SQL", Strategy::Auto), ("SQL, no magic sets (1 probe)", Strategy::Plain)] {
+                if exec.contains("no magic") && p.magic.is_none() {
+                    continue;
+                }
+                let (args, runs) = if strategy == Strategy::Plain { (&args[..1], 1) } else { (&args[..], 5) };
+                let mut rows = 0;
+                let mut failed = None;
+                let t = median_time(runs, || {
+                    rows = 0;
+                    for a in args {
+                        match run_sql(&p, a, strategy) {
+                            Ok(r) => rows += r.rows.len(),
+                            Err(e) => failed = Some(e.to_string()),
+                        }
+                    }
+                });
+                cells.push((exec.to_string(), t / args.len() as u32, rows / args.len(), failed));
+            }
+        }
+        for (exec, t, rows, failed) in cells {
+            let time = match failed {
+                Some(e) if e.contains("derived tuples") => "aborted at the derived-tuple limit".to_string(),
+                Some(e) if e.contains("limit") || e.contains("interrupt") => "aborted at the step limit".to_string(),
+                Some(e) => format!("error: {e}"),
+                None => format!("{:.3} ms", t.as_secs_f64() * 1e3),
+            };
+            println!("| {name} | {n} | {label} | {exec} | {rows} | {time} |");
+        }
+    }
+}
+
+/// The zero-copy question (SR-101): where the time of an LMDB record read
+/// goes. 1000 random probes in one read transaction, median of 5 runs.
+fn zero_copy(n: usize, seed: u64, shape: Shape) {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Store::new(sophia_store::lmdb_store::Lmdb::open(dir.path().join("z.lmdb")).unwrap());
+    let records = ingest(&s, &generate(seed, n, shape), 1000);
+    let mut rng = Rng::new(seed ^ 0x2C0);
+    let ids: Vec<Digest> = (0..1000).map(|_| records[rng.below(records.len() as u64) as usize].id).collect();
+    let per = |d: Duration| d.as_secs_f64() * 1e9 / ids.len() as f64;
+    let borrowed = per(median_time(5, || {
+        s.backend().with_record_bytes(&ids, |b| { std::hint::black_box(b.map(|b| b.len())); }).unwrap()
+    }));
+    let copied = per(median_time(5, || {
+        s.backend().with_record_bytes(&ids, |b| { std::hint::black_box(b.map(<[u8]>::to_vec)); }).unwrap()
+    }));
+    let walked = per(median_time(5, || {
+        // Walk the stored record's framing in place, without allocating.
+        s.backend()
+            .with_record_bytes(&ids, |b| {
+                let mut r = sophia_hash::canonical::Reader::new(b.unwrap());
+                let mut k = 0usize;
+                while let Ok((_, p)) = r.next() { k += p.len(); }
+                std::hint::black_box(k);
+            })
+            .unwrap()
+    }));
+    let record = per(median_time(5, || {
+        s.read(|tx| { for d in &ids { std::hint::black_box(tx.record(d)?); } Ok(()) }).unwrap()
+    }));
+    let term = per(median_time(5, || {
+        s.read(|tx| {
+            for d in &ids {
+                let r = tx.record(d)?.unwrap();
+                std::hint::black_box(sophialang_core::encode::decode(&r.bytes).unwrap());
+            }
+            Ok(())
+        })
+        .unwrap()
+    }));
+    let mean = records.iter().map(|r| r.bytes.len()).sum::<usize>() / records.len();
+    println!("#### Zero-copy breakdown (LMDB, {n} definitions, mean canonical size {mean} B)\n");
+    println!("| step | ns per record |");
+    println!("|---|---|");
+    println!("| get, borrowed from the map (no copy) | {borrowed:.0} |");
+    println!("| get + copy into a Vec | {copied:.0} |");
+    println!("| get + walk the framing in place (no allocation) | {walked:.0} |");
+    println!("| `ReadTx::record` (copy + decode the record) | {record:.0} |");
+    println!("| record + decode the core term (heap objects) | {term:.0} |\n");
+}
+
 fn percentile(v: &mut [usize], p: f64) -> usize {
     v.sort_unstable();
     v[((v.len() - 1) as f64 * p) as usize]
@@ -171,7 +313,53 @@ fn main() {
         100.0 * (ref_occ * 24) as f64 / total as f64
     );
 
-    if !arg("--skip-analytics").is_some() {
+    if !flag("--skip-queries") {
+        let n: usize = arg("--query-size").map(|s| s.parse().unwrap()).unwrap_or_else(|| analytics_size(&sizes));
+        println!("#### B-17: query workloads (SPEC-007), {n} definitions\n");
+        println!("- Per-probe workloads: 20 random probes, time per probe. Native limits: 50M join steps and 5M derived tuples; SQL step limit 50M VM steps.\n");
+        println!("| backend | definitions | workload | executor | rows (per probe) | median |");
+        println!("|---|---|---|---|---|---|");
+        let program = generate(seed, n, shape);
+        for which in &backends {
+            let dir = tempfile::tempdir().unwrap();
+            match which.as_str() {
+                "sqlite" => {
+                    let s = Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("q.sqlite")).unwrap());
+                    let records = ingest(&s, &program, 1000);
+                    let db = s.backend();
+                    let run = |p: &sophia_query::Prepared, a: &[sophia_query::Val], st| {
+                        sophia_query::run_sql(db, p, a, sophia_query::Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Default::default() }, st)
+                    };
+                    queries(&s, &records, n, Some(&run));
+                }
+                "redb" => {
+                    let s = Store::new(sophia_store::redb_store::Redb::open(dir.path().join("q.redb")).unwrap());
+                    let records = ingest(&s, &program, 1000);
+                    queries(&s, &records, n, None);
+                }
+                "lmdb" => {
+                    let s = Store::new(sophia_store::lmdb_store::Lmdb::open(dir.path().join("q.lmdb")).unwrap());
+                    let records = ingest(&s, &program, 1000);
+                    queries(&s, &records, n, None);
+                }
+                "duckdb" => {
+                    let s = Store::new(sophia_store::duckdb_store::DuckDb::open(dir.path().join("q.duckdb")).unwrap());
+                    let records = ingest(&s, &program, 1000);
+                    queries(&s, &records, n, None);
+                }
+                other => panic!("unknown backend {other}"),
+            }
+        }
+        println!();
+    }
+    if flag("--zero-copy") {
+        zero_copy(arg("--query-size").map(|s| s.parse().unwrap()).unwrap_or(100_000), seed, shape);
+    }
+    if flag("--only-queries") {
+        return;
+    }
+
+    if !flag("--skip-analytics") {
         println!("#### B-11: analytical queries (SQL backends)\n");
         println!("| backend | definitions | query | median |");
         println!("|---|---|---|---|");

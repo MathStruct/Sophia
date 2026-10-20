@@ -12,3 +12,5 @@
 | [[SP-006 Open method tables versus content addressing]] | Multiple dispatch's open method tables against hash identity: generic functions become nominal, and dispatch becomes derived facts | open, proposal |
 | [[SP-007 Index base needs an Index type]] | Showing 0- or 1-based indexing needs to know which integers are positions | open |
 | [[SP-008 Edits span several transactions]] | A text edit is several store transactions, not one | open |
+| [[SP-009 Canonical form of queries]] | Literal order inside a query body is part of its id | open, accepted for v0 |
+| [[SP-010 Query snapshots are coarse]] | Any logged change invalidates every cached query result | open |

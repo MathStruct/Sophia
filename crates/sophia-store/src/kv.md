@@ -20,3 +20,5 @@ The sixteen `Table`s and their key layouts:
 - the log, keyed by big-endian seq.
 
 Values use [[codec]]. The layouts were written for redb and moved here unchanged when LMDB arrived, so the two engines are compared on identical layouts.
+
+**Access paths** (2026-10-20): `all_kinds` scans the `kind` table (kind ‖ 0 ‖ id) and `all_refs` scans `ref_rev` (dst ‖ src), so neither decodes records. `refs_of` and `kind_of` use the defaults, which decode the record. There is no forward-reference table: [[Zero-Copy Storage of Canonical Graphs]] measures what that costs.

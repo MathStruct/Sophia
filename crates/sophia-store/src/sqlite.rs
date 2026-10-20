@@ -129,12 +129,25 @@ impl Sqlite {
     /// authorizer (only SELECT, only the views and what they read, only pure
     /// functions), a row cap and a step budget (SPEC-004 §5).
     pub fn query_readonly(&self, sql: &str, limits: QueryLimits) -> Result<Table> {
+        self.guarded(sql, limits, |table, accessor| {
+            VIEWS.contains(&table) || accessor.is_some_and(|v| VIEWS.contains(&v))
+        })
+    }
+
+    /// Runs SQL that Sophia generated itself, from a checked query (SPEC-007
+    /// §7): it may read the base tables (`t_*`) directly, so their indexes
+    /// apply, but it is otherwise guarded exactly like `query_readonly`. Not
+    /// for text from users or agents.
+    pub fn query_compiled(&self, sql: &str, limits: QueryLimits) -> Result<Table> {
+        self.guarded(sql, limits, |table, _| table.starts_with("t_"))
+    }
+
+    fn guarded(&self, sql: &str, limits: QueryLimits, readable: fn(&str, Option<&str>) -> bool) -> Result<Table> {
         let conn = self.conn.lock().unwrap();
-        conn.authorizer(Some(|ctx: AuthContext<'_>| match ctx.action {
+        conn.authorizer(Some(move |ctx: AuthContext<'_>| match ctx.action {
             AuthAction::Select | AuthAction::Recursive => Authorization::Allow,
             AuthAction::Read { table_name, .. } => {
-                let via_view = ctx.accessor.is_some_and(|v| VIEWS.contains(&v));
-                if VIEWS.contains(&table_name) || via_view { Authorization::Allow } else { Authorization::Deny }
+                if readable(table_name, ctx.accessor) { Authorization::Allow } else { Authorization::Deny }
             }
             AuthAction::Function { function_name } => {
                 let f = function_name.to_ascii_lowercase();
@@ -554,6 +567,29 @@ impl ReadTx for SqliteTx<'_> {
             .map_err(be)?;
         let v: Vec<_> = st.query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
         v.into_iter().map(|r| r.map_err(be)).collect()
+    }
+
+    fn kind_of(&self, id: &Digest) -> Result<Option<String>> {
+        let mut st = self.tx.prepare_cached("SELECT kind FROM t_definition WHERE id = ?1").map_err(be)?;
+        st.query_row([id.as_bytes()], |r| r.get(0)).optional().map_err(be)
+    }
+
+    fn refs_of(&self, id: &Digest) -> Result<Vec<Digest>> {
+        let mut st = self.tx.prepare_cached("SELECT dst FROM t_ref WHERE src = ?1 ORDER BY dst").map_err(be)?;
+        let v: Vec<_> = st.query_map([id.as_bytes()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
+    }
+
+    fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
+        let mut st = self.tx.prepare_cached("SELECT id, kind FROM t_definition").map_err(be)?;
+        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, String>(1)?))).map_err(be)?.collect();
+        v.into_iter().map(|r| { let (i, k) = r.map_err(be)?; Ok((dg(i)?, k)) }).collect()
+    }
+
+    fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
+        let mut st = self.tx.prepare_cached("SELECT src, dst FROM t_ref").map_err(be)?;
+        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
+        v.into_iter().map(|r| { let (a, b) = r.map_err(be)?; Ok((dg(a)?, dg(b)?)) }).collect()
     }
 }
 

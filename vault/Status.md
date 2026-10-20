@@ -16,10 +16,18 @@
   - `sophia-interface` (SPEC-004 §9 on both backends);
   - Moonkale has been sent the revision.
 
-  **M2 is complete:** four backends compared ([[Database Comparison]]; S-ADR-0010 proposed). **Next:** M3 (an MCP server for agents, the Datalog dialect), or B-15/B-16 (edit latency, real code).
-- **Specifications:** five drafts ([[Specifications]]).
-- **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first).
-- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale.
+  **M2 is complete:** four backends compared ([[Database Comparison]]).
+
+  **M3a, Sophia's own query language, is done in its first form (2026-10-20),** after Daniel's query-language proposal ([[Review 2026-10-20 Query Language (external)]]):
+  - `sophia-query`: stratified Datalog over base relations, a Julia-flavoured syntax, content ids, a native executor on all four backends, magic sets, SQL translation ([[SPEC-007 Sophia Query Language]]);
+  - Moonkale's `query` dialect, and queries stored, printed and edited as definitions;
+  - B-17 measured ([[Benchmark Results]]);
+  - S-ADR-0010 accepted in amended form (SQLite default, LMDB experimental, no permanent choice yet); S-ADR-0011 accepted; S-ADR-0012 proposed.
+
+  **Next:** M3b (an MCP server for agents over the query API), B-15/B-16 (edit latency, real code), or the query follow-ups (prefix access path, precise snapshots, SP-010).
+- **Specifications:** seven drafts ([[Specifications]]).
+- **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first), S-ADR-0009 (relations tracked), S-ADR-0010 (amended), S-ADR-0011 (own query algebra).
+- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale; SR-75 to SR-89 from the first external review; SR-90 to SR-106 from Daniel's query-language proposal.
 - **Daniel's answers of 2026-10-20 (second message):** push; delete the Julia skeleton (done); M2 starts with the interface crate. Relations: S-ADR-0009 proposed (tracked), awaiting confirmation.
 - **Daniel's answers so far:**
   - Q1: keep both Unison and Sophia.
@@ -37,6 +45,6 @@
   - [[Minimal Binaries]]
   - [[LLMs and Mixed-Language Code]]
   - [[Database Comparison]]
-- **Benchmarks:** [[Benchmark Plan]]; [[Benchmark Results]] (no runs yet).
+- **Benchmarks:** [[Benchmark Plan]]; [[Benchmark Results]].
 - **External review (2026-10-20):** triaged in [[Review 2026-10-20 (external)]]. It found one real bug (symmetric recursion), which is fixed; and led to SR-75 to SR-89, SPEC-006, corrections to SPEC-001 to SPEC-004 and the theory notes, edit tokens, world snapshots, and the **P0 gate** in [[Milestones]].
 - **Coordination:** the Moonkale agent has the 2026-10-17 interface. It is to be told about the split into SPEC-001 to SPEC-005.

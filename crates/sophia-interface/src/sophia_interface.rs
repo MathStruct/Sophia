@@ -571,6 +571,11 @@ impl<B: Backend + Sync> Interface<B> {
         match target {
             Target::Content(d) => {
                 let r = self.store.record(&d)?.ok_or_else(|| StoreError::NotFound(d.to_hex()))?;
+                if r.lang == sophia_query::canon::LANG {
+                    // A stored query (SPEC-007 §8) prints in the query syntax.
+                    let p = sophia_query::Prepared::from_record(&r).map_err(|e| StoreError::Codec(e.to_string()))?;
+                    return Ok(p.print(sophia_query::Profile::Julia));
+                }
                 let profile = self.profile_for(ns, &r.lang)?;
                 let members: Vec<Record> =
                     if r.component_size > 1 { self.store.read(|tx| tx.component(&r.component))? } else { vec![r.clone()] };
@@ -727,7 +732,33 @@ impl<B: Backend + Sync> Interface<B> {
     }
 
     pub fn classify(dialect: &str) -> Risk {
-        if dialect == "sql" { Risk::ReadOnly } else { Risk::Unsupported }
+        if dialect == "sql" || dialect == "query" { Risk::ReadOnly } else { Risk::Unsupported }
+    }
+
+    /// A read-only query in Sophia's own query language, the `query`
+    /// dialect (SPEC-007 §8): the table, plus a node for every id cell that
+    /// names a definition or nominal entity. Runs on every backend. A query
+    /// with parameters cannot run as text; store it and call it instead.
+    pub fn query(&self, text: &str, limits: sophia_query::Limits) -> Result<(sophia_store::query::Table, Subgraph)> {
+        let p = sophia_query::prepare_text(text).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
+        let rows = self
+            .store
+            .read(|tx| p.run(tx, &[], limits, sophia_query::Strategy::Auto).map_err(|e| StoreError::QueryRefused(e.to_string())))?;
+        let mut g = Subgraph::default();
+        let mut seen = HashSet::new();
+        for row in &rows.rows {
+            for v in row {
+                if let sophia_query::Val::Id(d) = v {
+                    if seen.insert(*d) {
+                        if let Some(n) = self.node(&Key::Content(*d))? {
+                            g.nodes.push(n);
+                        }
+                    }
+                }
+            }
+        }
+        g.truncated = rows.truncated;
+        Ok((rows.to_table(), g))
     }
 }
 
