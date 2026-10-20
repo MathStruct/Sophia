@@ -39,7 +39,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `ir.rs`, `syntax.rs`, `canon.rs` | [[ir]], [[syntax]], [[canon]] | the IR; Julia-flavoured syntax and printers; canonical form and ids |
 | | `check.rs`, `plan.rs`, `magic.rs` | [[check]], [[plan]], [[magic]] | sorts, safety, strata; literal ordering; the magic-set rewrite |
 | | `eval.rs`, `sql.rs` | [[eval]], [[sql]] | the native executor; the SQL translation |
-| `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]] | frontends for real code (B-16): Metamath into statements, proofs and library collections |
+| `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs`, `code.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]], [[code]] | frontends for real code (B-16): Metamath into statements, proofs and library collections; Julia, Rust and Python through Moonkale's shared WP-66 normal form |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
 | `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 

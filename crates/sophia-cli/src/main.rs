@@ -20,6 +20,7 @@
 //!                             Q is text, @FILE, or the name of a stored query;
 //!                             --explain, --sql, --plain, --save NAME
 //!   ingest-mm FILE [DB]       load a Metamath database as `mm.<DB>.<label>`
+//!   ingest-code LANG PKG DIR  load a package's sources (julia, rust, python)
 //! ```
 
 use std::path::PathBuf;
@@ -33,7 +34,7 @@ use sophia_store::{Backend, Store, Target};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn usage() -> &'static str {
-    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]|ingest-mm FILE [DB]>"
+    "usage: sophia [--store PATH] [--backend sqlite|redb|lmdb|duckdb] <init|sample|gen N [SEED]|ls [PREFIX]|text NAME|edit NAME FILE|add NS FILE|profile [NAME]|show NAME|deps NAME|log [SINCE] [LIMIT]|verify|stats|sql QUERY|query Q [ARG..] [--explain|--sql|--plain|--save NAME]|ingest-mm FILE [DB]|ingest-code LANG PKG DIR>"
 }
 
 fn main() -> ExitCode {
@@ -168,6 +169,10 @@ fn query<B: Backend + Sync>(store: &Store<B>, args: &[String]) -> AnyResult<()> 
     print_table(&rows.to_table());
     eprintln!("({} rows, {:.2?}; {} lookups, {} scans, {} derived)", rows.rows.len(), took, rows.stats.lookups, rows.stats.scans, rows.stats.derived);
     Ok(())
+}
+
+fn moonkale_content_id_version() -> String {
+    sophia_ingest::code::normaliser().rsplit('@').next().unwrap_or("?").to_string()
 }
 
 fn print_table(t: &sophia_store::query::Table) {
@@ -368,6 +373,46 @@ fn run<B: Backend + Sync>(
         }
         "sql" => sql(store, args.first().ok_or("sql QUERY")?)?,
         "query" => query(store, args)?,
+        "ingest-code" => {
+            let [lang, pkg, dir] = args else { return Err("ingest-code LANG PKG DIR".into()) };
+            let ext = match lang.as_str() {
+                "julia" => "jl",
+                "rust" => "rs",
+                "python" => "py",
+                other => return Err(format!("unknown language {other}").into()),
+            };
+            let mut files = Vec::new();
+            let mut stack = vec![std::path::PathBuf::from(dir)];
+            while let Some(d) = stack.pop() {
+                for e in std::fs::read_dir(&d)? {
+                    let p = e?.path();
+                    if p.is_dir() {
+                        stack.push(p);
+                    } else if p.extension().is_some_and(|x| x == ext) {
+                        files.push((p.display().to_string(), std::fs::read_to_string(&p)?));
+                    }
+                }
+            }
+            files.sort();
+            let t = std::time::Instant::now();
+            let r = sophia_ingest::store_code(store, lang, pkg, &files)?;
+            println!(
+                "{pkg}: {} files, {} definitions, {} new records, {} generic functions with {} methods, {} same-file references; {:.2?}",
+                r.files, r.definitions, r.new_records, r.generics, r.methods, r.references, t.elapsed()
+            );
+            for (f, e) in &r.refused {
+                println!("  refused file {f}: {e}");
+            }
+            let refused: usize = r.refused_definitions.values().sum();
+            if refused > 0 {
+                println!("  {refused} definitions refused by the WP-66 v{} normal form:", moonkale_content_id_version());
+                let mut v: Vec<_> = r.refused_definitions.iter().collect();
+                v.sort_by(|a, b| b.1.cmp(a.1));
+                for (why, n) in v {
+                    println!("    {n:>5}  {why}");
+                }
+            }
+        }
         "ingest-mm" => {
             let file = args.first().ok_or("ingest-mm FILE [DB]")?;
             let db = args.get(1).cloned().unwrap_or_else(|| {

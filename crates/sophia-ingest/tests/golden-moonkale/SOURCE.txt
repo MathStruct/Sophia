@@ -1,0 +1,1 @@
+Copied from MathStruct/Moonkale 48d17bff, packages/services/content-id/golden (MIT). Regenerate when the pinned rev of moonkale-content-id changes.

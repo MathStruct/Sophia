@@ -90,6 +90,31 @@ end
 - **output:** `[u8; 32]` digests, byte-identical to Moonkale's ids today;
 - **input:** a parsed definition, plus a map from byte ranges to opaque target keys and their digests.
 
+## 5. Rung 2: Julia LinearAlgebra (2026-10-20)
+
+`sophia ingest-code julia LinearAlgebra <stdlib>/LinearAlgebra/src`, through the shared crate (`crates/sophia-ingest/src/code.rs`).
+
+**Same ids as Moonkale.**
+- On Moonkale's golden fixtures, with Moonkale's reference spans, every digest is identical in Julia, Rust and Python.
+- With Sophia's own resolver, one difference remains: Rust `Point { … }` is a use for Sophia, not for Moonkale.
+- Moonkale's Julia struct self-edge turned out to enter the id (the agent had thought not). Sophia mirrors it.
+- Both points are reported to the Moonkale agent.
+
+**Coverage of real Julia.** Of about 3 980 definitions in 34 files:
+- **2 758 get an id** (69 %);
+- **1 225 are refused** by the WP-66 v2 normal form, which conservatively rejects constructs whose scoping it does not model:
+  - `for` loops (399) and anonymous functions (64);
+  - about 729 for binding forms: varargs (`f(A...)`), tuple and named-tuple destructuring (`m, n = size(A)`), anonymous typed parameters (`::Type{T}`);
+  - a few `do`, `let`, `catch` and comprehensions.
+  
+  Most numerical Julia uses these, so **the shared normal form is the bottleneck for Lenticulum** (SR-115). Reported to Moonkale with the categories.
+
+**What is stored.**
+- **Records:** 2 300 distinct ones. 458 definitions are exact duplicates of others: the same forwarding method written for several types.
+- **Generic functions:** functions are grouped by name into 597 generic functions with 2 303 methods. `*` has 103 methods, `/` 71, `\` 54. This is SP-006's model, with the method table as a nominal relation.
+- **Shared bodies:** 134 method bodies are members of two or more generic functions (for example `hpmv!` and `spmv!`). The function's own name is not part of the content, so identical bodies under different names are one record, the Unison idea.
+- **References:** 913 same-file references. Cross-file references (one package spread over `include`d files) are not resolved yet, as in Moonkale.
+
 **The caveat:** ids also depend on **reference resolution**. So "one id in both" needs the same resolver too. The plan has two steps:
 1. Sophia uses the shared normaliser with its own resolver. Golden fixtures from Moonkale show where the two diverge, and the differences get recorded.
 2. Moonkale moves its Julia resolver into the crate behind a plain-data interface, once Sophia ingests Julia.
