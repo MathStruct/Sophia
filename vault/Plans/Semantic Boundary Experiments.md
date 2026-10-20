@@ -17,7 +17,7 @@
 |---|---|---|
 | E-0a | Metamath dependency analysis vs metamath.exe | agrees on **every theorem** of set.mm (48 083) and iset.mm (16 483), about 6.7 M dependencies |
 | E-1a | Julia generic ownership vs Julia's method table | fixture: all cases; LinearAlgebra: 95.1 % on v7 (53.7 % before the (module, name) fix); found a crate bug, fixed by Moonkale in v7 |
-| E-AD-0 | cost of producing vs running D(f), five AD systems | producing costs 10² to 10⁶ runs; 0.1–6.6 s per function and signature, paid again every Julia session |
+| E-AD-0 | cost of producing vs running D(f), six AD systems (Reactant on CPU) | producing costs 10² to 10⁶ runs; 0.1–5 s per function and signature, paid again every Julia session |
 
 ## The experiments, in order
 
@@ -83,7 +83,7 @@
 - **Method:** compile a small Lux model's training step with Reactant; measure compile time, artifact size, determinism across runs.
 - **Measures:** compile time vs step time; artifact bytes; bitwise reproducibility.
 - **Fails if:** artifacts are not reproducible (then A must include a nonce, and persisting is the only way to have them again).
-- **Prerequisite:** `Reactant_jll` must be installed (it did not resolve offline here; it is a large download: Daniel's call).
+- **Prerequisite:** done. Reactant is installed in `experiments/ad-materialization` with its CPU build (`LocalPreferences.toml`); E-AD-0 measured it on toy functions. The GPU build would need the NVIDIA driver visible to Julia (as LenticulumLM's `.#gpu` shell does).
 
 ### E-8 Full Lux.jl
 

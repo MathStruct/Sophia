@@ -69,16 +69,18 @@ The **rule world** is the subtle input. ChainRules rules are methods of the gene
 
 | System | Produce D(f) (first call) | Run D(f) (steady) | Ratio |
 |---|---|---|---|
-| ForwardDiff | 173–211 ms | 0.15–1.4 ms | 150–1 200 |
-| ReverseDiff | 338–398 ms (compiled tape: 69 ms) | 0.011–0.20 ms | 1 700–31 000 |
-| Zygote | 225–516 ms | 0.0009–0.015 ms | 34 000–240 000 |
-| Enzyme | 102–590 ms | 0.0004–0.016 ms | 11 000–1 260 000 |
-| Mooncake | 0.8–6.6 s | 0.002–0.069 ms | 15 000–740 000 |
-| Reactant | not measured: `Reactant_jll` does not resolve offline here | | |
+| ForwardDiff | 188–257 ms | 0.13–1.3 ms | 160–1 900 |
+| ReverseDiff | 352–410 ms (compiled tape: 58 ms) | 0.011–0.20 ms | 1 800–31 000 |
+| Zygote | 352–446 ms | 0.0012–0.012 ms | 39 000–300 000 |
+| Enzyme | 125–1 054 ms | 0.0009–0.016 ms | 17 000–1 210 000 |
+| Mooncake | 0.9–5.3 s | 0.002–0.068 ms | 18 000–2 670 000 |
+| Reactant (Enzyme-MLIR, XLA, CPU) | 0.69–1.34 s | 0.0022–0.0025 ms | 280 000–620 000 |
+
+Run of 2026-10-20 (`results.txt`). The functions use one-element slices (`x[1:1]`) instead of scalar indexing, because Reactant's tracing forbids scalar indexing; an earlier run with `x[1]` gave the same orders of magnitude for the other five. Reactant runs its CPU build (`LocalPreferences.toml`: its GPU detection picks ROCm for the integrated AMD GPU, whose libraries are not installed); its first compilation in a session takes about 17 s more, which the warm-up absorbs, as for the others.
 
 **What it says.**
-- **Producing a derivative costs 10² to 10⁶ runs of it.** For anything differentiated more than a few times, the derived, compiled program is worth keeping for the session, which Julia already does.
-- **Across sessions Julia keeps nothing** of this for user code (pkgimages cache only what a package precompiles). Every new session pays 0.1 to 6.6 s **per function and signature** again. Persisting compiled D(f) by artifact id A is exactly what Sophia's artifact cache would add, and this is the case where it pays most clearly.
+- **Producing a derivative costs 10² to 10⁶ runs of it** (Reactant: 3 × 10⁵ to 6 × 10⁵ on these toy functions; its compiled code is also the fastest to run). For anything differentiated more than a few times, the derived, compiled program is worth keeping for the session, which Julia already does.
+- **Across sessions Julia keeps nothing** of this for user code (pkgimages cache only what a package precompiles). Every new session pays 0.1 to 5 s **per function and signature** again. Persisting compiled D(f) by artifact id A is exactly what Sophia's artifact cache would add, and this is the case where it pays most clearly.
 - **The derived program is expensive to make and probably cheap to keep**: an adjoint is IR of a size comparable to f's own (its size is not measured yet). A category 5 object with a high C(x) and a small S(x): the [[Materialization Policy]] inequality favours keeping it as soon as F(x) > 1.
 - **The numbers mix two costs**: the AD transformation and Julia's compilation of the result. Separating them (Zygote's `@code_adjoint`, Mooncake's `build_rrule` vs first call) is the next step, because only the first is a pure function of Sophia-visible inputs.
 - **Caveat:** three toy functions, one argument size, one machine. Enough to show the order of magnitude, not to model it.

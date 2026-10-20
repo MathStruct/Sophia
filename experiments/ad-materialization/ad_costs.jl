@@ -10,10 +10,12 @@ using Printf
 const N = 1000
 x = rand(N)
 warm(x) = sum(x)
+# One-element slices instead of x[1], x[end]: Reactant traces arrays and forbids
+# scalar indexing; the functions are the same for every system.
 fresh = [
-    x -> sum(abs2, x) * sin(x[1]),
+    x -> sum(abs2, x) * sin(sum(x[1:1])),
     x -> sum(exp.(x) .* cos.(x)) / length(x),
-    x -> sum(tanh.(x .* x[end])),
+    x -> sum(tanh.(x .* sum(x[end:end]))),
 ]
 results = Tuple{String,String,Float64,Float64}[]
 function measure(name, grad)
@@ -60,10 +62,13 @@ if "Reactant" in want
     @eval begin
     xr = Reactant.to_rarray(x)
     g(f, x) = Enzyme.gradient(Enzyme.Reverse, f, x)[1]
+    # Warm up on an unrelated function, as `measure` does for the others.
+    cw = Reactant.@compile g(warm, xr)
+    cw(warm, xr)
     for (i, f) in enumerate(fresh)
-        tc = @elapsed (c = Reactant.@compile g(f, xr))
+        local tc = @elapsed (c = Reactant.@compile g(f, xr))
         c(f, xr)
-        t2 = minimum(@elapsed(c(f, xr)) for _ in 1:20)
+        local t2 = minimum(@elapsed(c(f, xr)) for _ in 1:20)
         @printf("%-12s f%d  compile %10.3f ms   steady %10.4f ms   ratio %8.0f\n", "Reactant", i, 1e3tc, 1e3t2, tc / t2)
         flush(stdout)
     end

@@ -1,17 +1,20 @@
-ForwardDiff  f1  first    177.358 ms   steady     0.1489 ms   ratio     1191
-ForwardDiff  f2  first    210.620 ms   steady     1.4017 ms   ratio      150
-ForwardDiff  f3  first    172.743 ms   steady     1.0201 ms   ratio      169
-ReverseDiff  f1  first    338.494 ms   steady     0.2032 ms   ratio     1666
-ReverseDiff  f2  first    343.885 ms   steady     0.0110 ms   ratio    31174
-ReverseDiff  f3  first    398.431 ms   steady     0.0163 ms   ratio    24399
-ReverseDiff  compiled tape: build     69.197 ms   steady     0.0408 ms
-Zygote       f1  first    225.130 ms   steady     0.0009 ms   ratio   241556
-Zygote       f2  first    515.861 ms   steady     0.0153 ms   ratio    33807
-Zygote       f3  first    353.903 ms   steady     0.0052 ms   ratio    68586
-Enzyme       f1  first    466.858 ms   steady     0.0004 ms   ratio  1261780
-Enzyme       f2  first    590.281 ms   steady     0.0158 ms   ratio    37409
-Enzyme       f3  first    102.086 ms   steady     0.0097 ms   ratio    10569
-Mooncake     f1  first   1478.059 ms   steady     0.0020 ms   ratio   737554
-Mooncake     f2  first   6637.764 ms   steady     0.0689 ms   ratio    96269
-Mooncake     f3  first    806.268 ms   steady     0.0524 ms   ratio    15387
-(Reactant not measured: Reactant_jll does not resolve offline; Julia 1.12.7)
+ForwardDiff  f1  first    257.408 ms   steady     0.1334 ms   ratio     1929
+ForwardDiff  f2  first    214.260 ms   steady     1.3203 ms   ratio      162
+ForwardDiff  f3  first    187.895 ms   steady     0.9863 ms   ratio      191
+ReverseDiff  f1  first    363.623 ms   steady     0.1970 ms   ratio     1846
+ReverseDiff  f2  first    351.855 ms   steady     0.0112 ms   ratio    31329
+ReverseDiff  f3  first    410.059 ms   steady     0.0140 ms   ratio    29380
+ReverseDiff  compiled tape: build     58.104 ms   steady     0.0398 ms
+Zygote       f1  first    352.559 ms   steady     0.0012 ms   ratio   295771
+Zygote       f2  first    445.899 ms   steady     0.0115 ms   ratio    38633
+Zygote       f3  first    362.414 ms   steady     0.0045 ms   ratio    80914
+Enzyme       f1  first   1053.753 ms   steady     0.0009 ms   ratio  1208432
+Enzyme       f2  first    422.751 ms   steady     0.0156 ms   ratio    27099
+Enzyme       f3  first    124.983 ms   steady     0.0073 ms   ratio    17018
+Mooncake     f1  first   5344.755 ms   steady     0.0020 ms   ratio  2667043
+Mooncake     f2  first   3374.802 ms   steady     0.0676 ms   ratio    49888
+Mooncake     f3  first    886.848 ms   steady     0.0494 ms   ratio    17940
+Reactant     f1  compile   1079.800 ms   steady     0.0025 ms   ratio   438230
+Reactant     f2  compile   1335.316 ms   steady     0.0022 ms   ratio   617059
+Reactant     f3  compile    686.607 ms   steady     0.0024 ms   ratio   280936
+(Reactant: CPU build (LocalPreferences.toml), warmed up on an unrelated function like the others; Julia 1.12.7, 2026-10-20)

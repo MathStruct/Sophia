@@ -1,0 +1,4 @@
+# Reactant on the CPU, like the other AD systems in E-AD-0 (its GPU detection picks
+# ROCm for the integrated AMD GPU here, whose system libraries are not installed).
+[Reactant_jll]
+gpu = "none"

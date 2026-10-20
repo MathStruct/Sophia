@@ -12,5 +12,10 @@ $J --project=. -e 'using Pkg; Pkg.offline(true); Pkg.add(["ForwardDiff","Reverse
 $J --project=. ad_costs.jl ForwardDiff ReverseDiff Zygote Enzyme Mooncake > results.txt
 ```
 
-`results.txt` is the run of 2026-10-20 (Julia 1.12.7, Linux x86-64). Reactant was not
-measured: `Reactant_jll` does not resolve offline from the installed packages.
+`results.txt` is the run of 2026-10-20 (Julia 1.12.7, Linux x86-64), all six systems.
+
+Reactant: `julia112 --project=. -e 'using Pkg; Pkg.add(["Reactant", "Reactant_jll"])'`, then
+`ad_costs.jl Reactant`. `Reactant_jll` is a direct dependency only so that
+`LocalPreferences.toml` (`gpu = "none"`, the CPU build) applies to it: Julia reads preferences
+only for packages the project lists. Without it, Reactant picks its ROCm build for the
+integrated AMD GPU and fails to load.
