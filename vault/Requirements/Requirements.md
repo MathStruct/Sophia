@@ -158,7 +158,7 @@ Daniel: "Moonkale was meant as an editor for Lenticulum.jl. Now Sophia is somewh
 |---|---|---|---|---|
 | SR-114 | Moonkale, Lenticulum.jl and Sophia are designed together: Moonkale edits, Sophia stores (and later runs), Lenticulum is the program. | Daniel | now | plan ([[Real Code Corpora]] §1) |
 | SR-115 | Lenticulum.jl runs in Sophia: a goal, but a later one; easier Julia packages first. | Daniel | later | planned (corpus rung 4) |
-| SR-116 | Sophia's Julia (and Rust, Python) ingestion uses the same normal form as Moonkale's WP-66 content ids, ideally the same code. | follows from SR-114 | rung 2 | proposed to the Moonkale agent |
+| SR-116 | Sophia's Julia (and Rust, Python) ingestion uses the same normal form as Moonkale's WP-66 content ids, ideally the same code. | follows from SR-114 | rung 2 | agreed with the Moonkale agent (2026-10-20): a shared crate `moonkale-content-id` |
 | SR-117 | Real-code corpora: linear algebra (BLAS-like, in Julia and Rust), Metamath, then Lean. | Daniel | now | Metamath done; ladder in [[Real Code Corpora]] |
 | SR-118 | Large breaking changes are acceptable while there are no users: prefer the right design over compatibility. | Daniel | now | adopted |
 

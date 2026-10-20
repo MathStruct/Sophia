@@ -82,4 +82,14 @@ end
 - **The store is large:** 564 MiB on SQLite for a 52 MB source. About 1.5 M reference edges (about 31 per proof, against 3 in the synthetic generator) take 42 % of the database, stored twice with 32-byte ids, plus a third copy on each record. H3 ("local ids save little") was refuted on synthetic code; on real code it is the main cost.
 - **The planner guessed selectivity wrongly** twice: a lookup by kind, and by collection, is wide. It now knows that, and magic sets also apply to negated calls (SPEC-007 §6). Cost-based planning is the real fix.
 
-**Next rungs:** a Julia frontend on Moonkale's WP-66 normal form (rung 2), shared with Moonkale if it agrees (SR-116).
+**Next rungs:** a Julia frontend on Moonkale's WP-66 normal form (rung 2).
+
+**Agreed with the Moonkale agent (2026-10-20, SR-116).** Moonkale extracts its normaliser into a small public crate, `moonkale-content-id` (`packages/services/content-id` in MathStruct/Moonkale):
+- **contents:** the per-language normal forms, the SCC canonicalisation and hashing, the limits and `NORMALIZER_VERSION`;
+- **dependencies:** only the arborium tree-sitter grammars and blake3;
+- **output:** `[u8; 32]` digests, byte-identical to Moonkale's ids today;
+- **input:** a parsed definition, plus a map from byte ranges to opaque target keys and their digests.
+
+**The caveat:** ids also depend on **reference resolution**. So "one id in both" needs the same resolver too. The plan has two steps:
+1. Sophia uses the shared normaliser with its own resolver. Golden fixtures from Moonkale show where the two diverge, and the differences get recorded.
+2. Moonkale moves its Julia resolver into the crate behind a plain-data interface, once Sophia ingests Julia.
