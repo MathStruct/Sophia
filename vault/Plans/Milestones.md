@@ -77,6 +77,19 @@ Foundational invariants (identity, worlds, editable projections) count as settle
   - B-17 and the zero-copy breakdown in [[Benchmark Results]];
   - S-ADR-0010 accepted in amended form; S-ADR-0011 accepted; S-ADR-0012 proposed.
 
+- **2026-10-20: M3a stabilised** after its external review ([[Review 2026-10-20 M3a (external)]]):
+  - the cache race and the cache's row-cap behaviour are fixed;
+  - an exact canonical form;
+  - a byte budget, deadline and cancellation;
+  - property tests for canonical invariance, and differential tests of magic sets and SQL (one guard bug found and fixed);
+  - SPEC-006 §6a, the transformation-evidence interface.
+
+**Order from here (SR-113):**
+1. **B-16, real code:** ingest real Julia and Rust code (and a theorem library) and rerun B-03 to B-07 and B-17 on it.
+2. **B-15:** Moonkale's edit loop, once Moonkale moves to the current revision.
+3. **The set-oriented native executor:** a prefix access path, anti-joins for negation over scans, borrowed field reads.
+4. **M3b:** the agent server, with a hard memory bound for untrusted queries (SR-108).
+
 ## Order of work inside M0 to M2
 
 1. Workspace cleanup; `sophia-hash`: framing, `Digest`, component ordering, with tests.

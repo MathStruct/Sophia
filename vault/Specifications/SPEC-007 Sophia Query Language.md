@@ -87,16 +87,28 @@ Normalised away:
 - **names** of the query, its parameters, predicates and variables (stored as display data, like sophialang's names);
 - **formatting and comments**;
 - **predicates unreachable** from the select;
-- **the order of predicates**: they are numbered by first visit from the select;
-- **the order of rules**, and duplicate rules: rules are sorted by their canonical bytes.
+- **the order of predicates** and **the order of rules**;
+- **exact duplicate rules**.
 
-Renumbering and sorting repeat until they settle (at most 8 rounds, keeping the smallest form seen).
+**The definition (exact since 2026-10-20, after the M3a review).** The canonical form is the **smallest encoding over every valid traversal**. A traversal:
+1. numbers variables by first occurrence: outputs, then head, then body;
+2. numbers predicates by first mention, starting from the select's body in literal order;
+3. visits predicates in that order and lists each one's rules sorted by their bytes, with not-yet-numbered predicates masked;
+4. lets rules that tie under the mask (they differ only in which unnumbered predicates they call) come in any order, and tries every such order.
+
+So for every permutation π of predicates and rules, every renaming, every duplicated rule and every added unreachable predicate, `canon(πQ) = canon(Q)`. This is the same construction as recursive groups in `sophia-hash` (minimum over roots, SPEC-001 §4.1).
+
+The search is exhaustive within a budget (`CANON_BUDGET` = 4096 traversals). A query more symmetric than that is **refused**, never given an unstable id.
+
+Tested by property tests:
+- 2000 random queries (20 000 in a stress run) under random predicate permutation, rule shuffling, duplication, unreachable predicates and renaming;
+- plus decode(encode) and idempotence.
 
 **Not normalised: the order of literals inside a body,** nor commutations of `==` and `!=`. Two bodies that differ only in literal order get different ids, just as `f(a, b)` and `f(b, a)` do in code. The reasons:
 - full canonisation of conjunctive queries is graph canonisation;
 - a quotient would cost the readability of the stored form.
 
-Equivalences between such queries are **facts with evidence** (§8), as for programs. The remaining corner (symmetric rule sets that need more than eight rounds) is [[SP-009 Canonical form of queries]].
+Equivalences between such queries are **facts with evidence** (§8), as for programs ([[SP-009 Canonical form of queries]]).
 
 ### 4.2 Bytes and id
 
@@ -114,7 +126,10 @@ The **query id** is `member_digest(component_digest("sophia-query", "sophia-quer
 
 **Snapshot v0** = H(store instance id, last log seq). The instance id is a random nonce kept in meta. This is **coarse**: any logged change gives a new snapshot, even a profile switch. A precise snapshot would cover only the base relations the query reads, and later a content-addressed snapshot of names and worlds (SPEC-006 §2) ([[SP-010 Query snapshots are coarse]]).
 
-`run_cached` stores rows in a meta row keyed by the result id. Meta rows are not logged, so caching does not move the snapshot. Truncated results are not cached.
+`run_cached` (corrected 2026-10-20 after the M3a review):
+- **One snapshot.** The snapshot id, the cache lookup and, on a miss, the evaluation run inside **one read transaction**. So rows stored under a result id were computed from exactly that snapshot. The first version used two transactions, and could store rows of a newer state under an older snapshot's id.
+- **Semantic result versus execution policy.** The result id is semantic: H(query, snapshot, parameters). Only **complete** results are cached, so a cached result is the answer regardless of the limits it was computed under. The caller's row cap is applied when the result is returned, with `truncated` set as if it had been evaluated. Step, tuple, byte and time limits are resource limits: a hit costs less than any of them. If execution policy ever changes the answer (sampling, approximate evaluation), it becomes part of an **execution id** next to the result id; nothing does today.
+- Cached rows live in meta rows, which are not logged, so writing them does not move the snapshot. Truncated and failed runs are not cached.
 
 ## 5. Syntax
 
@@ -156,7 +171,16 @@ The native executor runs on every backend, inside one read transaction:
 - **Strata** run in dependency order. Recursive strata use **semi-naive** iteration: each round, every rule runs once per recursive literal, with that literal reading only the last round's new tuples.
 - **Base literals** go through an access path when a lookup column is bound (memoised per run), and through a full scan otherwise.
 - **Local relations** keep hash indexes on the column sets the plans look them up by.
-- **Limits:** a join-step budget, a row cap (the select stops early), and a **derived-tuple cap**, which is the memory bound (5 M tuples by default). The step budget alone did not bound memory: without magic sets, a closure over 10⁵ definitions passed 14 GB before reaching 50 M steps. `Stats` report lookups, scans, derived tuples and rounds.
+- **The resource budget (`Limits`):**
+  - join steps;
+  - a row cap: the select stops early and marks the result truncated;
+  - derived tuples (5 M by default): a logical limit;
+  - **estimated bytes** (1 GiB by default): derived tuples with their list, set and index copies, memoised and scanned base tuples, and select rows, estimated from value sizes;
+  - a **wall-clock deadline** (30 s by default);
+  - a **cancel flag** (`run_cancellable`) that another thread can set.
+  
+  The step budget alone did not bound memory: without magic sets, a closure over 10⁵ definitions passed 14 GB before reaching 50 M steps. The byte budget is an **estimate, not a guarantee**: it counts what the executor keeps, not every temporary or allocator overhead. A hard bound needs a counting allocator or a separate process, which an agent server (M3b) should use for untrusted queries.
+- `Stats` report lookups, scans, derived tuples, rounds and estimated bytes.
 
 ### 6.1 Planning
 
@@ -261,7 +285,8 @@ Summarised from [[Query Languages for Sophia]]:
 - **Precise snapshots** (SP-010): per-relation epochs, then content-addressed name and world snapshots.
 - **Incremental view maintenance:** semi-naive evaluation is already the delta rule; DBSP or differential dataflow keep results up to date as the change feed arrives.
 - **Cost-based planning** from backend statistics, and a **DuckDB translation**.
-- **Aggregates** beyond `count` (`sum`, `min`, `max`), arithmetic, and pure functions with bound arguments.
+- **Aggregates** beyond `count` (`sum`, `min`, `max`), and arithmetic.
+- **Query functions** (review of M3a, §6): instead of many special built-in predicates, one mechanism for **typed, pure functions callable from queries**, `f: A₁ × … × Aₙ → B`, each declaring its purity, determinism, cost class and whether it may be compiled. They are called with bound arguments only (like `startswith`), never unified against. A certified sophialang function could become one, without gaining I/O or mutation. This is where the query language and sophialang meet, without merging their semantics (§3.4).
 - **More base relations:** log, lineage, sizes, statuses; roles (TypeQL).
 - **Proof-backed rewrites:** query equivalences as facts with evidence (e-graphs, as in egglog), so that an optimiser's rewrite needs no trust in the optimiser.
 - **Queries as compiled functions,** partial evaluation against database state, materialised views as reusable computations (SR-106). This waits until the small algebra works on at least two backends, which it now does.
@@ -279,7 +304,11 @@ Summarised from [[Query Languages for Sophia]]:
 
 `sophia` CLI: `query Q [ARG..] [--explain|--sql|--plain|--save NAME]`.
 
-Tests: 11 identity tests and an execution suite.
+Tests: 11 identity tests, an execution suite, and property tests.
+- **Property tests (after the M3a review):**
+  - canonical-form invariance on 2000 random queries;
+  - a differential test of magic sets on random safe programs (repeated variables, mutual recursion, stratified negation, several bound arguments, `count`): plain, magic and SQL evaluation agree. The default run checks 719 valid programs, 476 of them rewritten, in 3051 SQL runs; a stress run checked 9561 programs.
+  - It found one bug: SQLite reports a read of a CTE that a rule uses without reading a column of it, and the compiled-SQL guard refused it. The guard now also allows the translation's CTE names.
 - **Execution suite:** plain and magic programs agree on every backend; SQL agrees with native for both programs; reach matches a graph walk; magic sets do no full scans; caching per snapshot; stored queries are definitions and dependants; step limits.
 - **Interface:** an acceptance test on every backend.
 

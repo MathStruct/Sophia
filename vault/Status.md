@@ -24,10 +24,12 @@
   - B-17 measured ([[Benchmark Results]]);
   - S-ADR-0010 accepted in amended form (SQLite default, LMDB experimental, no permanent choice yet); S-ADR-0011 accepted; S-ADR-0012 proposed.
 
-  **Next:** M3b (an MCP server for agents over the query API), B-15/B-16 (edit latency, real code), or the query follow-ups (prefix access path, precise snapshots, SP-010).
+  **M3a stabilised (2026-10-20)** after its review ([[Review 2026-10-20 M3a (external)]]): cache race fixed, exact canonical form, resource budget, property and differential tests.
+
+  **Next, in order (SR-113):** B-16 (real code), B-15 (Moonkale edits), the set-oriented executor, then M3b (the agent server).
 - **Specifications:** seven drafts ([[Specifications]]).
 - **Decisions:** [[Decisions]]. Accepted: S-ADR-0004 (Rust only), S-ADR-0007 (store vs language), S-ADR-0008 (sophialang first), S-ADR-0009 (relations tracked), S-ADR-0010 (amended), S-ADR-0011 (own query algebra).
-- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale; SR-75 to SR-89 from the first external review; SR-90 to SR-106 from Daniel's query-language proposal.
+- **Requirements:** [[Requirements]]: SR-01 to SR-29 and SR-51 to SR-74 from Daniel; SR-30 to SR-50 from Moonkale; SR-75 to SR-89 from the first external review; SR-90 to SR-106 from Daniel's query-language proposal; SR-107 to SR-113 from the review of M3a.
 - **Daniel's answers of 2026-10-20 (second message):** push; delete the Julia skeleton (done); M2 starts with the interface crate. Relations: S-ADR-0009 proposed (tracked), awaiting confirmation.
 - **Daniel's answers so far:**
   - Q1: keep both Unison and Sophia.

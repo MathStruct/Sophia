@@ -3,7 +3,7 @@
 //! the parameters. A query is stored like any definition: a record of the
 //! language `sophia-query`. See `canon.md`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use sophia_hash::canonical::{Reader, Writer};
 use sophia_hash::merkle::{component_digest, member_digest};
@@ -16,9 +16,6 @@ pub const LANG: &str = "sophia-query";
 pub const NORMALISER: &str = "sophia-query@0";
 pub const KIND: &str = "Query";
 
-/// How many renumber-and-sort rounds canonicalisation runs before it settles
-/// on the smallest form it has seen (SPEC-007 §4.1).
-const ROUNDS: usize = 8;
 
 fn term(w: &mut Writer, t: &Term) {
     match t {
@@ -256,46 +253,150 @@ fn map_preds(body: &mut [Literal], new_of_old: &[u32]) {
     }
 }
 
-/// The local predicates in first-visit order from the select, following
-/// rules in their current order. Unreachable predicates are left out.
-fn visit_order(q: &Query) -> Vec<u32> {
-    let mut seen = vec![false; q.preds.len()];
-    let mut order = Vec::new();
-    let push = |body: &[Literal], seen: &mut Vec<bool>, order: &mut Vec<u32>| {
-        for l in body {
-            if let Literal::Pos(a) | Literal::Neg(a) = l {
-                if let Pred::Local(p) = a.pred {
-                    if !seen[p as usize] {
-                        seen[p as usize] = true;
-                        order.push(p);
-                    }
-                }
-            }
-        }
-    };
-    push(&q.select.body, &mut seen, &mut order);
-    let mut i = 0;
-    while i < order.len() {
-        let p = order[i];
-        for r in q.rules_of(p) {
-            push(&r.body, &mut seen, &mut order);
-        }
-        i += 1;
-    }
-    order
+/// Local predicates in the order a body mentions them.
+fn mentioned(body: &[Literal]) -> impl Iterator<Item = u32> + '_ {
+    body.iter().filter_map(|l| match l {
+        Literal::Pos(Atom { pred: Pred::Local(p), .. }) | Literal::Neg(Atom { pred: Pred::Local(p), .. }) => Some(*p),
+        _ => None,
+    })
 }
 
-/// Rewrites a query (and its names) into canonical form (SPEC-007 §4.1):
-/// - variables numbered by first occurrence (outputs, head, then body);
-/// - unreachable predicates and their rules dropped;
-/// - predicates numbered by first visit from the select;
-/// - each predicate's rules sorted by their canonical bytes, duplicates
-///   dropped.
+/// How many complete traversals canonicalisation may try before it refuses
+/// the query as too symmetric (SPEC-007 §4.1).
+pub const CANON_BUDGET: usize = 4096;
+
+/// The search for the canonical form: the smallest encoding over every
+/// valid traversal.
+struct Search<'a> {
+    q: &'a Query,
+    rules_of: Vec<Vec<usize>>,
+    leaves: usize,
+    best: Option<(Vec<u8>, Vec<u32>, Vec<usize>)>,
+}
+
+impl Search<'_> {
+    fn masked(&self, r: usize, num: &[u32]) -> Vec<u8> {
+        let mut rule = self.q.rules[r].clone();
+        map_preds(&mut rule.body, num);
+        rule_bytes(&rule)
+    }
+
+    /// Every order of `rs` consistent with sorting by masked key: tied
+    /// rules (which mention predicates not numbered yet) in every order.
+    fn orderings(&self, rs: &[usize], num: &[u32]) -> Result<Vec<Vec<usize>>, Error> {
+        let mut keyed: Vec<(Vec<u8>, usize)> = rs.iter().map(|&r| (self.masked(r, num), r)).collect();
+        keyed.sort();
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for (i, (k, r)) in keyed.iter().enumerate() {
+            if i > 0 && keyed[i - 1].0 == *k {
+                groups.last_mut().unwrap().push(*r);
+            } else {
+                groups.push(vec![*r]);
+            }
+        }
+        let mut out: Vec<Vec<usize>> = vec![Vec::new()];
+        for g in groups {
+            let perms = permutations(&g);
+            let mut next = Vec::with_capacity(out.len() * perms.len());
+            for prefix in &out {
+                for p in &perms {
+                    let mut v = prefix.clone();
+                    v.extend_from_slice(p);
+                    next.push(v);
+                }
+            }
+            if next.len() > CANON_BUDGET {
+                return Err(Error::Check("the query is too symmetric to canonicalise within its budget".into()));
+            }
+            out = next;
+        }
+        Ok(out)
+    }
+
+    fn go(&mut self, num: Vec<u32>, order: Vec<u32>, seq: Vec<usize>, i: usize) -> Result<(), Error> {
+        if i == order.len() {
+            self.leaves += 1;
+            if self.leaves > CANON_BUDGET {
+                return Err(Error::Check("the query is too symmetric to canonicalise within its budget".into()));
+            }
+            let bytes = encode(&self.build(&num, &order, &seq).0);
+            if self.best.as_ref().is_none_or(|(b, _, _)| bytes < *b) {
+                self.best = Some((bytes, order, seq));
+            }
+            return Ok(());
+        }
+        let p = order[i];
+        let rs = self.rules_of[p as usize].clone();
+        for ordering in self.orderings(&rs, &num)? {
+            let (mut num, mut order, mut seq) = (num.clone(), order.clone(), seq.clone());
+            for &r in &ordering {
+                for m in mentioned(&self.q.rules[r].body) {
+                    if num[m as usize] == u32::MAX {
+                        num[m as usize] = order.len() as u32;
+                        order.push(m);
+                    }
+                }
+                seq.push(r);
+            }
+            self.go(num, order, seq, i + 1)?;
+        }
+        Ok(())
+    }
+
+    /// The query for one traversal, and the old index of each new rule.
+    fn build(&self, num: &[u32], order: &[u32], seq: &[usize]) -> (Query, Vec<usize>) {
+        let rules = seq
+            .iter()
+            .map(|&r| {
+                let mut rule = self.q.rules[r].clone();
+                rule.head = num[rule.head as usize];
+                map_preds(&mut rule.body, num);
+                rule
+            })
+            .collect();
+        let mut select = self.q.select.clone();
+        map_preds(&mut select.body, num);
+        (Query { params: self.q.params.clone(), preds: order.iter().map(|&o| self.q.preds[o as usize]).collect(), rules, select }, seq.to_vec())
+    }
+}
+
+fn permutations(g: &[usize]) -> Vec<Vec<usize>> {
+    if g.len() <= 1 {
+        return vec![g.to_vec()];
+    }
+    let mut out = Vec::new();
+    for i in 0..g.len() {
+        let mut rest = g.to_vec();
+        let x = rest.remove(i);
+        for mut p in permutations(&rest) {
+            p.insert(0, x);
+            out.push(p);
+            if out.len() > CANON_BUDGET {
+                return out;
+            }
+        }
+    }
+    out
+}
+
+/// Rewrites a query (and its names) into canonical form (SPEC-007 §4.1).
 ///
-/// Renumbering and sorting repeat until they settle. Literal order inside a
-/// body is kept: it is part of the identity, like argument order in code
-/// (SPEC-007 §4.1 says why).
-pub fn canonicalise(q: &Query, names: &Names) -> (Query, Names) {
+/// The form is **defined** as the smallest encoding over every valid
+/// traversal, where a traversal:
+/// - numbers variables by first occurrence (outputs, head, then body);
+/// - numbers predicates by first mention, starting from the select's body
+///   in literal order;
+/// - visits predicates in that order, and lists each one's rules sorted by
+///   their bytes with not-yet-numbered predicates masked; rules tied under
+///   the mask may come in any order, and every order is tried.
+///
+/// Exact duplicate rules and unreachable predicates are dropped first. So
+/// renaming anything, permuting predicates or rules, duplicating rules and
+/// adding unreachable predicates never change the result. The search is
+/// exhaustive within [`CANON_BUDGET`] traversals; a query more symmetric
+/// than that is refused, never given an unstable id. Literal order inside a
+/// body is kept: it is part of the identity, like argument order in code.
+pub fn canonicalise(q: &Query, names: &Names) -> Result<(Query, Names), Error> {
     let mut q = q.clone();
     let mut names = names.clone();
     names.rule_vars.resize(q.rules.len(), Vec::new());
@@ -328,58 +429,43 @@ pub fn canonicalise(q: &Query, names: &Names) -> (Query, Names) {
         }
     }
 
-    let mut best: Option<(Vec<u8>, Query, Names)> = None;
-    let mut seen_orders: HashSet<Vec<u32>> = HashSet::new();
-    for _ in 0..ROUNDS {
-        // Predicates by first visit; the rest are dropped.
-        let order = visit_order(&q);
-        let mut new_of_old = vec![u32::MAX; q.preds.len()];
-        for (n, &o) in order.iter().enumerate() {
-            new_of_old[o as usize] = n as u32;
-        }
-        let mut rules: Vec<(Rule, Vec<String>)> = q
-            .rules
-            .iter()
-            .zip(names.rule_vars.iter())
-            .filter(|(r, _)| new_of_old[r.head as usize] != u32::MAX)
-            .map(|(r, n)| {
-                let mut r = r.clone();
-                r.head = new_of_old[r.head as usize];
-                map_preds(&mut r.body, &new_of_old);
-                (r, n.clone())
-            })
-            .collect();
-        let mut sel = q.select.clone();
-        map_preds(&mut sel.body, &new_of_old);
-        // Rules by predicate, then by bytes; duplicates go.
-        rules.sort_by_cached_key(|(r, _)| (r.head, rule_bytes(r)));
-        rules.dedup_by(|a, b| a.0 == b.0);
-        let next = Query {
-            params: q.params.clone(),
-            preds: order.iter().map(|&o| q.preds[o as usize]).collect(),
-            rules: rules.iter().map(|(r, _)| r.clone()).collect(),
-            select: sel,
-        };
-        let next_names = Names {
-            query: names.query.clone(),
-            params: names.params.clone(),
-            preds: order.iter().map(|&o| names.preds.get(o as usize).cloned().unwrap_or_default()).collect(),
-            rule_vars: rules.into_iter().map(|(_, n)| n).collect(),
-            select_vars: names.select_vars.clone(),
-        };
-        let bytes = encode(&next);
-        let settled = next == q;
-        if best.as_ref().is_none_or(|(b, _, _)| bytes < *b) {
-            best = Some((bytes, next.clone(), next_names.clone()));
-        }
-        q = next;
-        names = next_names;
-        if settled || !seen_orders.insert(order) {
-            break;
+    // Exact duplicates go (the first one's names stay).
+    let mut keep: Vec<usize> = Vec::new();
+    for i in 0..q.rules.len() {
+        if !keep.iter().any(|&k| q.rules[k] == q.rules[i]) {
+            keep.push(i);
         }
     }
-    let (_, q, n) = best.unwrap();
-    (q, n)
+    let mut rules_of = vec![Vec::new(); q.preds.len()];
+    for &i in &keep {
+        rules_of[q.rules[i].head as usize].push(i);
+    }
+
+    let mut num = vec![u32::MAX; q.preds.len()];
+    let mut order = Vec::new();
+    for m in mentioned(&q.select.body) {
+        if num[m as usize] == u32::MAX {
+            num[m as usize] = order.len() as u32;
+            order.push(m);
+        }
+    }
+    let mut search = Search { q: &q, rules_of, leaves: 0, best: None };
+    search.go(num.clone(), order.clone(), Vec::new(), 0)?;
+    let (_, order, seq) = search.best.take().unwrap();
+    // Recompute the numbering of the winning traversal.
+    let mut num = vec![u32::MAX; q.preds.len()];
+    for (n, &o) in order.iter().enumerate() {
+        num[o as usize] = n as u32;
+    }
+    let (out, old_rules) = search.build(&num, &order, &seq);
+    let out_names = Names {
+        query: names.query.clone(),
+        params: names.params.clone(),
+        preds: order.iter().map(|&o| names.preds.get(o as usize).cloned().unwrap_or_default()).collect(),
+        rule_vars: old_rules.iter().map(|&r| names.rule_vars[r].clone()).collect(),
+        select_vars: names.select_vars.clone(),
+    };
+    Ok((out, out_names))
 }
 
 /// A query's id: the member id of a one-member component of the language

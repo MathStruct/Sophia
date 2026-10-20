@@ -88,6 +88,35 @@ Rules:
 - A change to (3) is **not** a migration. Ids are unchanged, and a backend may re-encode freely (for example a compact storage encoding, B-06), as long as the canonical bytes can be reproduced for verification.
 - Facts and artifacts keep their inputs' old ids. A migrated store answers queries about old ids through `migrated_to`.
 
+## 6a. Transformations and their evidence (interface only)
+
+Added 2026-10-20 after the M3a review (§10), so that every optimiser and frontend records its work the same way. **Not built yet.**
+
+Sophia now has two kinds of reusable computation, programs (sophialang and imported languages) and queries (`sophia-query`), and several transformations between them:
+- magic sets;
+- normalisation;
+- specialisation and partial evaluation;
+- lowering to IR;
+- later, mined abstractions.
+
+Each application of a transformation **T** is one record:
+
+```text
+Transformation {
+    by:        T's name and version            # e.g. "sophia-query/magic@0"
+    input:     content id(s)                   # Q, or a definition
+    output:    content id(s)                   # Q′
+    relation:  equivalent | refines | lowers-to | specialises(at: …)
+    obligation: what must hold                 # e.g. eval(Q, D) = eval(Q′, D) for all D
+    evidence:  none | tested(test ids) | checked(certificate id, checker) | trusted(T)
+    inputs:    world / snapshot / parameters it depended on
+}
+```
+
+- It is a **derived fact** (SPEC-001 §8) whose subject is the input, so staleness and provenance work as for any fact.
+- **Evidence follows §5 (proof trust).** A transformation run by a trusted optimiser is `trusted(T)`. Its differential tests make it `tested`. An independently checked certificate makes it `checked`. Compiled artifacts may rely only on what their evidence level allows (§3).
+- **The first producer will be the magic-set rewrite.** Its outputs are queries, so they can be stored; its obligation is query equivalence; its evidence today is the differential property test.
+
 ## 7. Status and order
 
 | Part | Status |

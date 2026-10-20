@@ -5,6 +5,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use sophia_hash::Digest;
 use sophia_store::{ReadTx, Target};
@@ -18,21 +20,35 @@ type Tuple = Vec<Val>;
 /// Receives each solution of a body; an error stops the join.
 type Emit<'e> = dyn FnMut(&[Option<Val>]) -> Result<(), Error> + 'e;
 
-/// Limits for one run.
+/// The resource budget of one run (SPEC-007 §6.0). Every limit aborts the
+/// run with [`Error::Limit`], except `max_rows`, which truncates.
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_rows: usize,
     /// Join steps, in thousands, before the run is aborted.
     pub max_steps_k: u64,
     /// Tuples derived for local predicates (and select rows before
-    /// grouping) before the run is aborted: the memory bound. The step
-    /// budget alone does not bound memory.
+    /// grouping) before the run is aborted. A logical limit, independent of
+    /// tuple sizes.
     pub max_derived: u64,
+    /// **Estimated** bytes held by the run: derived tuples (their list, set
+    /// and index copies), memoised and scanned base tuples, and select rows.
+    /// An estimate from value sizes, not an allocator count: it bounds what
+    /// the executor keeps, not every temporary.
+    pub max_bytes: u64,
+    /// Wall-clock time before the run is aborted.
+    pub deadline: Option<Duration>,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { max_rows: 10_000, max_steps_k: 1_000_000, max_derived: 5_000_000 }
+        Limits {
+            max_rows: 10_000,
+            max_steps_k: 1_000_000,
+            max_derived: 5_000_000,
+            max_bytes: 1 << 30,
+            deadline: Some(Duration::from_secs(30)),
+        }
     }
 }
 
@@ -48,6 +64,14 @@ pub struct Stats {
     /// Semi-naive iterations, summed over strata.
     pub iterations: u64,
     pub steps: u64,
+    /// The estimated bytes held at the end (see [`Limits::max_bytes`]).
+    pub bytes: u64,
+}
+
+/// Estimated heap and inline bytes of one tuple.
+pub(crate) fn tuple_bytes(t: &[Val]) -> u64 {
+    let heap: usize = t.iter().map(|v| if let Val::Text(s) = v { s.len() } else { 0 }).sum();
+    (std::mem::size_of::<Vec<Val>>() + std::mem::size_of_val(t) + heap) as u64
 }
 
 #[derive(Default)]
@@ -71,15 +95,20 @@ impl Rel {
         true
     }
 
-    fn ensure_index(&mut self, cols: &[usize]) {
+    /// Builds an index on `cols` if missing; returns its estimated bytes.
+    fn ensure_index(&mut self, cols: &[usize]) -> u64 {
         if cols.is_empty() || self.index.contains_key(cols) {
-            return;
+            return 0;
         }
         let mut idx: HashMap<Tuple, Vec<usize>> = HashMap::new();
+        let mut bytes = 0;
         for (i, t) in self.tuples.iter().enumerate() {
-            idx.entry(cols.iter().map(|&c| t[c].clone()).collect()).or_default().push(i);
+            let key: Tuple = cols.iter().map(|&c| t[c].clone()).collect();
+            bytes += tuple_bytes(&key) + 8;
+            idx.entry(key).or_default().push(i);
         }
         self.index.insert(cols.to_vec(), idx);
+        bytes
     }
 }
 
@@ -114,6 +143,8 @@ pub struct Exec<'a> {
     limits: Limits,
     memo: HashMap<(Base, usize, Val), Rc<Vec<Tuple>>>,
     full: HashMap<Base, Rc<Vec<Tuple>>>,
+    started: Instant,
+    cancel: Option<&'a AtomicBool>,
     pub stats: Stats,
 }
 
@@ -133,7 +164,32 @@ fn text(v: &Val) -> Option<&str> {
 
 impl<'a> Exec<'a> {
     pub fn new(tx: &'a dyn ReadTx, params: &'a [Val], limits: Limits) -> Self {
-        Exec { tx, params, limits, memo: HashMap::new(), full: HashMap::new(), stats: Stats::default() }
+        Exec {
+            tx,
+            params,
+            limits,
+            memo: HashMap::new(),
+            full: HashMap::new(),
+            started: Instant::now(),
+            cancel: None,
+            stats: Stats::default(),
+        }
+    }
+
+    /// A run that stops with [`Error::Limit`] once `flag` is set, from any
+    /// thread.
+    pub fn with_cancel(mut self, flag: &'a AtomicBool) -> Self {
+        self.cancel = Some(flag);
+        self
+    }
+
+    /// Adds to the estimated bytes held, failing over budget.
+    fn charge(&mut self, n: u64) -> Result<(), Error> {
+        self.stats.bytes += n;
+        if self.stats.bytes > self.limits.max_bytes {
+            return Err(Error::Limit(format!("more than {} estimated bytes", self.limits.max_bytes)));
+        }
+        Ok(())
     }
 
     fn all_subjects(&self) -> Result<Vec<Digest>, Error> {
@@ -211,6 +267,7 @@ impl<'a> Exec<'a> {
             _ => unreachable!("no access path for column {col} of {}", b.name()),
         }
         let out = Rc::new(out);
+        self.charge(out.iter().map(|t| tuple_bytes(t)).sum::<u64>() + 64)?;
         self.memo.insert((b, col, key.clone()), out.clone());
         Ok(out)
     }
@@ -274,6 +331,7 @@ impl<'a> Exec<'a> {
             }
         };
         let out = Rc::new(out);
+        self.charge(out.iter().map(|t| tuple_bytes(t)).sum())?;
         self.full.insert(b, out.clone());
         Ok(out)
     }
@@ -316,6 +374,14 @@ impl<'a> Exec<'a> {
         self.stats.steps += 1;
         if self.stats.steps > self.limits.max_steps_k.saturating_mul(1000) {
             return Err(Error::Limit(format!("more than {}k join steps", self.limits.max_steps_k)));
+        }
+        if self.stats.steps % 4096 == 0 {
+            if self.cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
+                return Err(Error::Limit("cancelled".into()));
+            }
+            if self.limits.deadline.is_some_and(|d| self.started.elapsed() > d) {
+                return Err(Error::Limit(format!("over the deadline of {:?}", self.limits.deadline.unwrap())));
+            }
         }
         Ok(())
     }
@@ -535,9 +601,11 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
                 let r = &q.rules[v.rule];
                 for s in &v.steps {
                     if let Literal::Pos(Atom { pred: Pred::Local(p), .. }) | Literal::Neg(Atom { pred: Pred::Local(p), .. }) = &r.body[s.lit] {
-                        rels.full[*p as usize].ensure_index(&s.bound_cols);
+                        let b = rels.full[*p as usize].ensure_index(&s.bound_cols);
+                        exec.charge(b)?;
                         if v.delta == Some(s.lit) {
-                            rels.delta[*p as usize].ensure_index(&s.bound_cols);
+                            let b = rels.delta[*p as usize].ensure_index(&s.bound_cols);
+                            exec.charge(b)?;
                         }
                     }
                 }
@@ -546,7 +614,9 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
             // against everything known, so duplicates never accumulate.
             let mut fresh: Vec<Rel> = (0..n).map(|_| Rel::default()).collect();
             let max_derived = exec.limits.max_derived;
+            let max_bytes = exec.limits.max_bytes;
             let mut derived = exec.stats.derived;
+            let mut bytes = exec.stats.bytes;
             for v in variants {
                 let r = &q.rules[v.rule];
                 let mut env = vec![None; r.vars as usize];
@@ -554,10 +624,17 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
                 let fresh_p = &mut fresh[r.head as usize];
                 let mut emit = |env: &[Option<Val>]| -> Result<(), Error> {
                     let t: Tuple = r.args.iter().map(|t| ground(t, env, params)).collect();
+                    let b = tuple_bytes(&t);
                     if !full.set.contains(&t) && fresh_p.insert(t) {
                         derived += 1;
+                        // The fresh list and set now, the full list and set
+                        // after the round: four copies.
+                        bytes += 4 * b;
                         if derived > max_derived {
                             return Err(Error::Limit(format!("more than {max_derived} derived tuples")));
+                        }
+                        if bytes > max_bytes {
+                            return Err(Error::Limit(format!("more than {max_bytes} estimated bytes")));
                         }
                     }
                     Ok(())
@@ -565,6 +642,7 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
                 exec.join(&r.body, &v.steps, 0, v.delta, &mut env, &rels, &mut emit)?;
             }
             exec.stats.derived = derived;
+            exec.stats.bytes = bytes;
             exec.stats.iterations += 1;
             let mut any = false;
             for &p in stratum {
@@ -590,7 +668,8 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
     let st = steps(&s.body, &order, s.vars, &[]);
     for step in &st {
         if let Literal::Pos(Atom { pred: Pred::Local(p), .. }) | Literal::Neg(Atom { pred: Pred::Local(p), .. }) = &s.body[step.lit] {
-            rels.full[*p as usize].ensure_index(&step.bound_cols);
+            let b = rels.full[*p as usize].ensure_index(&step.bound_cols);
+            exec.charge(b)?;
         }
     }
     let has_count = s.outputs.iter().any(|o| matches!(o, Output::Count(_)));
@@ -602,10 +681,16 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
     // like derived tuples.
     let cap = if has_count { exec.limits.max_derived as usize } else { exec.limits.max_rows.saturating_add(1) };
     let mut full_stop = false;
+    let max_bytes = exec.limits.max_bytes;
+    let mut bytes = exec.stats.bytes;
     {
         let mut emit = |env: &[Option<Val>]| -> Result<(), Error> {
             let t: Tuple = out_terms.iter().map(|t| ground(t, env, params)).collect();
             if seen.insert(t.clone()) {
+                bytes += 2 * tuple_bytes(&t);
+                if bytes > max_bytes {
+                    return Err(Error::Limit(format!("more than {max_bytes} estimated bytes")));
+                }
                 rows.push(t);
                 if rows.len() >= cap {
                     full_stop = true;
@@ -622,6 +707,7 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
             other => other?,
         }
     }
+    exec.stats.bytes = bytes;
     if has_count {
         // Group by the plain outputs; count distinct values per counted output.
         let groups_cols: Vec<usize> = (0..s.outputs.len()).filter(|&i| matches!(s.outputs[i], Output::Var(_))).collect();

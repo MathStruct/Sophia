@@ -154,6 +154,20 @@ fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     assert_ne!(rid4, rid1);
     assert_eq!(c4, Cache::Miss);
     assert!(c.rows.contains(&vec![Val::Id(id(1000))]));
+    // A cached complete result honours the next caller's row cap.
+    let all = prepare_text("select a, b where refs(a, b)").unwrap();
+    let (full, _, m) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: usize::MAX, ..Default::default() }).unwrap();
+    assert_eq!(m, Cache::Miss);
+    assert!(!full.truncated && full.rows.len() > 3);
+    let (few, _, h) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
+    assert_eq!(h, Cache::Hit);
+    assert_eq!(few.rows.len(), 3);
+    assert!(few.truncated);
+    // A truncated run is not cached: the next run evaluates again.
+    s.add(&[fake(1001, "method", vec![id(6)])], &[]).unwrap();
+    let (_, _, m1) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
+    let (_, _, m2) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
+    assert_eq!((m1, m2), (Cache::Miss, Cache::Miss));
 }
 
 fn queries_are_stored_as_definitions<B: Backend>(s: Store<B>) {
@@ -186,6 +200,23 @@ fn limits_stop_runaway_queries<B: Backend>(s: Store<B>) {
         .read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_derived: 50, ..Default::default() }, Strategy::Plain)))
         .unwrap();
     assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("derived")), "{r:?}");
+    // So is the estimated byte budget, and the stats report the estimate.
+    let r = s
+        .read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_bytes: 4096, ..Default::default() }, Strategy::Plain)))
+        .unwrap();
+    assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("bytes")), "{r:?}");
+    let ok = s.read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits::default(), Strategy::Auto).unwrap())).unwrap();
+    assert!(ok.stats.bytes > 0);
+    // A deadline and a cancel flag stop long runs.
+    let r = s
+        .read(|tx| Ok(p.run(tx, &[], Limits { max_rows: usize::MAX, deadline: Some(std::time::Duration::ZERO), ..Default::default() }, Strategy::Auto)))
+        .unwrap();
+    assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("deadline")), "{r:?}");
+    let cancel = std::sync::atomic::AtomicBool::new(true);
+    let r = s
+        .read(|tx| Ok(p.run_cancellable(tx, &[], Limits { max_rows: usize::MAX, ..Default::default() }, Strategy::Auto, &cancel)))
+        .unwrap();
+    assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("cancelled")), "{r:?}");
     // The row cap stops the select early and marks the result truncated.
     let all = prepare_text("select a, b where refs(a, b)").unwrap();
     let r = s.read(|tx| Ok(all.run(tx, &[], Limits { max_rows: 5, ..Default::default() }, Strategy::Auto).unwrap())).unwrap();

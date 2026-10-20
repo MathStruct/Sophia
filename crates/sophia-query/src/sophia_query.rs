@@ -89,7 +89,7 @@ pub fn prepare_text(text: &str) -> Result<Prepared> {
 
 /// Canonicalises and checks a query given as IR.
 pub fn prepare(q: &Query, names: &Names) -> Result<Prepared> {
-    let (query, names) = canon::canonicalise(q, names);
+    let (query, names) = canon::canonicalise(q, names)?;
     let checked = check::check(&query, &names)?;
     let bytes = canon::encode(&query);
     let id = canon::query_id(&bytes);
@@ -223,8 +223,24 @@ impl Prepared {
 
     /// Runs the query with the native executor, inside one read transaction.
     pub fn run(&self, tx: &dyn ReadTx, params: &[Val], limits: Limits, strategy: Strategy) -> Result<Rows> {
+        self.run_inner(eval::Exec::new(tx, params, limits), strategy)
+    }
+
+    /// Like [`Prepared::run`], but stops with [`Error::Limit`] once `cancel`
+    /// is set (from another thread, say, when an agent's request is dropped).
+    pub fn run_cancellable(
+        &self,
+        tx: &dyn ReadTx,
+        params: &[Val],
+        limits: Limits,
+        strategy: Strategy,
+        cancel: &std::sync::atomic::AtomicBool,
+    ) -> Result<Rows> {
+        self.run_inner(eval::Exec::new(tx, params, limits).with_cancel(cancel), strategy)
+    }
+
+    fn run_inner(&self, mut exec: eval::Exec, strategy: Strategy) -> Result<Rows> {
         let p = self.program(strategy);
-        let mut exec = eval::Exec::new(tx, params, limits);
         let out = eval::run(&mut exec, &p.query, &p.strata)?;
         Ok(Rows { columns: self.columns(), sorts: self.checked.columns.clone(), rows: out.rows, truncated: out.truncated, stats: exec.stats })
     }
@@ -339,8 +355,20 @@ pub enum Cache {
 
 /// Runs a query, keyed by its result id: a second run against the same
 /// snapshot with the same parameters reads the stored rows instead of
-/// evaluating. Cached rows live in meta rows, which are not logged, so
-/// caching does not change the snapshot.
+/// evaluating (SPEC-007 §4.3).
+///
+/// - **One snapshot.** The snapshot id, the cache lookup and, on a miss, the
+///   evaluation all happen inside one read transaction, so the rows stored
+///   under a result id were computed from exactly that snapshot.
+/// - **Only complete results are cached,** so a cached result is the
+///   semantic answer, independent of the limits it was computed under.
+///   The caller's row cap is applied on the way out, with `truncated` set
+///   as if it had been evaluated. Step and tuple limits are resource limits,
+///   not semantics: a hit is never more expensive than its limits allow.
+/// - Cached rows live in meta rows, which are not logged, so writing them
+///   does not change the snapshot. Writing happens after the read
+///   transaction; if the store changed meanwhile, the rows still belong to
+///   the snapshot whose id they are stored under.
 pub fn run_cached<B: Backend>(
     store: &Store<B>,
     p: &Prepared,
@@ -348,19 +376,33 @@ pub fn run_cached<B: Backend>(
     limits: Limits,
 ) -> Result<(Rows, Digest, Cache)> {
     ensure_store_id(store)?;
-    let (rid, rows) = store.read(|tx| {
-        let rid = canon::result_id(&p.id, &snapshot(tx).map_err(|e| StoreError::Backend(e.to_string()))?, params);
-        let cached = tx.meta(&format!("query-result/{}", rid.to_hex()))?;
-        Ok((rid, cached))
-    })?;
-    if let Some(bytes) = rows {
-        return Ok((Rows::decode(&bytes)?, rid, Cache::Hit));
-    }
-    let rows = store.read(|tx| p.run(tx, params, limits, Strategy::Auto).map_err(|e| StoreError::Backend(e.to_string())))?;
-    if !rows.truncated {
+    let mut failure: Option<Error> = None;
+    let outcome = store.read(|tx| {
+        let inner = (|| -> Result<(Digest, Rows, Cache)> {
+            let rid = canon::result_id(&p.id, &snapshot(tx)?, params);
+            if let Some(bytes) = tx.meta(&format!("query-result/{}", rid.to_hex()))? {
+                return Ok((rid, Rows::decode(&bytes)?, Cache::Hit));
+            }
+            Ok((rid, p.run(tx, params, limits, Strategy::Auto)?, Cache::Miss))
+        })();
+        inner.map_err(|e| {
+            let msg = e.to_string();
+            failure = Some(e);
+            StoreError::Backend(msg)
+        })
+    });
+    let (rid, mut rows, cache) = match outcome {
+        Ok(v) => v,
+        Err(e) => return Err(failure.take().unwrap_or(Error::Store(e))),
+    };
+    if cache == Cache::Miss && !rows.truncated {
         store.set_meta(&format!("query-result/{}", rid.to_hex()), &rows.encode())?;
     }
-    Ok((rows, rid, Cache::Miss))
+    if rows.rows.len() > limits.max_rows {
+        rows.rows.truncate(limits.max_rows);
+        rows.truncated = true;
+    }
+    Ok((rows, rid, cache))
 }
 
 /// Stores a query as a definition, optionally under a name. Returns its id.

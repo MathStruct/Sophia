@@ -136,6 +136,20 @@ Daniel proposed a native query language and forwarded an external review of the 
 | SR-105 | The query IR and Moonkale integration come before more storage backends; no new database engine is built. | Q msg | now | followed |
 | SR-106 | Long-term: program and query optimisation converge. Queries become compiled functions, functions are partially evaluated against database state, proofs establish query equivalences, materialised views are reusable computations. Only after a small, correct algebra works on at least two backends. | Q msg (end) | later | direction (SPEC-007 §11) |
 
+## From the M3a review, 2026-10-20
+
+From the external review of `d0c08b4` ([[Review 2026-10-20 M3a (external)]]), forwarded by Daniel; "R3 §n" cites its sections. Daniel added: nobody uses Moonkale, Lenticulum or Sophia yet, so big alterations are fine.
+
+| # | Requirement | Origin | When | Status |
+|---|---|---|---|---|
+| SR-107 | A cached result is stored under the id of exactly the snapshot it was computed from; result identity is semantic, and execution policy (limits) never changes what a hit returns beyond the caller's own row cap. | R3 §3, §4 | now | done (SPEC-007 §4.3) |
+| SR-108 | Queries run under a resource budget: steps, rows, derived tuples, estimated bytes, wall time, cancellation. Untrusted (agent) queries additionally get a hard memory bound from outside the executor. | R3 §5 | now (budget); M3b (hard bound) | budget done (SPEC-007 §6.0); hard bound open |
+| SR-109 | Canonicalisation guarantees canon(πQ) = canon(Q) for every transformation it claims to normalise, or refuses; the guarantee is property-tested. | R3 §7 | now | done (SPEC-007 §4.1) |
+| SR-110 | Every optimisation is differentially tested against unoptimised evaluation on random programs and data; later, it carries checkable certificates. | R3 §8 | now (tests); later (certificates) | done for magic sets and the SQL translation |
+| SR-111 | Queries call typed, pure, cost-annotated functions through one mechanism, not a growing list of built-ins. | R3 §6 | later | design (SPEC-007 §11) |
+| SR-112 | One record shape for transformations and their evidence, shared by every optimiser and frontend. | R3 §10 | interface now, build later | specified (SPEC-006 §6a) |
+| SR-113 | Real-code benchmarks and Moonkale's edit loop come before the agent server. | R3 §9 | now | adopted ([[Milestones]]) |
+
 ## From Moonkale
 
 Each row cites the Moonkale page or section it comes from. Moonkale will cite these numbers back from its Code Graph Schema.
@@ -166,6 +180,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-20: SR-107 to SR-113 added from the review of M3a.
 - 2026-10-20: SR-90 to SR-106 added from Daniel's query-language proposal and its forwarded review; SR-32 updated (the `query` dialect).
 - 2026-10-20: SR-75 to SR-89 added from the external review.
 - 2026-10-20: SR-25 to SR-29 and SR-51 to SR-74 added from Daniel's message of 2026-10-20 (the SR-25 to SR-29 block was still free).

@@ -1,15 +1,15 @@
 #open-problem
 
-> **Status: open, accepted for v0 (2026-10-20).** Related: [[SPEC-007 Sophia Query Language]] §4.1, `crates/sophia-query/src/canon.md`.
+> **Status: partly closed (2026-10-20).** Rule and predicate order are now normalised **exactly**: a minimum over all traversals, with every tie tried, within a budget, and refused beyond it (SPEC-007 §4.1; property-tested). Literal order remains part of the identity, by design. Related: [[SPEC-007 Sophia Query Language]] §4.1, `crates/sophia-query/src/canon.md`.
 
 **Problem.** A query's meaning does not depend on:
 - the order of literals in a body (conjunction commutes);
 - the order of rules (union commutes);
 - the names of predicates and variables.
 
-The canonical form removes names, predicate order, rule order and duplicates, but **not literal order**. So `def(x, :method) && refs(x, _)` and `refs(x, _) && def(x, :method)` have different ids.
+The canonical form removes names, predicate order, rule order and duplicates, but **not literal order**. (Until the M3a review, rule order was settled by at most eight rounds of renumbering and sorting, which did not guarantee invariance. That is fixed.) So `def(x, :method) && refs(x, _)` and `refs(x, _) && def(x, :method)` have different ids.
 
-**Why not normalise it.** A complete canonical form of a conjunctive query is graph canonisation: the body is a hypergraph over variables. Sorting literals depends on variable numbering, and variable numbering depends on literal order. The rule-order normalisation already iterates for this reason, and in symmetric cases it settles on the smallest of the forms it saw, which is deterministic but not provably canonical.
+**Why not normalise it.** A complete canonical form of a conjunctive query is graph canonisation: the body is a hypergraph over variables. Sorting literals depends on variable numbering, and variable numbering depends on literal order. Rule order had the same circularity (rule bytes depend on predicate numbering, which depends on rule order). It is now solved exactly, by searching every tie (SPEC-007 §4.1). The same search over literal orders would multiply by the factorial of each body's length, which is why literal order is kept.
 
 **What v0 does.** Literal order is part of the identity, like argument order in code. Equivalent queries with different ids are related by **equivalence facts**, exactly as equivalent programs are (SPEC-006, [[Equivalence and Witnesses]]).
 

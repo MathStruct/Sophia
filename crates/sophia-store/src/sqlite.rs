@@ -139,7 +139,13 @@ impl Sqlite {
     /// apply, but it is otherwise guarded exactly like `query_readonly`. Not
     /// for text from users or agents.
     pub fn query_compiled(&self, sql: &str, limits: QueryLimits) -> Result<Table> {
-        self.guarded(sql, limits, |table, _| table.starts_with("t_"))
+        // The base tables, and the CTEs the translation names `p0`, `p1`, …
+        // (SQLite reports a read of a CTE that a rule uses without reading a
+        // column of it).
+        self.guarded(sql, limits, |table, _| {
+            table.starts_with("t_")
+                || table.strip_prefix('p').is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        })
     }
 
     fn guarded(&self, sql: &str, limits: QueryLimits, readable: fn(&str, Option<&str>) -> bool) -> Result<Table> {
