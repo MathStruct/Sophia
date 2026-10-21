@@ -1,6 +1,6 @@
 //! The store's record types (SPEC-001 §5 to §8). See `types.md`.
 
-use sophia_hash::canonical::Writer;
+use sophia_hash::canonical::{Reader, Writer};
 use sophia_hash::{Digest, NominalId};
 
 /// What a name points at.
@@ -254,6 +254,39 @@ impl Fact {
             inputs,
             derived_at,
         }
+    }
+}
+
+/// The fact kind that places a definition in a stored source file.
+pub const SOURCE_SPAN: &str = "source-span";
+
+/// Where an ingested definition was read: a source record (language
+/// `source`, SPEC-006 §1a) and a byte range in it. The value of a
+/// [`SOURCE_SPAN`] fact about the definition. Lets a reader print the text a
+/// definition came from when the definition's own bytes are a foreign normal
+/// form (Moonkale's WP-66) that does not print back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceSpan {
+    pub source: Digest,
+    pub start: u32,
+    pub end: u32,
+}
+
+impl SourceSpan {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut w = Writer::new();
+        w.field("source", self.source.as_bytes());
+        w.u32("start", self.start);
+        w.u32("end", self.end);
+        w.finish()
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<SourceSpan> {
+        let mut r = Reader::new(bytes);
+        let source = Digest::from_slice(r.expect("source").ok()?)?;
+        let start = r.expect_u32("start").ok()?;
+        let end = r.expect_u32("end").ok()?;
+        (start <= end).then_some(SourceSpan { source, start, end })
     }
 }
 

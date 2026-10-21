@@ -328,7 +328,12 @@ impl Printer<'_> {
                 let b = self.term(body, ARROW);
                 self.indent -= 4;
                 self.scope.pop();
-                (format!("let {lhs} = {v}{}    {b}{}end", self.nl(), self.nl()), ARROW)
+                let (open, close) = match self.p.blocks {
+                    Blocks::End => (String::new(), format!("{}end", self.nl())),
+                    Blocks::Braces => (" {".into(), format!("{}}}", self.nl())),
+                    Blocks::Indent => (":".into(), String::new()),
+                };
+                (format!("let {lhs} = {v}{open}{}    {b}{close}", self.nl()), ARROW)
             }
             Term::Match { scrutinee, data, motive: _, cases } => {
                 let s = self.term(scrutinee, 1);
@@ -339,6 +344,11 @@ impl Printer<'_> {
                     out.push_str(if self.p.annotation == ":" { ": " } else { " :: " });
                     out.push_str(&d);
                 }
+                out.push_str(match self.p.blocks {
+                    Blocks::End => "",
+                    Blocks::Braces => " {",
+                    Blocks::Indent => ":",
+                });
                 self.indent += 4;
                 for c in cases {
                     let pat = match names.as_ref().and_then(|ns| ns.get(c.constructor as usize)) {
@@ -359,7 +369,11 @@ impl Printer<'_> {
                     out.push_str(&format!("{}{pat}{args} => {body}", self.nl()));
                 }
                 self.indent -= 4;
-                out.push_str(&format!("{}end", self.nl()));
+                match self.p.blocks {
+                    Blocks::End => out.push_str(&format!("{}end", self.nl())),
+                    Blocks::Braces => out.push_str(&format!("{}}}", self.nl())),
+                    Blocks::Indent => {}
+                }
                 (out, ARROW)
             }
             Term::Type(0) => ("Type".into(), ATOM),

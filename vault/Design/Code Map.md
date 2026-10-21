@@ -44,6 +44,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `examples/lean_export_stats.rs` | [[lean_export_stats]] | measures a lean4export file (statements, programs, proofs) |
 | | `examples/julia_conformance.rs`, `tests/julia-semantics/methods.jl` | [[julia_conformance]], [[methods]] | Sophia's generic-function grouping against Julia's own method table ([[Julia Conformance]]) |
 | `sophia-interface` | `examples/edit_timing.rs` | [[edit_timing]] | B-15's steps on `Interface` directly, to separate Sophia's share |
+| `sophia-interface` | `examples/listing_timing.rs` | [[listing_timing]] | `children` and `all` on a large store (Moonkale's Explorer calls) |
 | `experiments/b15-edit-loop` | `run.sh` | [[run]] | B-15: Moonkale's `edit_loop` on synthetic stores of 10³–10⁵ definitions |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
 | | `bin/sophia-mm-check.rs` | [[sophia-mm-check]] | Metamath dependency answers against metamath.exe |

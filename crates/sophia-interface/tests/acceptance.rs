@@ -211,7 +211,84 @@ end") {
     assert_eq!(t3, w2.version);
 }
 
-both!(all_draws_structure, group_members_cannot_be_overwritten_silently, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
+fn listing_skips_sub_namespaces<B: Backend + Sync>(i: Interface<B>) {
+    // Paths around a namespace boundary (see the store's conformance suite).
+    let paths = ["a.b", "a.b!", "a.b.c", "a.b.c.d", "a.`b.c`", "a.`b.c`.d", "a.b0", "a.`+`", "ab.x", "a"];
+    let target = i.store().resolve("sample.add").unwrap().unwrap().target.digest();
+    let rec = i.store().record(&target).unwrap().unwrap();
+    let named: Vec<_> = paths.iter().map(|p| (p.to_string(), 0, sophia_store::Visibility::Public)).collect();
+    i.store().add(&[rec], &named).unwrap();
+    let keys = |g: &Subgraph| g.nodes.iter().map(|n| format!("{:?}", n.key)).collect::<Vec<_>>();
+    let a = i.children(&Key::ns("a")).unwrap();
+    let mut subs = ["a.b", "a.`b.c`"];
+    subs.sort();
+    let mut expected: Vec<String> = subs.iter().map(|p| format!("{:?}", Key::ns(p))).collect();
+    let mut leaves = ["a.b", "a.b!", "a.`b.c`", "a.b0", "a.`+`"];
+    leaves.sort();
+    expected.extend(leaves.iter().map(|p| format!("{:?}", Key::name(p))));
+    assert_eq!(keys(&a), expected, "sub-namespaces first, then names, each sorted");
+    assert_eq!(a.edges.len(), a.nodes.len());
+    let root = i.children(&i.root()).unwrap();
+    assert_eq!(names(&root), vec!["Directory:a", "Directory:ab", "Directory:sample", "Name:a", "sophia:Settings:rendering profile"]);
+    let b = i.children(&Key::ns("a.b")).unwrap();
+    assert_eq!(keys(&b), vec![format!("{:?}", Key::ns("a.b.c")), format!("{:?}", Key::name("a.b.c"))]);
+}
+
+/// A record of another language prints the source it was read from (its
+/// `source-span` fact), and other foreign records print as a `#` summary.
+fn foreign_records_print<B: Backend + Sync>(i: Interface<B>) {
+    use sophia_hash::merkle::{component_digest, member_digest};
+    use sophia_hash::{Record, Status};
+    let rec = |lang: &str, kind: &str, bytes: &[u8], display: &str| {
+        let component = component_digest(lang, "test@0", bytes);
+        Record {
+            id: member_digest(&component, 0),
+            lang: lang.into(),
+            normaliser: "test@0".into(),
+            kind: kind.into(),
+            component,
+            index: 0,
+            component_size: 1,
+            bytes: bytes.to_vec(),
+            display: display.as_bytes().to_vec(),
+            status: Status::Complete,
+            refs: vec![],
+            nominal_refs: vec![],
+        }
+    };
+    let text = "struct A\n    x::Int\nend\n\nstruct B\n    x::Int\nend\n";
+    let src = rec("source", "source-file", text.as_bytes(), "file.jl");
+    // One normal form for both structs: the name is not part of identity.
+    let def = rec("julia", "struct_definition", b"struct-x-Int", "A");
+    let opaque = rec("metamath", "axiom", b"|- ph", "ax-1");
+    let named = [("jl.A".to_string(), 1, sophia_store::Visibility::Public), ("jl.B".to_string(), 1, sophia_store::Visibility::Public),
+        ("mm.ax1".to_string(), 2, sophia_store::Visibility::Public)];
+    i.store().add(&[src.clone(), def.clone(), opaque], &named).unwrap();
+    let span = |start: u32, end: u32| {
+        let v = sophia_store::SourceSpan { source: src.id, start, end };
+        sophia_store::Fact::new(sophia_store::SOURCE_SPAN, def.id, v.encode(), ("test", "0"), vec![], 0)
+    };
+    let b_at = text.find("struct B").unwrap() as u32;
+    i.store().record_facts(&[span(0, b_at - 2), span(b_at, text.len() as u32 - 1)]).unwrap();
+    let (a, _) = i.fetch_text(&Key::name("jl.A")).unwrap();
+    assert!(a.starts_with("# julia struct_definition"), "{a}");
+    assert!(a.contains("struct A\n    x::Int\nend"), "{a}");
+    let (b, _) = i.fetch_text(&Key::name("jl.B")).unwrap();
+    assert!(b.contains("struct B\n    x::Int\nend") && !b.contains("struct A"), "the span naming B: {b}");
+    let (m, _) = i.fetch_text(&Key::name("mm.ax1")).unwrap();
+    assert!(m.lines().all(|l| l.starts_with('#')), "{m}");
+    assert!(m.contains("display: ax-1"), "{m}");
+}
+
+fn diagnostics_name_tokens_as_written<B: Backend + Sync>(i: Interface<B>) {
+    let (_, v) = i.fetch_text(&Key::name("sample.add")).unwrap();
+    let e = i.write_text(&Key::name("sample.add"), v, "function add(a::Nat, b::Nat)::Nat\n    let y = a\n    y)\nend\n").unwrap_err();
+    let msg = format!("{e:?}");
+    assert!(msg.contains("(found `)`)") && !msg.contains("Sym("), "{msg}");
+}
+
+both!(all_draws_structure, group_members_cannot_be_overwritten_silently, listing_skips_sub_namespaces, foreign_records_print,
+    diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {
     fn open_existing_for_test(i: &Self, reader: &str) -> String;

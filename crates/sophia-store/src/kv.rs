@@ -156,6 +156,11 @@ impl<X: Kv> ReadTx for X {
         Ok(out)
     }
 
+    fn names_from(&self, base: &str, from: &str, limit: usize) -> Result<Vec<NameEntry>> {
+        let start = if from > base { from } else { base };
+        self.scan(Table::Name, start.as_bytes(), base.as_bytes(), limit)?.iter().map(|(_, v)| decode_name(v)).collect()
+    }
+
     fn names_of(&self, target: &Digest) -> Result<Vec<NameEntry>> {
         let mut out = Vec::new();
         for (k, _) in self.scan(Table::NameTgt, target.as_bytes(), target.as_bytes(), ALL_ROWS)? {

@@ -24,6 +24,27 @@ pub enum Tok {
     Eof,
 }
 
+/// How a token is named in a diagnostic: as written, in backquotes.
+impl std::fmt::Display for Tok {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Tok::Ident(s) => write!(f, "`{s}`"),
+            Tok::Quoted(s) => write!(f, "`{s}` (quoted)"),
+            Tok::Int(i) => write!(f, "`{i}`"),
+            Tok::UInt(u) => write!(f, "`0x{u:x}`"),
+            Tok::Float(b) => write!(f, "`{}`", f64::from_bits(*b)),
+            Tok::Str(s) => write!(f, "{s:?}"),
+            Tok::Char(c) => write!(f, "{c:?}"),
+            Tok::HashRef(h) => write!(f, "`#{}…`", &h[..h.len().min(12)]),
+            Tok::NominalRef(h) => write!(f, "`##{}…`", &h[..h.len().min(12)]),
+            Tok::At(s) => write!(f, "`@{s}`"),
+            Tok::Sym(s) => write!(f, "`{s}`"),
+            Tok::Newline => f.write_str("end of line"),
+            Tok::Eof => f.write_str("end of text"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub tok: Tok,

@@ -20,3 +20,7 @@ Precedence, loosest first: arrows (lambda `->`, Π `-->`, both right-associative
 A binder before `->` or `-->` is recovered from the parsed left side (`to_binder`). For `-->`, any other expression is an anonymous domain.
 
 **Not parsed:** the `python` profile's indentation blocks. That profile is display-only until it has its own parser.
+
+**`let` with braces** (2026-10-21): `let x = v {` body `}` is read when the brace is on the `let`'s line (no newline token between the value and the brace), as `match s {` … `}` already was; otherwise `let x = v [in]` body `end`. The random round trip (`tests/round_trip.rs`, 20 000 cases in both profiles) also checks that Rust text contains no `end` line.
+
+**Diagnostics name tokens as written** (2026-10-21): ``expected `end` (found `)`)``, not the token's Debug form (`Sym(")")`). `Tok`'s `Display` is in [[lexer]].

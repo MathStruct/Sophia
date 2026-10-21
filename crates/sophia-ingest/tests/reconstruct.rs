@@ -64,6 +64,26 @@ fn julia_modules_rebuild<B: Backend>(s: Store<B>) {
         .collect();
     assert!(!stored.is_empty());
     assert_eq!(stored, rebuilt, "every stored Julia record is derivable from stored sources");
+    // Every one can be shown as the text it was read from: a source-span
+    // fact into a stored source, whose text contains the definition's name.
+    for id in &stored {
+        let r = s.record(id).unwrap().unwrap();
+        let name = String::from_utf8(r.display.clone()).unwrap();
+        let texts: Vec<String> = s
+            .read(|tx| tx.facts_of(id))
+            .unwrap()
+            .into_iter()
+            .filter(|f| f.kind == sophia_store::SOURCE_SPAN)
+            .map(|f| {
+                let sp = sophia_store::SourceSpan::decode(&f.value).unwrap();
+                let src = s.record(&sp.source).unwrap().expect("the span's source is stored");
+                assert_eq!(src.lang, source::SOURCE_LANG);
+                String::from_utf8(src.bytes[sp.start as usize..sp.end as usize].to_vec()).unwrap()
+            })
+            .collect();
+        assert!(!texts.is_empty(), "{name}: no source span");
+        assert!(texts.iter().any(|t| t.contains(name.rsplit('.').next().unwrap())), "{name}: {texts:?}");
+    }
 }
 
 /// Metamath: statements and proofs rebuilt and identical.

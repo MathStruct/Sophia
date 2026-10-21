@@ -26,6 +26,14 @@ pub trait ReadTx {
     /// Names at or below `prefix` (a dotted path, or "" for all), sorted, up to `limit`.
     fn names_under(&self, prefix: &str, limit: usize) -> Result<Vec<NameEntry>>;
     fn names_of(&self, target: &Digest) -> Result<Vec<NameEntry>>;
+    /// Names that start with `base` (empty, or a namespace path followed by
+    /// `.`) and sort at or after `from`, sorted, up to `limit`: a range scan
+    /// on the name index, so a lister can skip a whole sub-namespace by
+    /// starting again after it. The default filters [`ReadTx::names_under`].
+    fn names_from(&self, base: &str, from: &str, limit: usize) -> Result<Vec<NameEntry>> {
+        let all = self.names_under(base.strip_suffix('.').unwrap_or(base), usize::MAX)?;
+        Ok(all.into_iter().filter(|n| n.path.starts_with(base) && n.path.as_str() >= from).take(limit).collect())
+    }
 
     fn last_seq(&self) -> Result<u64>;
     fn log_since(&self, seq: u64, limit: usize) -> Result<Vec<LogEntry>>;

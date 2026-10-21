@@ -91,7 +91,7 @@ impl Parser {
     }
 
     fn err<T>(&mut self, msg: impl Into<String>) -> R<T> {
-        let found = format!("{:?}", self.tok());
+        let found = self.tok().to_string();
         Err(Diagnostic::error(self.span(), format!("{} (found {found})", msg.into())))
     }
 
@@ -574,6 +574,18 @@ impl Parser {
         let b = to_binder(&lhs, false)?;
         self.expect_sym("=")?;
         let value = self.expr()?;
+        // `let x = v {` body `}` (brace profiles), when the brace is on the
+        // `let`'s line; otherwise `let x = v [in]` body `end`.
+        let brace = self.sym("{");
+        let same_line = !self.toks[..self.at].iter().rev().take_while(|t| t.span.start >= value.span.end).any(|t| t.tok == Tok::Newline);
+        if brace && same_line {
+            self.bump();
+            self.skip_separators();
+            let body = self.expr()?;
+            self.skip_separators();
+            let end = self.expect_sym("}")?;
+            return Ok(SExpr { kind: SKind::Let(b, Box::new(value), Box::new(body)), span: start.to(end) });
+        }
         if self.kw("in") {
             self.bump();
         }

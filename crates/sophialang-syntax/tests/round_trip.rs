@@ -277,6 +277,8 @@ proptest! {
             let id = normalise_one(&def).unwrap().id;
             let items = [ToPrint { name: "t", def: &def, id: Some(id), index: 0, relation: false }];
             let text = print(&EmptyEnv, "", &profile, &items);
+            // Rust's blocks are braces all the way down: `let` and `match` too.
+            prop_assert!(!rust || !text.lines().any(|l| l.trim() == "end" || l.trim_start().starts_with("end)")), "{}", text);
             let parsed = parse_text(&EmptyEnv, "", &text, Limits::default());
             prop_assert!(parsed.is_ok(), "did not parse:\n{}\n{:?}", text, parsed.err());
             let (items2, _) = parsed.unwrap();

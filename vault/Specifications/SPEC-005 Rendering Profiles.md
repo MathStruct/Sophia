@@ -103,7 +103,7 @@ The same `add` in the `rust` profile is `fn add(x: Int64, y: Int64) -> Int64 { x
 - **Storage:** profiles are stored as meta rows in the database (`profile/<name>/<key>`, `reader/<reader>/<scope>`), not in dedicated tables ([[profiles]]), so every backend has them without a schema change. Resolution follows §2.
 - **Keys honoured:** `kw.function`, `blocks`, `type.annotation`, `operators`.
 - **Not yet:** `type.show`, `implicit.show`, `generic.call`, `index.base`, and the `Index` type of §4 (no arrays yet).
-- **`let` and `match`** print with `end` in every profile, for now.
+- **`let` and `match`** follow the profile's `blocks` (2026-10-21): `end` in `julia`, braces in `rust` (`let x = v {` … `}`, `match s {` … `}`), a colon and indentation in `python`. Until then they printed with `end` in every profile, so Rust text mixed both styles.
 
 ## Related
 

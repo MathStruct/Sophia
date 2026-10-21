@@ -6,7 +6,7 @@ pub mod metamath;
 pub mod module;
 pub mod source;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use sophia_store::{Annotation, Backend, Store, StoreError, Visibility};
 
@@ -260,9 +260,30 @@ pub fn store_module<B: Backend>(
     let r = module::ingest(&d)?;
     let calls = r.calls_generic.len();
     let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
+    // Where each definition was read (SourceSpan facts): its stored bytes
+    // are WP-66's normal form, which does not print back, so a reader shows
+    // the source text instead.
+    let source_of: HashMap<&str, sophia_hash::Digest> =
+        d.files.iter().zip(&manifest.files).map(|(f, m)| (f.path.as_str(), m.source)).collect();
+    let mut spans = Vec::new();
+    for (path, v) in &r.files {
+        let Some(source) = source_of.get(path.as_str()) else { continue };
+        for (def, rec) in v {
+            let span = sophia_store::SourceSpan { source: *source, start: def.start as u32, end: def.end as u32 };
+            spans.push(sophia_store::Fact::new(
+                sophia_store::SOURCE_SPAN,
+                rec.id,
+                span.encode(),
+                (source::JULIA_MODULE_FRONTEND, "0"),
+                vec![sophia_store::Input::Content(*source)],
+                0,
+            ));
+        }
+    }
     let items: Vec<(code::Def, sophia_hash::Record)> = r.files.into_iter().flat_map(|(_, v)| v).collect();
     report.definitions = items.len();
     store_items(store, "julia", pkg, &items, &r.uses_generic, &mut report)?;
+    store.record_facts(&spans)?;
     Ok((report, r.cross_file_references, calls))
 }
 

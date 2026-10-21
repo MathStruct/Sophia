@@ -375,11 +375,31 @@ impl ReadTx for SqliteTx<'_> {
             .tx
             .prepare_cached(
                 "SELECT path, target_kind, target, visibility, seq FROM t_name
-                 WHERE ?1 = '' OR path = ?1 OR substr(path, 1, length(?1) + 1) = ?1 || '.'
+                 WHERE ?1 = '' OR path = ?1 OR (path >= ?1 || '.' AND path < ?1 || '/')
                  ORDER BY path LIMIT ?2",
             )
             .map_err(be)?;
         let v: Vec<_> = st.query_map(params![prefix, limit.min(i64::MAX as usize) as i64], Self::name_row).map_err(be)?.collect();
+        v.into_iter().map(|r| Self::finish_name(r.map_err(be)?)).collect()
+    }
+
+    fn names_from(&self, base: &str, from: &str, limit: usize) -> Result<Vec<NameEntry>> {
+        // `.` + 1 = `/`: every path under `ns.` sorts below `ns/`.
+        let upper = base.strip_suffix('.').map(|b| format!("{b}/"));
+        // One lower bound, so the index seek starts at the cursor.
+        let start = if from > base { from } else { base };
+        let mut st = self
+            .tx
+            .prepare_cached(
+                "SELECT path, target_kind, target, visibility, seq FROM t_name
+                 WHERE path >= ?1 AND (?2 IS NULL OR path < ?2)
+                 ORDER BY path LIMIT ?3",
+            )
+            .map_err(be)?;
+        let v: Vec<_> = st
+            .query_map(params![start, upper, limit.min(i64::MAX as usize) as i64], Self::name_row)
+            .map_err(be)?
+            .collect();
         v.into_iter().map(|r| Self::finish_name(r.map_err(be)?)).collect()
     }
 

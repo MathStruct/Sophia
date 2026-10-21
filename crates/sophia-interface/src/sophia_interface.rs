@@ -13,7 +13,7 @@ pub mod profiles;
 use std::collections::{BTreeSet, HashSet};
 
 use sophia_hash::{Digest, Record};
-use sophia_store::{Backend, ReadTx, Store, StoreError, Target};
+use sophia_store::{Backend, NameEntry, ReadTx, Store, StoreError, Target};
 use sophialang_core::{Body, definition_of};
 use sophialang_syntax::{Env, Found, Profile, ToPrint};
 
@@ -205,6 +205,28 @@ impl<B: Backend + Sync> Interface<B> {
         }))
     }
 
+    fn name_view(n: &NameEntry) -> NodeView {
+        NodeView {
+            key: Key::name(&n.path),
+            kind: "Name".into(),
+            label: Self::name_label(&n.path),
+            props: vec![
+                ("path".into(), Prop::Text(n.path.clone())),
+                ("visibility".into(), Prop::Text(n.visibility.as_str().into())),
+                ("version".into(), Prop::Int(n.seq as i64)),
+            ],
+        }
+    }
+
+    fn namespace_view(path: &str) -> NodeView {
+        NodeView {
+            key: Key::ns(path),
+            kind: "Directory".into(),
+            label: if path.is_empty() { "/".to_string() } else { Self::name_label(path) },
+            props: vec![("path".into(), Prop::Text(path.into()))],
+        }
+    }
+
     fn namespace_exists(&self, tx: &dyn ReadTx, path: &str) -> Result<bool> {
         Ok(path.is_empty()
             || tx.meta(&format!("ns/{path}"))?.is_some()
@@ -228,26 +250,10 @@ impl<B: Backend + Sync> Interface<B> {
                     if !self.namespace_exists(tx, path)? {
                         return Ok(None);
                     }
-                    let label = if path.is_empty() { "/".to_string() } else { Self::name_label(path) };
-                    return Ok(Some(NodeView {
-                        key: key.clone(),
-                        kind: "Directory".into(),
-                        label,
-                        props: vec![("path".into(), Prop::Text(path.into()))],
-                    }));
+                    return Ok(Some(Self::namespace_view(path)));
                 }
                 if let Some(path) = s.strip_prefix("name:") {
-                    let Some(n) = tx.name(path)? else { return Ok(None) };
-                    return Ok(Some(NodeView {
-                        key: key.clone(),
-                        kind: "Name".into(),
-                        label: Self::name_label(path),
-                        props: vec![
-                            ("path".into(), Prop::Text(path.into())),
-                            ("visibility".into(), Prop::Text(n.visibility.as_str().into())),
-                            ("version".into(), Prop::Int(n.seq as i64)),
-                        ],
-                    }));
+                    return Ok(tx.name(path)?.map(|n| Self::name_view(&n)));
                 }
                 if let Some(hex) = s.strip_prefix("lineage:") {
                     let Ok(l) = hex.parse::<Digest>() else { return Ok(None) };
@@ -282,26 +288,50 @@ impl<B: Backend + Sync> Interface<B> {
         self.store.read(|tx| self.children_in(tx, key))
     }
 
+    /// The direct children of the namespace whose names start with `base`
+    /// ("" for the root, else `ns.`): its sub-namespaces that hold names,
+    /// and its names, both sorted. A skip scan: names are read in batches
+    /// along the name index, and on meeting a sub-namespace the scan starts
+    /// again after it, so the cost grows with the number of children, not
+    /// with the number of names below them.
+    fn child_entries(tx: &dyn ReadTx, base: &str) -> Result<(Vec<String>, Vec<NameEntry>)> {
+        const BATCH: usize = 512;
+        let (mut subs, mut names) = (Vec::new(), Vec::new());
+        let mut from = base.to_string();
+        'scan: loop {
+            let batch = tx.names_from(base, &from, BATCH)?;
+            let full = batch.len() == BATCH;
+            for n in batch {
+                let rest = &n.path[base.len()..];
+                let first = sophialang_syntax::split_path(rest)[0];
+                if first.len() == rest.len() {
+                    from = format!("{}\0", n.path);
+                    names.push(n);
+                } else {
+                    // `.` + 1 = `/`: skips every path under `base.first.`.
+                    let sub = format!("{base}{first}");
+                    from = format!("{sub}/");
+                    subs.push(sub);
+                    continue 'scan;
+                }
+            }
+            if !full {
+                break;
+            }
+        }
+        Ok((subs, names))
+    }
+
     fn children_in(&self, tx: &dyn ReadTx, key: &Key) -> Result<Subgraph> {
         {
             let mut g = Subgraph::default();
             let Key::Derived(s) = key else { return Ok(g) };
             let Some(ns) = s.strip_prefix("ns:") else { return Ok(g) };
-            let mut subs = BTreeSet::new();
             let depth = if ns.is_empty() { 0 } else { sophialang_syntax::split_path(ns).len() };
-            for n in tx.names_under(ns, usize::MAX)? {
-                let segs = sophialang_syntax::split_path(&n.path);
-                if segs.len() == depth + 1 {
-                    let k = Key::name(&n.path);
-                    if let Some(v) = self.node_in(tx, &k)? {
-                        g.nodes.push(v);
-                        g.edges.push(EdgeView { from: key.clone(), to: k, kind: "Contains".into(), props: vec![] });
-                    }
-                } else if segs.len() > depth + 1 {
-                    subs.insert(segs[..=depth].join("."));
-                }
-            }
-            for (k, _) in tx.meta_prefix(&if ns.is_empty() { "ns/".to_string() } else { format!("ns/{ns}.") })? {
+            let base = if ns.is_empty() { String::new() } else { format!("{ns}.") };
+            let (subs, names) = Self::child_entries(tx, &base)?;
+            let mut subs: BTreeSet<String> = subs.into_iter().collect();
+            for (k, _) in tx.meta_prefix(&format!("ns/{base}"))? {
                 let p = &k[3..];
                 if sophialang_syntax::split_path(p).len() == depth + 1 {
                     subs.insert(p.to_string());
@@ -309,10 +339,12 @@ impl<B: Backend + Sync> Interface<B> {
             }
             for sub in subs {
                 let k = Key::ns(&sub);
-                if let Some(v) = self.node_in(tx, &k)? {
-                    g.nodes.insert(0, v);
-                    g.edges.push(EdgeView { from: key.clone(), to: k, kind: "Contains".into(), props: vec![] });
-                }
+                g.nodes.push(Self::namespace_view(&sub));
+                g.edges.push(EdgeView { from: key.clone(), to: k, kind: "Contains".into(), props: vec![] });
+            }
+            for n in names {
+                g.edges.push(EdgeView { from: key.clone(), to: Key::name(&n.path), kind: "Contains".into(), props: vec![] });
+                g.nodes.push(Self::name_view(&n));
             }
             if ns.is_empty() {
                 let k = Key::settings();
@@ -576,9 +608,12 @@ impl<B: Backend + Sync> Interface<B> {
                     let p = sophia_query::Prepared::from_record(&r).map_err(|e| StoreError::Codec(e.to_string()))?;
                     return Ok(p.print(sophia_query::Profile::Julia));
                 }
-                let profile = self.profile_for(ns, &r.lang)?;
                 let members: Vec<Record> =
                     if r.component_size > 1 { self.store.read(|tx| tx.component(&r.component))? } else { vec![r.clone()] };
+                if r.lang != sophialang_core::normalise::LANG {
+                    return self.foreign_text(&members, &d, last_segment(path));
+                }
+                let profile = self.profile_for(ns, &r.lang)?;
                 let mut named = Vec::new();
                 for m in &members {
                     let name = if m.id == d {
@@ -618,6 +653,73 @@ impl<B: Backend + Sync> Interface<B> {
                 Ok(s)
             }
         }
+    }
+
+    /// The text of records that are not sophialang (SPEC-004 §3): a source
+    /// file prints its bytes; a definition ingested from another language
+    /// prints the source text it was read from (its `source-span` fact),
+    /// since its bytes are that language's normal form (Moonkale's WP-66),
+    /// which does not print back; anything else (an ingest manifest, a
+    /// Metamath statement) prints as a summary. Every line but source text
+    /// is a `#` comment, so the text is plainly not sophialang.
+    ///
+    /// One id can have several spans: the name is not part of a
+    /// definition's identity, so `struct A x end` and `struct B x end` are
+    /// one record. `id`'s span is the one whose text contains `name`.
+    fn foreign_text(&self, members: &[Record], id: &Digest, name: &str) -> Result<String> {
+        let mut s = String::new();
+        for m in members {
+            let header = format!("# {} {} {} ({})\n", m.lang, m.kind, m.id.short(12), m.normaliser);
+            if m.lang == "source" {
+                s.push_str(&header);
+                s.push_str(&String::from_utf8_lossy(&m.bytes));
+                continue;
+            }
+            let spans: Vec<sophia_store::SourceSpan> = self
+                .store
+                .read(|tx| tx.facts_of(&m.id))?
+                .into_iter()
+                .filter(|f| f.kind == sophia_store::SOURCE_SPAN)
+                .filter_map(|f| sophia_store::SourceSpan::decode(&f.value))
+                .collect();
+            let mut texts = Vec::new();
+            for sp in spans {
+                let Some(src) = self.store.record(&sp.source)? else { continue };
+                let Some(t) = src.bytes.get(sp.start as usize..sp.end as usize) else { continue };
+                let file = String::from_utf8_lossy(&src.display).into_owned();
+                texts.push((file, sp, String::from_utf8_lossy(t).into_owned()));
+            }
+            let pick = if m.id == *id { texts.iter().position(|(_, _, t)| t.contains(name)).unwrap_or(0) } else { 0 };
+            let text = if texts.is_empty() { None } else { Some(texts.swap_remove(pick)) };
+            match text {
+                Some((file, sp, t)) => {
+                    s.push_str(&header);
+                    s.push_str(&format!("# read-only: the source it was read from, {file} bytes {}..{}\n", sp.start, sp.end));
+                    s.push_str(&t);
+                    s.push('\n');
+                }
+                None => {
+                    s.push_str(&header);
+                    s.push_str(&format!("#   display: {}\n", String::from_utf8_lossy(&m.display)));
+                    s.push_str(&format!("#   {} bytes, {} references\n", m.bytes.len(), m.refs.len()));
+                    for d in &m.refs {
+                        let names = self.store.read(|tx| tx.names_of(d))?;
+                        let label = match names.first() {
+                            Some(n) => n.path.clone(),
+                            None => match self.store.record(d)? {
+                                Some(r) if !r.display.is_empty() => String::from_utf8_lossy(&r.display).into_owned(),
+                                _ => d.short(12),
+                            },
+                        };
+                        s.push_str(&format!("#   ref {label}\n"));
+                    }
+                    if m.lang == "julia" || m.lang == "rust" || m.lang == "python" {
+                        s.push_str("#   no stored source span: re-ingest the package to record one\n");
+                    }
+                }
+            }
+        }
+        Ok(s)
     }
 
     /// The edit token of a name's text (SPEC-004 §3b): a hash of every name

@@ -223,6 +223,29 @@ fn kinds_follow_from_content<B: Backend>(s: Store<B>) {
     assert_eq!(s.put_records(&records).unwrap(), 0, "the same kind is fine");
 }
 
+/// Paths around a namespace boundary: `!` and `-`-free neighbours that
+/// sort before and after `a.b.`, a quoted segment with a dot in it, and an
+/// operator name.
+const AROUND: [&str; 10] =
+    ["a.b", "a.b!", "a.b.c", "a.b.c.d", "a.`b.c`", "a.`b.c`.d", "a.b0", "a.`+`", "ab.x", "a"];
+
+fn names_from_is_a_range_scan<B: Backend>(s: Store<B>) {
+    let (_, records) = sample();
+    let named: Vec<(String, usize, Visibility)> = AROUND.iter().map(|p| (p.to_string(), 1, Visibility::Public)).collect();
+    s.add(&records, &named).unwrap();
+    let paths = |v: Vec<NameEntry>| v.into_iter().map(|n| n.path).collect::<Vec<_>>();
+    let mut under_a: Vec<String> = AROUND.iter().filter(|p| p.starts_with("a.")).map(|p| p.to_string()).collect();
+    under_a.sort();
+    assert_eq!(paths(s.read(|tx| tx.names_from("a.", "", 100)).unwrap()), under_a, "everything under a., sorted");
+    assert_eq!(paths(s.read(|tx| tx.names_from("a.", "a.", 2)).unwrap()), under_a[..2].to_vec(), "the limit holds");
+    // Starting again after `a.b.`'s subtree skips it and nothing else.
+    let after: Vec<String> = under_a.iter().filter(|p| p.as_str() >= "a.b/").cloned().collect();
+    assert_eq!(paths(s.read(|tx| tx.names_from("a.", "a.b/", 100)).unwrap()), after);
+    assert!(!after.iter().any(|p| p.starts_with("a.b.")));
+    assert_eq!(s.read(|tx| tx.names_from("", "", usize::MAX)).unwrap().len(), AROUND.len());
+    assert_eq!(paths(s.read(|tx| tx.names_from("", "ab", 100)).unwrap()), vec!["ab.x".to_string()]);
+}
+
 macro_rules! suite {
     ($module:ident, $make:expr) => {
         mod $module {
@@ -238,7 +261,7 @@ macro_rules! suite {
                 update_moves_name_extends_lineage_reports_dependants, update_is_optimistic_and_reingest_is_a_noop,
                 recursive_groups_share_a_component, incomplete_definitions_store, methods_change_no_ids_and_stale_facts,
                 annotations_attach_to_subjects, changes_since_pages_through_the_log, meta_round_trips,
-                failed_writes_roll_back, kinds_follow_from_content);
+                failed_writes_roll_back, kinds_follow_from_content, names_from_is_a_range_scan);
         }
     };
     (@tests $($t:ident),*) => {

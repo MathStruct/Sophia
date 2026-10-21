@@ -412,6 +412,22 @@ impl<B: Backend> Store<B> {
         })
     }
 
+    /// Records several facts in one transaction; a fact already stored is
+    /// neither stored nor logged again. Returns the last seq.
+    pub fn record_facts(&self, facts: &[Fact]) -> Result<u64> {
+        self.backend.write(|tx| {
+            let mut seq = tx.last_seq()?;
+            for f in facts {
+                if tx.facts_of(&f.subject)?.iter().any(|g| g.id == f.id) {
+                    continue;
+                }
+                seq = self.log(tx, LogOp::Fact, f.kind.clone(), None, Some(f.id))?;
+                tx.put_fact(f)?;
+            }
+            Ok(seq)
+        })
+    }
+
     /// A fact is stale when a relation it depended on has a newer version.
     /// Facts about immutable content are otherwise never wrong (SPEC-001 §8).
     pub fn is_stale(&self, f: &Fact) -> Result<bool> {
