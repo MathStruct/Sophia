@@ -1,8 +1,14 @@
 name: Deploy site to GitHub Pages
 
+# Builds the site with site/build.sh (MathStruct's shared Quartz, https://github.com/MathStruct/quartz)
+# and deploys it on every push to master. A pull request is built too, without deploying: the
+# rendered site is attached to the run as the "site" artifact, so a change can be looked at
+# before it is merged (download, unzip, `npx serve <folder>`).
+
 on:
   push:
     branches: [master]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,8 +17,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -21,27 +27,30 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # git history is used for created/modified dates
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true # enable Pages (source: GitHub Actions) if it is not enabled yet
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-      - name: Install dependencies
-        working-directory: site
-        run: npm ci
       - name: Build site with Quartz
-        working-directory: site
-        # the content directory is the repository root: the whole repo is the vault
-        run: npx quartz build -d ..
-      - uses: actions/upload-pages-artifact@v3
+        run: site/build.sh
+      - name: Attach the rendered site to a pull request's run
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/public
+          retention-days: 14
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true # enable Pages (source: GitHub Actions) if it is not enabled yet
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site/public
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     environment:
       name: github-pages

@@ -70,30 +70,28 @@ cargo run --release -p sophia-bench --bin sophia-mm-check -- --exe "$(command -v
 
 ## Website
 
-`site/` is a vendored copy of Quartz 4.5.2 taken from
-[MathStruct/MathStruct.github.io](https://github.com/MathStruct/MathStruct.github.io),
-whose build-time plugins match the vault's Obsidian plugins:
+The vault is published at <https://mathstruct.org/Sophia/>, built with
+[MathStruct's Quartz](https://github.com/MathStruct/quartz): Quartz 4 plus the plugins all
+MathStruct sites share, which match the vault's Obsidian plugins:
 
-- `quartz/plugins/transformers/tikz.ts` — ` ```tikz ` fences in the **Inline TikZ** format (`\usepackage` lines, then a full `\begin{document} … \end{document}`) are compiled to SVG with `node-tikzjax` and cached by content hash in `site/.tikz-cache` (committed, so CI does not recompile every diagram). TikZJax ships a small TeX distribution: a macro it lacks (`\llbracket` from `stmaryrd`, say) has to be defined in the preamble.
-- `quartz/plugins/transformers/latex.ts` — every formula is offered to Typst first (**Wypst** syntax), and anything Typst rejects falls through to KaTeX, so a stray LaTeX formula still renders. Pin a page with `math: typst` or `math: latex` frontmatter to forbid the other syntax. The build prints a `Mixed math in …` line for every note that used both.
-- `quartz/plugins/transformers/tabs.ts` — **Markdown Tabs** blocks.
-- `quartz/plugins/transformers/titleHeading.ts` — drops the `# Note Name` heading each note opens with, since Quartz renders the note name as the title.
+- ` ```tikz ` fences in the **Inline TikZ** format (`\usepackage` lines, then a full `\begin{document} … \end{document}`) are compiled to SVG with `node-tikzjax`, with a dark-mode variant, and cached by content hash in `site/.tikz-cache` (committed, so CI does not recompile every diagram). TikZJax ships a small TeX distribution: a macro it lacks (`\llbracket` from `stmaryrd`, say) has to be defined in the preamble.
+- Math: every formula is offered to Typst first (**Wypst** syntax), and anything Typst rejects falls through to KaTeX, so a stray LaTeX formula still renders. Pin a page with `math: typst` or `math: latex` frontmatter to forbid the other syntax. The build prints a `Mixed math in …` line for every note that used both.
+- **Markdown Tabs** blocks.
+- The `# Note Name` heading each note opens with is dropped, since Quartz renders the note name as the title.
+
+`site/` holds only what is particular to this site: `quartz.config.ts` and `quartz.layout.ts` (calls to the shared preset), `build.sh` (fetches the shared Quartz into `site/.quartz/` and builds) and `.tikz-cache/`. A change to the plugins or the theme goes to MathStruct/quartz and reaches all sites.
 
 The content directory is the repository root, so `crates/**/*.md` and `attic/**/*.md` are published next to `vault/` and the `[[wikilinks]]` in `Code Map.md` resolve. `site/quartz.config.ts` lists what is *not* published: `site/`, `.obsidian/`, `meta/`, this README (the site has its own `index.md`), and the `.rs`/`.jl`/`.toml` sources themselves.
 
 Local preview:
 
 ```bash
-cd site
-npm ci                          # first time only; needs Node 22+
-npx quartz build --serve -d ..
+site/build.sh --serve           # needs git and Node 22+
 ```
 
-Then open <http://localhost:8080>. `npm run check` typechecks and checks formatting.
+Then open <http://localhost:8080>; it rebuilds as you edit.
 
-Pushing to `master` runs `.github/workflows/deploy.yml`, which builds the site and publishes it to GitHub Pages (the workflow enables Pages with source "GitHub Actions" on first run). The site is served as a project page of the organisation, under its custom domain: `baseUrl` in `site/quartz.config.ts` is `mathstruct.org/Sophia`.
-
-To pull in upstream changes, merge them into `site/` and keep the four transformer files above plus `quartz.config.ts` and `quartz.layout.ts`.
+Pushing to `master` runs `.github/workflows/deploy.yml`, which builds the site and publishes it to GitHub Pages (the workflow enables Pages with source "GitHub Actions" on first run). A pull request is built too, and the rendered site is attached to the run as the `site` artifact. The site is served as a project page of the organisation, under its custom domain: `baseUrl` in `site/quartz.config.ts` is `mathstruct.org/Sophia`.
 
 ## Milestones in brief
 
