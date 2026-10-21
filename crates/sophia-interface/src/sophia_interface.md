@@ -72,6 +72,6 @@ Saving such a text parses it as sophialang and fails or translates; there is no 
 | `children(ns:gen)` (100 000 names) | 133 ms | 75 ms |
 | `all(100000)` | 418 ms | 326 ms |
 
-Moonkale measured 0.9 s, 0.9 s and 3.3 s for the same calls through its adapter; the difference to the "before" column is outside `Interface` (not investigated here).
+Moonkale first measured 0.9 s, 0.9 s and 3.3 s through its adapter; that was a cold page cache (the 680 MB file evicted). Warm, through the adapter (Moonkale's `examples/browse.rs`, reported by the Moonkale agent): root 44 ms → 0.3–1 ms, `ns:gen` 270 → 240 ms, `all` 572 → 490–500 ms. The adapter adds about 110 ms per 100 000 nodes (conversion, id-to-key map, a mutex lock per node), on Moonkale's side.
 
 `tests/acceptance.rs` now also covers listing around namespace boundaries (`a.b`, `a.b!`, `a.b.c`, ``a.`b.c` ``, `a.b0`, `ab.x`), foreign records printing, and diagnostics; 45 tests on four backends.
