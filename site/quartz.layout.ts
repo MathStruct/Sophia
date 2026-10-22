@@ -6,6 +6,13 @@ export const { sharedPageComponents, defaultContentPageLayout, defaultListPageLa
       "Source on GitHub": "https://github.com/MathStruct/Sophia",
       MathStruct: "https://mathstruct.org/",
     },
+    // a giscus comment thread on every page (GitHub Discussions, category Announcements)
+    comments: {
+      repo: "MathStruct/Sophia",
+      repoId: "R_kgDOUROejA",
+      category: "Announcements",
+      categoryId: "DIC_kwDOUROejM4DJXC8",
+    },
     // The vault root is the repository root, so the explorer's top level is `markdown` (the
     // notes), `src` (Julia) and `crates` (Rust). Show them in that order -- prose first, then
     // the per-file notes -- instead of alphabetically. This function is serialised with
