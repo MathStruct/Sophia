@@ -196,6 +196,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-137 | For Lean, source syntax, elaborated terms, kernel declarations and proof objects are distinct objects; every claim of verification names its checker and where it ran. | R5 §4 | now | specified ([[Lean Overview]]) |
 | SR-138 | S-ADR-0012 accepted: the query algebra stays a separate IR sharing identity, types and evidence infrastructure with sophialang. | R5 §1 | now | accepted |
 | SR-139 | Next order: finish Mathlib and Reactant; reconstruction before compaction; Moonkale's end-to-end edit benchmark; cross-session artifacts; compact edges; only then other compilers or the agent server. | R5 §4 | now | adopted ([[Semantic Boundary Experiments]]) |
+| SR-140 | WebAssembly as a compilation target, "for way later". Two readings, both open: (a) sophialang code compiled to WASM (a backend beside the planned ones; WASM's validation and sandbox make the artifact checkable and portable, an input-addressed artifact in the sense of SPEC-006 §3); (b) Sophia's own crates built for wasm32 (a store or the query engine in a browser). (b) conflicts with SR-39 / S-ADR-0005 (the wasm client never opens the store) and would need its own decision. | D (2026-10-22) | later | recorded; not planned before SR-139's order is done |
 
 ## From Moonkale
 
@@ -227,6 +228,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-22: SR-140 added (WASM as a compilation target, for later).
 - 2026-10-20: SR-133 to SR-139 added (the second real-code review).
 - 2026-10-20: SR-119 to SR-132 added (storage and materialisation, language folders, semantic-boundary experiments; the real-code review).
 - 2026-10-20: SR-114 to SR-118 added (the three projects together; real-code corpora).
