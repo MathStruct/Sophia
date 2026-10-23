@@ -264,3 +264,62 @@ proptest! {
         let _ = decode(&bytes);
     }
 }
+
+/// What `Term::walk` finds as `Ref` heads of applications, as a set.
+fn walked_calls(r: &Record) -> std::collections::BTreeSet<Digest> {
+    let mut out = std::collections::BTreeSet::new();
+    definition_of(r).unwrap().walk(&mut |t| {
+        if let Term::App(h, _) = t {
+            if let Term::Ref(c) = h.as_ref() {
+                out.insert(*c);
+            }
+        }
+    });
+    out
+}
+
+#[test]
+fn called_refs_agrees_with_the_term_walk() {
+    let records = sample_records();
+    let mut calls = 0;
+    for r in &records {
+        let scanned = sophialang_core::encode::called_refs(&r.bytes).unwrap();
+        let set: std::collections::BTreeSet<Digest> = scanned.iter().copied().collect();
+        assert_eq!(set.len(), scanned.len(), "each callee once");
+        assert_eq!(set, walked_calls(r), "{}", r.kind);
+        calls += set.len();
+    }
+    assert!(calls > 0, "the sample calls something");
+}
+
+/// A definition nested far deeper than any stack-bound walk could follow is
+/// scanned on a small stack (P-229). Building and encoding it recurse, so
+/// that happens on a large stack; the term is leaked rather than dropped,
+/// since dropping recurses too.
+#[test]
+fn called_refs_runs_in_constant_stack_depth() {
+    const DEPTH: usize = 20_000;
+    let (bytes, callee) = std::thread::Builder::new()
+        .stack_size(1 << 30)
+        .spawn(|| {
+            let callee = sample_records()[1].id;
+            let mut t = Term::Lit(Lit::Int64(0));
+            for _ in 0..DEPTH {
+                t = Term::App(Box::new(Term::Ref(callee)), vec![t]);
+            }
+            let def = Definition::test(t);
+            let bytes = normalise_one(&def).unwrap().bytes;
+            std::mem::forget(def);
+            (bytes, callee)
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    let scanned = std::thread::Builder::new()
+        .stack_size(64 * 1024)
+        .spawn(move || sophialang_core::encode::called_refs(&bytes).unwrap())
+        .unwrap()
+        .join()
+        .unwrap();
+    assert_eq!(scanned, vec![callee]);
+}

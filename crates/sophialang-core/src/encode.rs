@@ -240,6 +240,44 @@ pub enum DecodeError {
     Malformed(&'static str),
 }
 
+/// Fields whose payload is a sequence of fields (definition structure and
+/// terms); every other tag is a leaf.
+const CONTAINERS: [&str; 26] = [
+    "def", "ty", "body", "term", "cons", "con", "fields", "field", "rule", "vars", "prem", "weight", "c", "l", "dom",
+    "a", "p", "e", "x", "data", "mot", "case", "bs", "?", "!", "U",
+];
+
+/// The definitions called directly in canonical bytes: the `Ref` heads of
+/// applications, each once, in first-seen order. Reads the bytes with an
+/// explicit stack and builds no terms, so it runs in constant call depth
+/// whatever the nesting (the recursive decoder, `Term::walk` and dropping a
+/// deep `Term` all recurse once per level, which overflowed a 2 MiB worker
+/// stack on generated definitions; Moonkale P-229).
+pub fn called_refs(bytes: &[u8]) -> Result<Vec<Digest>, DecodeError> {
+    let mut out: Vec<Digest> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut stack = vec![Reader::new(bytes)];
+    while let Some(mut r) = stack.pop() {
+        while !r.is_empty() {
+            let (tag, payload) = r.next()?;
+            if !CONTAINERS.contains(&tag) {
+                continue;
+            }
+            if tag == "a" {
+                let mut head = Reader::new(payload);
+                if let Ok(("r", d)) = head.next() {
+                    let d = digest_of(d)?;
+                    if seen.insert(d) {
+                        out.push(d);
+                    }
+                }
+            }
+            stack.push(Reader::new(payload));
+        }
+    }
+    Ok(out)
+}
+
 /// Decodes canonical bytes into a definition. Binder and constructor names
 /// are empty until [`apply_display`] fills them in.
 pub fn decode(bytes: &[u8]) -> Result<Definition, DecodeError> {

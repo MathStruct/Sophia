@@ -9,6 +9,8 @@
 - B-15's `gen1000` store, its first 300 definitions: 22 refused.
 - B-15 edited `m0000001`, which parses, so its numbers are unaffected.
 
+**Also a stack problem** (2026-10-23): the same definitions nest up to 700 levels in their encoding, and every recursive pass over a term (decode, walk, print, drop) needs stack per level. Moonkale's `all` overflowed a 2 MiB worker in a debug build (P-229); browsing no longer decodes terms ([[sophia_interface]]), but printing still does. Bounding depth on entry (option 2) would bound every recursive pass at once.
+
 **Options.**
 1. **Raise the limit** for Sophia's own texts (the parser runs on a 64 MiB stack, [[sophialang_syntax]]), keeping 128 only where WP-66 compatibility needs it. Moves the edge, does not remove it.
 2. **Bound depth on entry**: refuse, or mark, records whose printed nesting exceeds the parse limit, so the store holds only editable definitions (or knows which are not).

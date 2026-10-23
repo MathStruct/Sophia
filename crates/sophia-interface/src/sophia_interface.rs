@@ -41,7 +41,7 @@ impl Key {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Prop {
     Text(String),
     Int(i64),
@@ -57,7 +57,7 @@ pub struct NodeView {
     pub props: Vec<(String, Prop)>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EdgeView {
     pub from: Key,
     pub to: Key,
@@ -393,7 +393,13 @@ impl<B: Backend + Sync> Interface<B> {
             Key::Content(d) => {
                 if let Some(r) = tx.record(d)? {
                     if out {
-                        let def = definition_of(&r).ok();
+                        // Calls from the bytes, without building terms: constant
+                        // stack depth however deep the definition (P-229).
+                        let called = if r.lang == sophialang_core::LANG {
+                            sophialang_core::encode::called_refs(&r.bytes).unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        };
                         for t in &r.refs {
                             v.push(e(key.clone(), Key::Content(*t), "References"));
                         }
@@ -402,18 +408,8 @@ impl<B: Backend + Sync> Interface<B> {
                                 v.push(e(key.clone(), Key::Content(*t), "Tests"));
                             }
                         }
-                        if let Some(def) = &def {
-                            let mut called = HashSet::new();
-                            def.walk(&mut |t| {
-                                if let sophialang_core::Term::App(h, _) = t {
-                                    if let sophialang_core::Term::Ref(c) = h.as_ref() {
-                                        called.insert(*c);
-                                    }
-                                }
-                            });
-                            for c in called {
-                                v.push(e(key.clone(), Key::Content(c), "Calls"));
-                            }
+                        for c in called {
+                            v.push(e(key.clone(), Key::Content(c), "Calls"));
                         }
                         for l in tx.lineages_of(d)? {
                             v.push(e(key.clone(), Key::Derived(format!("lineage:{}", l.to_hex())), "sophia:InLineage"));
@@ -554,6 +550,7 @@ impl<B: Backend + Sync> Interface<B> {
                 }
             }
             let dependency = ["Names", "References", "Calls", "Tests", "sophia:Supersedes", "sophia:InLineage"];
+            let mut seen_edges: HashSet<EdgeView> = g.edges.iter().cloned().collect();
             for k in &keys {
                 if !present.contains(k) {
                     continue;
@@ -564,7 +561,7 @@ impl<B: Backend + Sync> Interface<B> {
                 };
                 for e in self.edges_at(tx, k, dir)? {
                     let wanted = dependency.contains(&e.kind.as_str()) || e.kind == "MethodOf";
-                    if wanted && present.contains(&e.from) && present.contains(&e.to) && !g.edges.contains(&e) {
+                    if wanted && present.contains(&e.from) && present.contains(&e.to) && seen_edges.insert(e.clone()) {
                         g.edges.push(e);
                     }
                 }

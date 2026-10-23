@@ -75,3 +75,11 @@ Saving such a text parses it as sophialang and fails or translates; there is no 
 Moonkale first measured 0.9 s, 0.9 s and 3.3 s through its adapter; that was a cold page cache (the 680 MB file evicted). Warm, through the adapter (Moonkale's `examples/browse.rs`, reported by the Moonkale agent): root 44 ms → 0.3–1 ms, `ns:gen` 270 → 240 ms, `all` 572 → 490–500 ms. The adapter adds about 110 ms per 100 000 nodes (conversion, id-to-key map, a mutex lock per node), on Moonkale's side.
 
 `tests/acceptance.rs` now also covers listing around namespace boundaries (`a.b`, `a.b!`, `a.b.c`, ``a.`b.c` ``, `a.b0`, `ab.x`), foreign records printing, and diagnostics; 45 tests on four backends.
+
+## Deep definitions and large graphs (2026-10-23)
+
+Moonkale's coarse graph query called `all(2 000 000)` on a copy of B-15's 100 000-name store, and a Tokio blocking worker (2 MiB stack) overflowed (Moonkale P-229). Two causes, both fixed:
+- **Recursion per nesting level:** `edges_at` decoded each definition and walked its term to find `Calls`. Generated definitions nest up to 700 levels (encoded fields); decoding, walking and dropping the term recurse once per level. Reproduced: in a debug build, decoding and walking every record on a 2 MiB thread overflows; in release it does not. `Calls` now come from `encode::called_refs`, a scan of the bytes with an explicit stack.
+- **A quadratic edge check:** `all` de-duplicated edges with `Vec::contains`. With 739 273 edges it did not finish in several minutes. Now a `HashSet` (`Prop` and `EdgeView` derive `Eq` and `Hash`).
+
+`all(2 000 000)` on that store now returns 199 256 nodes and 739 273 edges on a 2 MiB thread: 2.6 s in a release build, 14.9 s in a debug build. Still recursive and unbounded: printing (`fetch_text`) and decoding a deep definition for display. Such texts are also beyond the parse limit ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]).
