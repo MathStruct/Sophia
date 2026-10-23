@@ -1,6 +1,6 @@
 #design #definition
 
-> **Draft, a proposal by Claude (Sophia), 2026-10-23, for the Moonkale agent's review and Daniel's acceptance.** Nothing here is implemented yet. It answers Moonkale's five questions for Moonkale's WP-21 after Moonkale's ADR-0029, which Daniel accepted on 2026-10-23 ("Agree!"): Sophia stores Moonkale's code graph, one store per opened folder under `.moonkale/`, and **files stay the truth**. The store is a derived cache: deleting it loses nothing.
+> **Draft, a proposal by Claude (Sophia), 2026-10-23. Agreed in substance by the Moonkale agent the same day, with the conditions folded in below (§7); awaiting Daniel's acceptance.** Nothing here is implemented yet. It answers Moonkale's five questions for Moonkale's WP-21 after Moonkale's ADR-0029, which Daniel accepted on 2026-10-23 ("Agree!"): Sophia stores Moonkale's code graph, one store per opened folder under `.moonkale/`, and **files stay the truth**. The store is a derived cache: deleting it loses nothing.
 >
 > Sources: Moonkale `markdown/decisions/ADR-0029 Sophia stores the code graph.md` (master `fb6b16e5`), ADR-0028 (files or the graph); [[SPEC-001 Sophia Store v0]], [[SPEC-004 Moonkale Interface]], [[SPEC-006 Worlds, Artifacts and Evidence]] §1a (source records); [[SP-008 Edits span several transactions]], [[SP-015 Stored definitions deeper than the parse limit cannot be edited]]. code: `crates/sophia-ingest/src/source.rs`, `sophia_ingest.rs` (`store_items`), `crates/sophia-store/src/logic.rs`.
 
@@ -69,3 +69,50 @@ Afterwards 0.x semantics: a breaking API change bumps the minor version. A chang
 - Whether Moonkale's index also hands over **call edges to generic functions** (Sophia's `uses_generic`, drawn but not part of ids) and other edges that are not in `refs`. Proposal: yes, as facts about the calling record, so they are replaced with the file.
 - How Moonkale shares `binding()` (the name a definition binds), so both sides cannot drift.
 - Rust and Python names (`store_code`'s rules are per file, not per crate or package yet).
+
+## 7. Moonkale's review (2026-10-23), folded in
+
+Agreed in substance. The conditions and answers, which amend the sections above:
+
+- **§1 Which sources are stored:** only files Moonkale's index actually parses: core-language code files, not gitignored, under the index's size cap. Never configuration, `.env` or anything else, so secrets are not copied into `.moonkale/`. Moonkale enforces the selection; Sophia stores what it is given.
+- **§1 Stale text:** `fetch_text` must not present stored text as the file when the file has changed. Sophia cannot see the files (in the browser it never can), so the check belongs to whoever reads the file: in derived mode `fetch_text` also returns the **path and source id** the text came from, and the caller compares the source id with the hash of the current file (`sophia_ingest::source::source_record(path, text).id`, the same function Sophia uses). On a mismatch the store is stale for that file; Moonkale reads the file itself.
+- **§1 Checks:** accepted as written (only Moonkale can verify WP-66 ids; acceptable for a derived cache).
+- **§2 Batches:** Moonkale sends every file changed in one watcher debounce window as one `replace_files` call; a rename is remove-old plus add-new in that call. A name claimed by a file **outside** the batch is a structured error, `StoreError::NameClaimed { name, owner: <path> }`, so Moonkale can retry with that file added.
+- **§3** derived mode: enforced. **§4** wasm: SQLite, read-only from bytes first, OPFS later; the read-path `wasm-bindgen-test` is Moonkale's gate 3.
+- **§6 Generic call edges:** yes, facts about the calling record, replaced with its file.
+- **§6 `binding()`:** moves into `moonkale-content-id`, owned by Moonkale and versioned with the normaliser: a naming change is a `moonkale-wp66@N` bump on both sides. What moves, and the signature Sophia asks for, are in §8.
+- **§6 Rust and Python names**, Moonkale's proposal, also in `moonkale-content-id`:
+  - Rust: `rs.<crate>.<module path>.<item>` (crate from the nearest `Cargo.toml`, module path from the module tree); impl methods `rs.<crate>.<mod>.<Type>.<method>`; trait impls keyed by type and trait.
+  - Python: `py.<package>.<module>.<name>` (directories with `__init__.py`, or the `pyproject.toml` root); class members `py.<pkg>.<mod>.<Class>.<name>`.
+  - Unknown root: `rs.<path-derived>` / `py.<path-derived>`, flagged.
+
+## 8. `binding()` in `moonkale-content-id`: what Sophia needs
+
+Today the rule is spread over `sophia-ingest`: `code::julia_scopes`, `code::julia_extends` and `BASE_SUBMODULES` (which function a qualified or imported method extends), `sophia_ingest::binding` (method of a generic function, or a named definition), and `entity_path` with `segment` (the dotted spelling). Proposed public API, so both sides call one function:
+
+```rust
+pub enum Binding {
+    /// A method of the generic function at this absolute path (module path + name).
+    Method(Vec<String>),
+    /// A directly named definition (type, constant, macro, module item).
+    Named(Vec<String>),
+}
+
+/// What a definition binds, or None (unnamed; a qualified method it cannot
+/// place, such as `Base.$f`). `package` is the root module or crate.
+pub fn binding(def: &Definition, package: &str) -> Option<Binding>;
+
+/// The dotted name: `entity_path("jl", ["LinearAlgebra", "BLAS", "gemm!"])`
+/// = `jl.LinearAlgebra.BLAS.gemm!`; a segment that is not a plain identifier
+/// (letters, digits, `_`, `!`, not starting with a digit) is backquoted.
+pub fn entity_path(prefix: &str, key: &[String]) -> String;
+```
+
+where `Definition` is the crate's own per-definition output, carrying what `binding` reads: name, syntax kind, whether the name is qualified, the module path, and the resolved `extends` (computed inside the crate by today's `julia_scopes` / `julia_extends` logic, including `BASE_SUBMODULES`).
+
+Requirements from Sophia's side, for every language:
+1. **Valid store paths:** every segment passes Sophia's `validate_path` (a plain identifier, or a backquoted segment without whitespace or backquotes). Names that cannot be spelled so (Julia `var"…"` with spaces) bind nothing and are reported.
+2. **Deterministic** from the files alone, whatever the order files are read in.
+3. **Collisions are explicit:** several definitions under one path are a `Method` group (a nominal entity with members), never two names. This matters for Rust: `impl Foo<i32> { fn new }` and `impl Foo<u8> { fn new }` both give `rs.c.m.Foo.new`; for trait impls, the trait should be a backquoted segment (`` rs.c.m.Foo.`fmt::Display`.fmt ``) so that two traits' methods do not collide.
+4. **Sophia's golden test** (`tests/golden-moonkale/`) gains the expected `binding` and `entity_path` for every golden definition, so a drift fails on both sides.
+
