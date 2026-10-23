@@ -2,7 +2,7 @@
 
 > What exists, what is being decided, and what is waiting. Check the date. Where the repository disagrees with this page, the repository wins, so fix this page.
 
-**As of 2026-10-21.**
+**As of 2026-10-23.**
 
 - **Direction:** Sophia is the **store**; sophialang is its **language** (S-ADR-0007). The first priority is the **Moonkale interface** ([[SPEC-004 Moonkale Interface]]). The plan is [[Milestones]] M0 to M7.
 - **Code:** **M0 and M1 done** (2026-10-20):
@@ -47,6 +47,8 @@
   - **B-15 measured with Moonkale** (its `edit_loop`, Moonkale `26752448` on Sophia `202e137a`): the whole edit loop's p99 is 2.4–3.5 ms on 10⁵ definitions (target < 50 ms); Moonkale's 500 ms change-feed polling is what a user would wait on ([[Benchmark Results]]).
 
   **After Moonkale's desktop check (2026-10-21),** four findings on Sophia's side, all fixed: Julia records and ingest manifests now print (the source text a definition was read from, through a new `source-span` fact; re-ingest needed for old stores; Moonkale re-ingested LinearAlgebra and all 945 names print, pinned at `4c2aaab3`); listing a namespace is a skip scan (root 32 → 0.1 ms on 10⁵ names); parse errors name tokens as written; `let` and `match` follow the Rust profile's braces. Found on the way: 7 % of `sophia gen` definitions print but do not parse back ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]).
+
+  **Moonkale ADR-0029 (accepted by Daniel, 2026-10-23):** Sophia becomes Moonkale's code-graph store, one derived store per folder, files the truth. Sophia's answer is the draft [[SPEC-009 Moonkale Folder Store]] (finished records from Moonkale, per-file replacement in one transaction, an enforced derived mode, SQLite for wasm, a first tag). The whole workspace except the ingest compiles for `wasm32-unknown-unknown`; nothing has run in a browser yet. Also fixed for Moonkale: `Interface::all` on large stores (P-229: no term recursion, no quadratic edge check).
 
   **Next (SR-124 to SR-126):** the [[Semantic Boundary Experiments]] (small, each with an oracle), and B-15 (Moonkale edits) as soon as Moonkale is on the current revision. LuxCore is dropped as a step; full Lux.jl after the AD and Reactant experiments, Lenticulum after that. No storage-layout change without Daniel's agreement.
 - **Specifications:** eight drafts ([[Specifications]]).

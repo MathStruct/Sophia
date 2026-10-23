@@ -10,5 +10,6 @@
 | [[SPEC-004 Moonkale Interface]] | the boundary Moonkale wraps (WP-68); the first priority | draft; its 2026-10-17 form was reviewed by the Moonkale agent |
 | [[SPEC-006 Worlds, Artifacts and Evidence]] | world snapshots, artifact identity and evidence, parameter artifacts, proof trust, migration | draft (from the external review) |
 | [[SPEC-005 Rendering Profiles]] | display as user settings stored in the database; the Julia-flavoured default | draft |
+| [[SPEC-009 Moonkale Folder Store]] | One Sophia store per folder as Moonkale's derived code-graph cache (ADR-0029): Moonkale writes finished records, per-file replacement in one transaction, a derived mode, wasm, a first tag | draft, for the Moonkale agent and Daniel |
 | [[SPEC-008 Module-Level Julia Resolution]] | Julia references resolved per module, not per file: a proposal for Moonkale's normaliser v5, with a prototype | proposal, for the Moonkale agent's review |
 | [[SPEC-007 Sophia Query Language]] | Sophia's own storage-independent query language: stratified Datalog over base relations, Julia-flavoured syntax, content ids, result ids, native executor, magic sets, SQL translation | draft; implemented (`sophia-query`) |
