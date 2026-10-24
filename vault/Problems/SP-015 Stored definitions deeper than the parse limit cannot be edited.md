@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: open (2026-10-21).** Found while checking the Rust-profile fix against `sophia gen` stores. Related: [[SPEC-005 Rendering Profiles]] §5 (rule 4: text in an editable profile parses back), [[lexer]] (`Limits`), SR-50.
+> **Status: open; proposal (options 2 and 3) approved by Daniel on 2026-10-24, not implemented yet.** Found 2026-10-21. Found while checking the Rust-profile fix against `sophia gen` stores. Related: [[SPEC-005 Rendering Profiles]] §5 (rule 4: text in an editable profile parses back), [[lexer]] (`Limits`), SR-50.
 
 **Problem.** The parser refuses text nested deeper than `Limits::max_depth` (128, Moonkale WP-66's limit, SR-50), counted as nested `expr` calls: every `let` value and body, lambda body, argument and parenthesis adds one. Nothing bounds the depth of a term that enters the store by another path (`normalise_batch`, `sophia gen`, a future ingest). Such a definition prints, but its text does not parse back, so Moonkale can show it and not save it, even unchanged.
 

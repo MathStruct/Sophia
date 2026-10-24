@@ -204,9 +204,9 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 | # | Requirement | Origin | When | Status |
 |---|---|---|---|---|
-| SR-141 | Sophia stores Moonkale's code graph: one store per opened folder under `.moonkale/`, a derived cache of the files (deleting it loses nothing; rebuilt when missing or stale). Files stay the truth; Sophia never prints back to them. | M (ADR-0029, accepted by Daniel 2026-10-23) | next | proposed in [[SPEC-009 Moonkale Folder Store]] |
-| SR-142 | Moonkale's index hands Sophia already-normalised records (WP-66 ids, canonical bytes, refs, spans); one parse, on Moonkale's side. | M (ADR-0029; WP-21) | next | proposed (SPEC-009 §1) |
-| SR-143 | "Replace everything that came from file F" in one transaction, including names that move between files. | M (WP-21) | next | proposed (SPEC-009 §2) |
+| SR-141 | Sophia stores Moonkale's code graph: one store per opened folder under `.moonkale/`, a derived cache of the files (deleting it loses nothing; rebuilt when missing or stale). Files stay the truth; Sophia never prints back to them. | M (ADR-0029, accepted by Daniel 2026-10-23) | next | accepted (SPEC-009, Daniel 2026-10-24) |
+| SR-142 | Moonkale's index hands Sophia already-normalised records (WP-66 ids, canonical bytes, refs, spans); one parse, on Moonkale's side. | M (ADR-0029; WP-21) | next | accepted (SPEC-009 §1) |
+| SR-143 | "Replace everything that came from file F" in one transaction, including names that move between files. | M (WP-21) | next | accepted (SPEC-009 §2) |
 | SR-144 | Default-backend gates: a Sophia tag, SP-015 closed, the store working in wasm (or a server fallback), the Moonkale repo measured over days. | M (ADR-0029 §5) | next | tracked (SPEC-009 §4, §5) |
 | SR-30 | A Rust crate that a Moonkale source adapter wraps as a `moonkale_core::Source`. A server mode comes later. | M (reply §2; ADR-0005) | v0 | specified (SPEC-004 §1–3) |
 | SR-31 | Browsing through `Query::{Node, Children, Neighbours, All}`. | M (reply §2; `core/src/source/query.rs`) | v0 | specified (SPEC-004 §2) |
@@ -232,6 +232,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-24: SR-141 to SR-143 accepted with SPEC-009 (Daniel); SP-015's proposal and the v0.1.0 tag approved.
 - 2026-10-23: SR-141 to SR-144 added (Moonkale ADR-0029, accepted by Daniel: Sophia stores the code graph).
 - 2026-10-22: SR-140 added (WASM as a compilation target, for later).
 - 2026-10-20: SR-133 to SR-139 added (the second real-code review).
