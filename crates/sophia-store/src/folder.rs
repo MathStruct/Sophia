@@ -22,7 +22,9 @@ pub const SOURCE_LANG: &str = "source";
 pub const SOURCE_NORMALISER: &str = "sophia-source@0";
 /// File manifests.
 pub const MANIFEST_LANG: &str = "sophia-ingest";
-pub const MANIFEST_NORMALISER: &str = "sophia-file-manifest@0";
+/// `@1` (2026-10-24) adds the file's fact ids; `@0` manifests (no facts)
+/// still decode.
+pub const MANIFEST_NORMALISER: &str = "sophia-file-manifest@1";
 pub const MANIFEST_KIND: &str = "file-ingest";
 
 /// The store mode in which files are the truth (SPEC-009 §3).
@@ -38,6 +40,15 @@ fn owner_key(name: &str) -> String {
 }
 fn member_key(generic: &NominalId, member: &Digest) -> String {
     format!("member/{}/{}", generic.to_hex(), member.to_hex())
+}
+/// How many files contribute a fact.
+fn fact_key(id: &Digest) -> String {
+    format!("fact/{}", id.to_hex())
+}
+/// A fact that was stored before any file contributed it: never removed by
+/// the folder writer.
+fn fact_external_key(id: &Digest) -> String {
+    format!("fact-external/{}", id.to_hex())
 }
 fn defined_prefix(id: &Digest) -> String {
     format!("defined-in/{}/", id.to_hex())
@@ -110,6 +121,8 @@ pub struct FileManifest {
     pub generics: Vec<(String, String, Vec<Digest>)>,
     /// (record id, start, end) in the source.
     pub spans: Vec<(Digest, u32, u32)>,
+    /// The ids of the facts the file contributed, sorted, each once.
+    pub facts: Vec<Digest>,
 }
 
 impl FileManifest {
@@ -141,6 +154,9 @@ impl FileManifest {
             w.u32("start", *a);
             w.u32("end", *b);
             w.close(o);
+        }
+        for id in &self.facts {
+            w.field("fact", id.as_bytes());
         }
         w.finish()
     }
@@ -179,6 +195,7 @@ impl FileManifest {
                     let b = f.expect_u32("end").map_err(e)?;
                     m.spans.push((id, a, b));
                 }
+                "fact" => m.facts.push(d(r.expect("fact").map_err(e)?)?),
                 t => return Err(StoreError::Codec(format!("file manifest: unexpected field {t}"))),
             }
         }
@@ -202,6 +219,8 @@ impl FileManifest {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FileReport {
     pub files: usize,
+    pub facts_added: usize,
+    pub facts_removed: usize,
     pub new_records: usize,
     pub names_added: usize,
     pub names_moved: usize,
@@ -525,7 +544,58 @@ impl<B: Backend> Store<B> {
                     }
                 }
             }
-            // Manifests, spans and facts.
+            // Facts: counted per contributing file, like memberships. A fact
+            // goes when its last file drops it, unless it was stored before
+            // any file contributed it.
+            let mut fact_delta: BTreeMap<Digest, i64> = BTreeMap::new();
+            let mut new_facts: HashMap<Digest, &Fact> = HashMap::new();
+            for m in old.values() {
+                for id in &m.facts {
+                    *fact_delta.entry(*id).or_default() -= 1;
+                }
+            }
+            for f in files {
+                let mine: BTreeSet<Digest> = f.facts.iter().map(|x| x.id).collect();
+                for x in &f.facts {
+                    new_facts.insert(x.id, x);
+                }
+                for id in mine {
+                    *fact_delta.entry(id).or_default() += 1;
+                }
+            }
+            for (id, delta) in fact_delta {
+                if delta == 0 {
+                    continue;
+                }
+                let key = fact_key(&id);
+                let before = tx.meta(&key)?.map(|b| u32::from_le_bytes(b.try_into().unwrap_or([0; 4]))).unwrap_or(0) as i64;
+                let after = (before + delta).max(0);
+                if after == 0 {
+                    tx.remove_meta(&key)?;
+                } else {
+                    tx.set_meta(&key, &(after as u32).to_le_bytes())?;
+                }
+                if before == 0 && after > 0 {
+                    let Some(fact) = new_facts.get(&id) else { continue };
+                    if tx.facts_of(&fact.subject)?.iter().any(|g| g.id == id) {
+                        tx.set_meta(&fact_external_key(&id), b"")?;
+                    } else {
+                        self.log(tx, LogOp::Fact, fact.kind.clone(), None, Some(id))?;
+                        tx.put_fact(fact)?;
+                        report.facts_added += 1;
+                    }
+                } else if before > 0 && after == 0 {
+                    if tx.meta(&fact_external_key(&id))?.is_some() {
+                        tx.remove_meta(&fact_external_key(&id))?;
+                    } else {
+                        // Logged as a fact entry with only an old id.
+                        self.log(tx, LogOp::Fact, "removed".into(), Some(id), None)?;
+                        tx.remove_fact(&id)?;
+                        report.facts_removed += 1;
+                    }
+                }
+            }
+            // Manifests and spans.
             for f in files {
                 if let Some(m) = old.get(f.path.as_str()) {
                     for (id, _, _) in &m.spans {
@@ -547,18 +617,13 @@ impl<B: Backend> Store<B> {
                         .map(|g| (g.path.clone(), g.lang.clone(), g.members.iter().map(|i| f.records[*i].id).collect()))
                         .collect(),
                     spans: f.spans.iter().map(|(i, a, b)| (f.records[*i].id, *a, *b)).collect(),
+                    facts: f.facts.iter().map(|x| x.id).collect::<BTreeSet<_>>().into_iter().collect(),
                 };
                 let r = m.record();
                 self.put_new(tx, std::slice::from_ref(&r))?;
                 tx.set_meta(&file_key(&f.path), r.id.as_bytes())?;
                 for (id, _, _) in &m.spans {
                     tx.set_meta(&format!("{}{}", defined_prefix(id), f.path), b"")?;
-                }
-                for fact in &f.facts {
-                    if !tx.facts_of(&fact.subject)?.iter().any(|g| g.id == fact.id) {
-                        self.log(tx, LogOp::Fact, fact.kind.clone(), None, Some(fact.id))?;
-                        tx.put_fact(fact)?;
-                    }
                 }
             }
             Ok(report)

@@ -169,6 +169,67 @@ fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     assert!(matches!(s.replace_files(&[f]), Err(StoreError::NormaliserChanged { .. })));
 }
 
+/// A generic-call fact about `subject` (as Moonkale's index would hand over).
+fn call_fact(subject: Digest, callee: &str) -> Fact {
+    Fact::new("calls-generic", subject, callee.as_bytes().to_vec(), ("moonkale-index", "0"), vec![], 0)
+}
+
+fn current_facts<B: Backend>(s: &Store<B>, subject: &Digest) -> Vec<Digest> {
+    s.read(|tx| tx.facts_of(subject)).unwrap().into_iter().map(|f| f.id).collect()
+}
+
+/// Facts follow their file (SPEC-009 §2): replaced, removed on deletion,
+/// counted across files, rolled back with the batch, and facts stored
+/// outside the folder writer are left alone.
+fn facts_follow_their_files<B: Backend>(s: Store<B>) {
+    let x = rec("x()", "function_definition").id;
+    let with_fact = |path: &str, callee: Option<&str>| {
+        let mut f = file(path, &[("x", "x()")]);
+        f.names.clear(); // the same record in two files: no name clash
+        f.facts = callee.map(|c| vec![call_fact(x, c)]).unwrap_or_default();
+        f
+    };
+    // Replacement with fewer facts removes the dropped one.
+    let r = s.replace_files(&[with_fact("a.jl", Some("jl.P.f"))]).unwrap();
+    assert_eq!(r.facts_added, 1);
+    assert_eq!(current_facts(&s, &x), vec![call_fact(x, "jl.P.f").id]);
+    assert_eq!(s.file_manifest("a.jl").unwrap().unwrap().facts, vec![call_fact(x, "jl.P.f").id]);
+    let r = s.replace_files(&[with_fact("a.jl", None)]).unwrap();
+    assert_eq!(r.facts_removed, 1);
+    assert!(current_facts(&s, &x).is_empty(), "a replacement without the fact removes it");
+    // Resolution changes, the body does not: the fact is replaced.
+    s.replace_files(&[with_fact("a.jl", Some("jl.P.f"))]).unwrap();
+    s.replace_files(&[with_fact("a.jl", Some("jl.Q.f"))]).unwrap();
+    assert_eq!(current_facts(&s, &x), vec![call_fact(x, "jl.Q.f").id]);
+
+    // One fact from two files stays until both drop it; deleting a file
+    // removes its contribution though the record lives on in another file.
+    s.replace_files(&[with_fact("b.jl", Some("jl.Q.f"))]).unwrap();
+    s.replace_files(&[deleted("a.jl")]).unwrap();
+    assert_eq!(current_facts(&s, &x), vec![call_fact(x, "jl.Q.f").id], "b.jl still contributes it");
+    s.replace_files(&[with_fact("b.jl", Some("jl.R.f"))]).unwrap();
+    assert_eq!(current_facts(&s, &x), vec![call_fact(x, "jl.R.f").id]);
+    s.replace_files(&[with_fact("c.jl", None)]).unwrap();
+    s.replace_files(&[deleted("b.jl")]).unwrap();
+    assert!(current_facts(&s, &x).is_empty(), "deleting the last contributor removes the fact");
+    assert!(s.record(&x).unwrap().is_some(), "the record stays (c.jl has it)");
+
+    // A fact stored outside the folder writer survives files that contribute it too.
+    let external = call_fact(x, "jl.S.f");
+    s.record_fact(&external).unwrap();
+    s.replace_files(&[with_fact("d.jl", Some("jl.S.f"))]).unwrap();
+    s.replace_files(&[deleted("d.jl")]).unwrap();
+    assert_eq!(current_facts(&s, &x), vec![external.id], "facts not from files stay");
+
+    // A failed batch changes no fact and no manifest.
+    s.replace_files(&[with_fact("e.jl", Some("jl.T.f")), file("owner.jl", &[("taken", "7")])]).unwrap();
+    let before = (current_facts(&s, &x), s.file_manifest("e.jl").unwrap());
+    let mut bad = with_fact("e.jl", None);
+    bad.names.push(("jl.P.taken".into(), 0)); // owned by owner.jl, which is not in the batch
+    assert!(matches!(s.replace_files(&[bad]), Err(StoreError::NameClaimed { .. })));
+    assert_eq!((current_facts(&s, &x), s.file_manifest("e.jl").unwrap()), before, "rolled back");
+}
+
 macro_rules! suite {
     ($module:ident, $make:expr) => {
         mod $module {
@@ -187,6 +248,11 @@ macro_rules! suite {
             fn shared_methods_are_counted() {
                 let (s, _d) = store();
                 super::shared_methods_are_counted(s);
+            }
+            #[test]
+            fn facts_follow_their_files() {
+                let (s, _d) = store();
+                super::facts_follow_their_files(s);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

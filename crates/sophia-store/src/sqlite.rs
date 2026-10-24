@@ -797,6 +797,11 @@ impl WriteTx for SqliteTx<'_> {
         Ok(())
     }
 
+    fn remove_fact(&mut self, id: &Digest) -> Result<()> {
+        self.tx.prepare_cached("DELETE FROM t_fact WHERE id = ?1").map_err(be)?.execute(params![id.as_bytes()]).map_err(be)?;
+        Ok(())
+    }
+
     fn put_fact(&mut self, f: &Fact) -> Result<()> {
         self.tx
             .prepare_cached(

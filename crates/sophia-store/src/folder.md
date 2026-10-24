@@ -28,3 +28,12 @@ An unchanged batch logs nothing. A definition moves between files only when both
 **Tests** (`tests/folder.rs`, all four backends): two files with a shared generic function; an edit (one name removed, one moved, one added, a method replaced); a move between files; a claim of another file's name (refused, rolled back); two files of one batch claiming one name; deletions; one method in two files; a normaliser change.
 
 **Not yet:** garbage collection of records no manifest references; Rust and Python names in Moonkale's crate-and-module form (the producer computes names, so this is Moonkale's side).
+
+**Facts follow their file (2026-10-24, found by Moonkale's Codex before WP-21).** At `cafe940e`, `replace_files` stored a file's facts but never retracted them: a replacement with fewer facts, or deleting the file, left them in `facts_of`. Now:
+- the manifest (`sophia-file-manifest@1`; `@0` manifests still decode, with no facts) lists the file's fact ids;
+- the meta row `fact/<id>` counts the files contributing a fact; a fact is stored with its first contributor and removed (`WriteTx::remove_fact`, all four backends; logged as a `fact` entry with only an old id) with its last;
+- a fact already stored before any file contributed it is marked `fact-external/<id>` and never removed by the folder writer;
+- all of it happens in the batch's transaction, so a failed batch leaves facts and manifests as they were.
+Tested on all four backends (`facts_follow_their_files`: replacement, a resolution change with an unchanged body, two contributors, deletion while the record lives on in another file, an external fact, rollback) and with Codex's reproducer (`next17-sophia-probe`, 2 of 2, failing on `cafe940e`).
+
+**Migration:** folder stores written before this have no fact provenance; their facts stay until the store is rebuilt. No folder store is in use yet.

@@ -127,6 +127,9 @@ pub trait WriteTx: ReadTx {
     fn put_lineage(&mut self, entry: &LineageEntry) -> Result<()>;
     fn put_annotation(&mut self, a: &Annotation) -> Result<()>;
     fn put_fact(&mut self, f: &Fact) -> Result<()>;
+    /// Removes a fact from current reads (`facts_of`, the SQL views). Used
+    /// by folder stores when the last file contributing it drops it.
+    fn remove_fact(&mut self, id: &Digest) -> Result<()>;
     fn set_meta(&mut self, key: &str, value: &[u8]) -> Result<()>;
     fn remove_meta(&mut self, key: &str) -> Result<()>;
 }

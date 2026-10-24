@@ -345,6 +345,13 @@ impl<X: KvWrite> WriteTx for X {
         Ok(())
     }
 
+    fn remove_fact(&mut self, id: &Digest) -> Result<()> {
+        let Some(b) = self.get(Table::Fact, id.as_bytes())? else { return Ok(()) };
+        let f = decode_fact(&b)?;
+        self.del(Table::FactSub, &cat(&[f.subject.as_bytes(), id.as_bytes()]))?;
+        self.del(Table::Fact, id.as_bytes())
+    }
+
     fn put_fact(&mut self, f: &Fact) -> Result<()> {
         if self.get(Table::Fact, f.id.as_bytes())?.is_some() {
             return Ok(());
