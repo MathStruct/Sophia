@@ -797,6 +797,13 @@ impl WriteTx for SqliteTx<'_> {
         Ok(())
     }
 
+    fn remove_record(&mut self, id: &Digest) -> Result<()> {
+        for q in ["DELETE FROM t_ref WHERE src = ?1", "DELETE FROM t_nominal_ref WHERE src = ?1", "DELETE FROM t_definition WHERE id = ?1"] {
+            self.tx.prepare_cached(q).map_err(be)?.execute(params![id.as_bytes()]).map_err(be)?;
+        }
+        Ok(())
+    }
+
     fn remove_fact(&mut self, id: &Digest) -> Result<()> {
         self.tx.prepare_cached("DELETE FROM t_fact WHERE id = ?1").map_err(be)?.execute(params![id.as_bytes()]).map_err(be)?;
         Ok(())

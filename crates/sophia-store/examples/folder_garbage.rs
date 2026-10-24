@@ -4,6 +4,8 @@
 //! cargo run --release -p sophia-store --example folder_garbage -- STORE.sqlite [IDS.tsv]
 //!
 //! With IDS.tsv, writes `state<TAB>hex id` for every record not live.
+//! With `--collect` in its place, runs `Store::collect_folder` (this writes)
+//! and reports what it removed and how long it took.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -28,6 +30,11 @@ impl Tally {
 fn main() -> Result<(), StoreError> {
     let path = std::env::args().nth(1).expect("usage: folder_garbage STORE.sqlite");
     let store = Store::new(Sqlite::open(&path)?);
+    if std::env::args().nth(2).as_deref() == Some("--collect") {
+        let t = std::time::Instant::now();
+        let n = store.collect_folder()?;
+        println!("collected {n} records in {:.2} s", t.elapsed().as_secs_f64());
+    }
     store.read(|tx| {
         // Roots: current file manifests, names and current memberships.
         let mut live: HashSet<Digest> = HashSet::new();
@@ -114,7 +121,7 @@ fn main() -> Result<(), StoreError> {
         }
         println!("facts about live records: {}, about the rest: {}", facts.0, facts.1);
         println!("log by op: {ops:?}");
-        if let Some(out) = std::env::args().nth(2) {
+        if let Some(out) = std::env::args().nth(2).filter(|a| a != "--collect") {
             std::fs::write(out, ids).map_err(|e| StoreError::Codec(e.to_string()))?;
         }
         Ok(())

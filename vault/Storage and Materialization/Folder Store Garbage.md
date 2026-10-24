@@ -48,7 +48,9 @@ Payload bytes = canonical bytes + display + 32 per reference.
   - retired nominal records.
 - **No facts** are about non-live records: folder facts follow their files.
 
-## Proposal (not implemented; needs Daniel's agreement, SR-126)
+## Proposal
+
+**Accepted and implemented on 2026-10-24 (SR-146), with one change:** the source-of-truth setting decides point 4. When the files are the truth, old versions are collected, as in (a). When the store is the truth, nothing is collected and every version stays. The sweep on the real replays: Moonkale 5 601 records removed in 1.81 s, 39.2 MB after `VACUUM`; Lenticulum 1 005 in 0.39 s, 10.3 MB. In both, the record set equals the fresh build's ([[folder]]).
 
 1. **Incremental collection inside `replace_files`**, in the same transaction. The seeds are what the batch's old manifests referenced: the old manifest itself, its source, and its records. A seed is removed when none of these hold:
    - it is a current file manifest (`file/` values);

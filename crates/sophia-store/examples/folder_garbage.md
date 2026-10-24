@@ -3,8 +3,10 @@
 > How much of a folder store ([[SPEC-009 Moonkale Folder Store]]) no current file reaches: the measurement before any garbage collection ([[Garbage Collection]], SR-126). Read only (run it on a copy: opening applies the schema). Source: `folder_garbage.rs`. Results: [[Folder Store Garbage]].
 
 ```sh
-cargo run --release -p sophia-store --example folder_garbage -- STORE.sqlite
+cargo run --release -p sophia-store --example folder_garbage -- STORE.sqlite [IDS.tsv | --collect]
 ```
+
+`IDS.tsv` lists every non-live record with its state. `--collect` first runs `Store::collect_folder`, which writes, and times it.
 
 **Roots:** the current file manifests (`file/<path>`) with the source, named records, generic members and spanned records each lists; every name's target; every generic function's current members. From those it follows records' `refs`.
 

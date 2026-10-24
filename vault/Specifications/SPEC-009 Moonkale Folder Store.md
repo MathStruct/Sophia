@@ -117,3 +117,13 @@ Requirements from Sophia's side, for every language:
 4. **Sophia's golden test** (`tests/golden-moonkale/`) gains the expected `binding` and `entity_path` for every golden definition, so a drift fails on both sides.
 
 **Plan after acceptance:** Moonkale moves `julia_scopes`, `julia_extends` and `BASE_SUBMODULES` into `moonkale-content-id`, adds Rust and Python naming, and extends its golden data with `binding` and `entity_path` per definition; then `sophia-ingest` pins that revision and deletes its copy. Sophia implements `replace_files`, the derived mode and `NameClaimed` (§2, §3, §7), and the wasm read-path test (§4).
+
+## 9. Collection follows the source of truth (2026-10-24, SR-146)
+
+The mode in §3 also decides what history the store keeps:
+- **Derived: the files are the truth.** Every `replace_files` call removes, in the same transaction, the records that only the batch's old manifests reached: old manifests, old source texts, and old versions of definitions. Git keeps the history. `Store::collect_folder()` sweeps a store written before this.
+- **Not derived: the store is the truth.** Nothing is removed, and every version stays in the graph as its version history.
+
+**Measured** on Moonkale's replays ([[Folder Store Garbage]]): without collection, about 60 % of a replayed store is unreachable. With it, the store has exactly a fresh build's records. Rules and tests: [[folder]].
+
+**Change feed:** collections appear as `remove-definition` entries. Moonkale can ignore them or drop the content key.

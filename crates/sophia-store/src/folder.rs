@@ -248,6 +248,8 @@ pub struct FileReport {
     pub names_removed: usize,
     pub members_added: usize,
     pub members_removed: usize,
+    /// Records collected because no current file reaches them (SR-146).
+    pub records_removed: usize,
 }
 
 /// Where a definition's text is: the file, its source record and the span.
@@ -378,9 +380,11 @@ impl<B: Backend> Store<B> {
             }
             // The batch's old contributions.
             let mut old: BTreeMap<&str, FileManifest> = BTreeMap::new();
+            let mut old_manifests = Vec::new();
             for f in files {
                 if let Some(id) = tx.meta(&file_key(&f.path))? {
                     let id = Digest::from_slice(&id).ok_or_else(|| StoreError::Codec("file key".into()))?;
+                    old_manifests.push(id);
                     let r = tx.record(&id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
                     old.insert(f.path.as_str(), FileManifest::decode(&r.bytes)?);
                 }
@@ -690,9 +694,71 @@ impl<B: Backend> Store<B> {
                     tx.set_meta(&format!("{}{}", defined_prefix(id), f.path), b"")?;
                 }
             }
+            // When the files are the truth, what they no longer reach goes;
+            // git keeps the history (SR-146).
+            if tx.meta(MODE_KEY)?.as_deref() == Some(MODE_DERIVED) {
+                report.records_removed = self.collect(tx, old_manifests)?;
+            }
             Ok(report)
         })
     }
+
+    /// Collects every record of a derived store that no current file,
+    /// name, generic member or fact reaches (SR-146), for stores written
+    /// before collection. Refused when the store is not derived: there the
+    /// store is the truth and its history is kept.
+    pub fn collect_folder(&self) -> Result<usize> {
+        self.backend().write(|tx| {
+            if tx.meta(MODE_KEY)?.as_deref() != Some(MODE_DERIVED) {
+                return Err(StoreError::NotDerived);
+            }
+            let all = tx.records_of_kind(None, usize::MAX)?;
+            self.collect(tx, all)
+        })
+    }
+
+    /// Removes the records among `seeds` that nothing reaches, then what
+    /// only they reached. A component goes as a whole. A record is kept
+    /// while it is a current file manifest, a name's target, a current
+    /// generic member, a fact's subject, or referenced by a stored record
+    /// outside its component; removing a referrer checks its references
+    /// again.
+    fn collect(&self, tx: &mut dyn WriteTx, seeds: Vec<Digest>) -> Result<usize> {
+        let mut stack = seeds;
+        let mut removed = 0;
+        while let Some(x) = stack.pop() {
+            let Some(r) = tx.record(&x)? else { continue };
+            let group = if r.component_size > 1 { tx.component(&r.component)? } else { vec![r] };
+            let ids: BTreeSet<Digest> = group.iter().map(|m| m.id).collect();
+            let mut reached = false;
+            for m in &group {
+                reached = (m.lang == MANIFEST_LANG && m.kind == MANIFEST_KIND && current_manifest(tx, m)?)
+                    || !tx.names_of(&m.id)?.is_empty()
+                    || !tx.memberships_of(&m.id)?.is_empty()
+                    || !tx.facts_of(&m.id)?.is_empty()
+                    || tx.dependants(&m.id)?.iter().any(|d| !ids.contains(d));
+                if reached {
+                    break;
+                }
+            }
+            if reached {
+                continue;
+            }
+            for m in group {
+                self.log(tx, LogOp::RemoveDefinition, m.id.to_hex(), Some(m.id), None)?;
+                tx.remove_record(&m.id)?;
+                removed += 1;
+                stack.extend(m.refs.iter().filter(|d| !ids.contains(d)));
+            }
+        }
+        Ok(removed)
+    }
+}
+
+/// Whether a manifest record is some file's current manifest.
+fn current_manifest(tx: &dyn WriteTx, r: &Record) -> Result<bool> {
+    let m = FileManifest::decode(&r.bytes)?;
+    Ok(tx.meta(&file_key(&m.path))?.as_deref() == Some(r.id.as_bytes().as_slice()))
 }
 
 fn add_name<B: Backend>(store: &Store<B>, tx: &mut dyn WriteTx, n: &str, id: Digest) -> Result<()> {

@@ -7,7 +7,7 @@
 The types are:
 - `Target` (content or nominal);
 - `NameEntry`;
-- `LogOp` and `LogEntry`;
+- `LogOp` and `LogEntry` (`remove-definition`, 2026-10-24: a record collected from a derived folder store, its id in `old`);
 - `Nominal` (with a relation `version`);
 - `RelationEntry`;
 - `LineageEntry`;

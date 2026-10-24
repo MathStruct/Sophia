@@ -31,4 +31,8 @@ pub enum StoreError {
     /// must be rebuilt (SPEC-009 §2).
     #[error("the folder store was built with normaliser {stored:?}, not {new:?}: rebuild it")]
     NormaliserChanged { stored: String, new: String },
+    /// `collect_folder`: only a derived store, whose files are the truth,
+    /// is collected; elsewhere the store keeps its history (SR-146).
+    #[error("not a derived folder store: the store is the source of truth and keeps its history")]
+    NotDerived,
 }

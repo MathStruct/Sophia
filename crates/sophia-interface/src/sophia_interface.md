@@ -29,7 +29,7 @@ None of them is a Moonkale, driver or async type.
 | `apply(CreateDir)` | `create_dir(ns, name)` |
 | `apply(Rename)` | `rename(key, to)` (`/` ↔ `.`) |
 | `apply(Delete)` | `delete(key)` |
-| `changes_since` | `changes_since(seq, limit)`, with the keys affected and `reprint_all` for profile changes |
+| `changes_since` | `changes_since(seq, limit)`, with the keys affected and `reprint_all` for profile changes; a collected record (`remove-definition`, SR-146) affects its content key |
 | `classify` | `Interface::classify(dialect)` |
 
 ## Edit tokens

@@ -227,6 +227,86 @@ fn names_changing_kind_keep_memberships_right<B: Backend>(s: Store<B>, fresh: im
     replay(&s, &fresh, tree, &[vec![a(true), b.clone()], vec![a(false), b.clone()], vec![a(true), b.clone()], vec![a(false)]]);
 }
 
+fn all_records<B: Backend>(s: &Store<B>) -> Vec<Digest> {
+    sorted(s.read(|tx| tx.records_of_kind(None, usize::MAX)).unwrap())
+}
+
+/// A file whose two definitions form one component (mutual recursion).
+fn pair(path: &str, a: &str, b: &str) -> FileIngest {
+    let text = format!("{a}\n{b}\n");
+    let mut f = FileIngest { path: path.into(), normaliser: NORM.into(), text: Some(text.clone()), ..FileIngest::default() };
+    let component = component_digest("julia", NORM, text.as_bytes());
+    for (i, body) in [a, b].iter().enumerate() {
+        let mut r = rec(body, "function_definition");
+        r.component = component;
+        r.index = i as u32;
+        r.component_size = 2;
+        r.id = member_digest(&component, i as u32);
+        f.records.push(r);
+        f.names.push((format!("jl.P.{}", &body[..1]), i));
+    }
+    f.spans = vec![(0, 0, a.len() as u32), (1, a.len() as u32 + 1, text.len() as u32 - 1)];
+    f
+}
+
+/// A history: edits, a move between files, a method replaced, identical
+/// text at two paths, a component, deletions.
+fn history() -> Vec<Vec<FileIngest>> {
+    vec![
+        vec![file("a.jl", &[("a", "1"), ("b", "2"), ("g:1", "g(x) = 0")]), file("b.jl", &[("c", "3")]), pair("p.jl", "e() = f()", "f() = e()")],
+        vec![file("a.jl", &[("a", "10"), ("b", "2"), ("g:1", "g(x) = 1")])],
+        vec![file("a.jl", &[("a", "10")]), file("b.jl", &[("c", "3"), ("b", "2")])],
+        vec![file("c.jl", &[("c", "3")]), file("b.jl", &[("b", "2")])],
+        vec![deleted("p.jl"), file("c.jl", &[("d", "3")])],
+        vec![deleted("a.jl"), deleted("b.jl")],
+    ]
+}
+
+/// Files are the truth: what no current file reaches is collected as the
+/// files change (SR-146), so a replay ends with a fresh build's records.
+fn files_truth_collects_what_files_no_longer_reach<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    s.set_derived().unwrap();
+    let mut tree = Tree::new();
+    let mut removed = 0;
+    for (i, c) in history().into_iter().enumerate() {
+        removed += s.replace_files(&c).unwrap().records_removed;
+        for f in c {
+            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+        }
+        let (t, _d) = fresh();
+        t.set_derived().unwrap();
+        t.replace_files(&tree.values().cloned().collect::<Vec<_>>()).unwrap();
+        assert_eq!(all_records(&s), all_records(&t), "after commit {i}");
+        assert_eq!(state(&s), state(&t), "after commit {i}");
+    }
+    assert!(removed > 0);
+    assert_eq!(s.collect_folder().unwrap(), 0, "nothing left to sweep");
+}
+
+/// The store is the truth: nothing is removed; the graph keeps every
+/// version. Marking it derived later and sweeping once leaves what a fresh
+/// build has.
+fn store_truth_keeps_history_until_swept<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    let mut tree = Tree::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for c in history() {
+        assert_eq!(s.replace_files(&c).unwrap().records_removed, 0);
+        for f in c {
+            seen.extend(f.records.iter().map(|r| r.id));
+            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+        }
+    }
+    let kept: std::collections::BTreeSet<Digest> = all_records(&s).into_iter().collect();
+    assert!(seen.is_subset(&kept), "every version stays");
+    assert!(matches!(s.collect_folder(), Err(StoreError::NotDerived)));
+    s.set_derived().unwrap();
+    assert!(s.collect_folder().unwrap() > 0);
+    let (t, _d) = fresh();
+    t.replace_files(&tree.values().cloned().collect::<Vec<_>>()).unwrap();
+    assert_eq!(all_records(&s), all_records(&t));
+    assert_eq!(state(&s), state(&t));
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -328,6 +408,16 @@ macro_rules! suite {
             fn names_changing_kind_keep_memberships_right() {
                 let (s, _d) = store();
                 super::names_changing_kind_keep_memberships_right(s, store);
+            }
+            #[test]
+            fn files_truth_collects_what_files_no_longer_reach() {
+                let (s, _d) = store();
+                super::files_truth_collects_what_files_no_longer_reach(s, store);
+            }
+            #[test]
+            fn store_truth_keeps_history_until_swept() {
+                let (s, _d) = store();
+                super::store_truth_keeps_history_until_swept(s, store);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

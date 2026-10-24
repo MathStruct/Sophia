@@ -27,7 +27,7 @@ An unchanged batch logs nothing. A definition moves between files only when both
 
 **Tests** (`tests/folder.rs`, all four backends): two files with a shared generic function; an edit (one name removed, one moved, one added, a method replaced); a move between files; a claim of another file's name (refused, rolled back); two files of one batch claiming one name; deletions; one method in two files; a normaliser change.
 
-**Not yet:** garbage collection of records no manifest references (measured and proposed: [[Folder Store Garbage]]); Rust and Python names in Moonkale's crate-and-module form (the producer computes names, so this is Moonkale's side).
+**Not yet:** Rust and Python names in Moonkale's crate-and-module form (the producer computes names, so this is Moonkale's side).
 
 **Facts follow their file (2026-10-24, found by Moonkale's Codex before WP-21).** At `cafe940e`, `replace_files` stored a file's facts but never retracted them: a replacement with fewer facts, or deleting the file, left them in `facts_of`. Now:
 - the manifest (`sophia-file-manifest@1`; `@0` manifests still decode, with no facts) lists the file's fact ids;
@@ -43,3 +43,20 @@ Tested on all four backends (`facts_follow_their_files`: replacement, a resoluti
 - **Names changing kind kept or lost memberships.** Methods are not counted while a generic function's name is a definition's. When the name became a definition's, the old generic function's relations and `member/` counts stayed behind as orphans. Now they are closed and removed in the same batch. When the definition went, the methods files still contribute did not come back, from files in the batch (their old contributions were subtracted from counts that were zero) or from files outside it (not looked at). Now a freed name's memberships are rebuilt from every file's manifest.
 
 Tests: `repeated_methods_survive_a_refresh` and `names_changing_kind_keep_memberships_right` on all four backends. Each step is compared with a store built fresh from the files so far. Both tests fail at `v0.1.0`. With the freed-name rebuild turned off, the second still fails. Folder stores written by `v0.1.0` may hold wrong counts; rebuild them.
+
+**Collection follows the source of truth (2026-10-24, SR-146).** The store's mode is the setting:
+- **Derived (`store/mode = derived`): the files are the truth.** Git keeps the history, so `replace_files` ends by collecting what the batch's old manifests reached and nothing reaches any more: the old manifest, its source text, and old versions of definitions. These go, and what only they referenced goes after them. A record is kept while any of these hold:
+  - it is a current file manifest;
+  - a name targets it;
+  - it is a current generic member;
+  - a fact is about it;
+  - a stored record outside its component references it (`dependants`).
+
+  A component goes as a whole. Each removal is logged as `remove-definition`, with the id as `old`. `WriteTx::remove_record` deletes the record and its index rows on all four backends. Lineage entries stay, as ids without bodies. `Store::collect_folder()` sweeps a derived store once, for stores written before this.
+- **Not derived: the store is the truth.** Nothing is removed, and every version stays in the graph as its history. `collect_folder` refuses with `StoreError::NotDerived`.
+
+Tests, all four backends:
+- `files_truth_collects_what_files_no_longer_reach`: a six-commit history with edits, a move, a replaced method, a two-member component and deletions. After every commit, the derived store's record set equals a fresh build's.
+- `store_truth_keeps_history_until_swept`: every version stays; the sweep is refused, then after `set_derived` leaves a fresh build's records.
+
+On copies of Moonkale's replayed stores, `folder_garbage STORE --collect` removed 5 601 records in 1.81 s (Moonkale, 471 commits) and 1 005 in 0.39 s (Lenticulum). In both, the record set afterwards equals the fresh build's, checked in SQL. After `VACUUM` the files are 39.2 and 10.3 MB, against 36.2 and 9.8 MB fresh; the rest is the log ([[Folder Store Garbage]]). SQLite reuses the freed pages; the file shrinks only on `VACUUM`.

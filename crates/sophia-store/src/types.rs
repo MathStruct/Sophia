@@ -67,10 +67,12 @@ pub enum LogOp {
     Annotate,
     Fact,
     Setting,
+    /// A record collected from a folder store (SR-146): `old` is its id.
+    RemoveDefinition,
 }
 
 impl LogOp {
-    pub const ALL: [LogOp; 10] = [
+    pub const ALL: [LogOp; 11] = [
         LogOp::AddDefinition,
         LogOp::AddName,
         LogOp::MoveName,
@@ -81,6 +83,7 @@ impl LogOp {
         LogOp::Annotate,
         LogOp::Fact,
         LogOp::Setting,
+        LogOp::RemoveDefinition,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -95,6 +98,7 @@ impl LogOp {
             LogOp::Annotate => "annotate",
             LogOp::Fact => "fact",
             LogOp::Setting => "setting",
+            LogOp::RemoveDefinition => "remove-definition",
         }
     }
 

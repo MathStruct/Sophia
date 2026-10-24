@@ -130,6 +130,10 @@ pub trait WriteTx: ReadTx {
     /// Removes a fact from current reads (`facts_of`, the SQL views). Used
     /// by folder stores when the last file contributing it drops it.
     fn remove_fact(&mut self, id: &Digest) -> Result<()>;
+    /// Removes a record and its index rows (references, component, kind).
+    /// Used only by folder-store collection (SR-146); the caller checks
+    /// that nothing reaches it.
+    fn remove_record(&mut self, id: &Digest) -> Result<()>;
     fn set_meta(&mut self, key: &str, value: &[u8]) -> Result<()>;
     fn remove_meta(&mut self, key: &str) -> Result<()>;
 }

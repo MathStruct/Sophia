@@ -850,6 +850,7 @@ impl<B: Backend + Sync> Interface<B> {
                     }
                     AddDefinition | Annotate | Fact => keys.extend(e.new.map(Key::Content)),
                     NewNominal => keys.extend(e.new.map(Key::Content)),
+                    RemoveDefinition => keys.extend(e.old.map(Key::Content)),
                     AddMethod | RemoveMethod => {
                         if let Ok(n) = e.subject.parse::<Digest>() {
                             keys.push(Key::Content(n));
