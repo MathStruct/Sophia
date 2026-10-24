@@ -291,6 +291,10 @@ struct SqliteTx<'a> {
 /// A `t_definition` row before its digests are checked.
 type RecordRow = (Vec<u8>, String, String, String, Vec<u8>, u32, u32, Vec<u8>, Vec<u8>, String, Vec<u8>, Vec<u8>);
 
+const NAME_EXACT_SQL: &str = "SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path = ?1";
+const NAMES_BELOW_SQL: &str =
+    "SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path >= ?1 AND path < ?2 ORDER BY path LIMIT ?3";
+const META_PREFIX_SQL: &str = "SELECT key, value FROM t_meta WHERE key >= ?1 AND (?2 IS NULL OR key < ?2) ORDER BY key";
 const RECORD_COLS: &str = "id, lang, normaliser, kind, component, idx, size, bytes, display, status, refs, nominal_refs";
 
 impl SqliteTx<'_> {
@@ -391,22 +395,37 @@ impl ReadTx for SqliteTx<'_> {
     fn name(&self, path: &str) -> Result<Option<NameEntry>> {
         let mut st = self
             .tx
-            .prepare_cached("SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path = ?1")
+            .prepare_cached(NAME_EXACT_SQL)
             .map_err(be)?;
         st.query_row([path], Self::name_row).optional().map_err(be)?.map(Self::finish_name).transpose()
     }
 
     fn names_under(&self, prefix: &str, limit: usize) -> Result<Vec<NameEntry>> {
-        let mut st = self
-            .tx
-            .prepare_cached(
-                "SELECT path, target_kind, target, visibility, seq FROM t_name
-                 WHERE ?1 = '' OR path = ?1 OR (path >= ?1 || '.' AND path < ?1 || '/')
-                 ORDER BY path LIMIT ?2",
-            )
-            .map_err(be)?;
-        let v: Vec<_> = st.query_map(params![prefix, limit.min(i64::MAX as usize) as i64], Self::name_row).map_err(be)?.collect();
-        v.into_iter().map(|r| Self::finish_name(r.map_err(be)?)).collect()
+        // Separate seeks for the root, the exact name and its descendants:
+        // one predicate with OR made SQLite scan the table (Moonkale P-232).
+        let limit = limit.min(i64::MAX as usize) as i64;
+        let mut rows = Vec::new();
+        if prefix.is_empty() {
+            let mut st = self
+                .tx
+                .prepare_cached("SELECT path, target_kind, target, visibility, seq FROM t_name ORDER BY path LIMIT ?1")
+                .map_err(be)?;
+            rows.extend(st.query_map(params![limit], Self::name_row).map_err(be)?);
+        } else {
+            let mut st = self
+                .tx
+                .prepare_cached("SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path = ?1")
+                .map_err(be)?;
+            rows.extend(st.query_map(params![prefix], Self::name_row).map_err(be)?);
+            // `.` + 1 = `/`: every path under `ns.` sorts below `ns/`.
+            let mut st = self
+                .tx
+                .prepare_cached(NAMES_BELOW_SQL)
+                .map_err(be)?;
+            let rest = (limit - rows.len() as i64).max(0);
+            rows.extend(st.query_map(params![format!("{prefix}."), format!("{prefix}/"), rest], Self::name_row).map_err(be)?);
+        }
+        rows.into_iter().take(limit as usize).map(|r| Self::finish_name(r.map_err(be)?)).collect()
     }
 
     fn names_from(&self, base: &str, from: &str, limit: usize) -> Result<Vec<NameEntry>> {
@@ -629,11 +648,16 @@ impl ReadTx for SqliteTx<'_> {
     }
 
     fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
+        // A range on the primary key, not `substr` (a table scan, Moonkale
+        // P-232): keys from the prefix up to its successor.
         let mut st = self
             .tx
-            .prepare_cached("SELECT key, value FROM t_meta WHERE substr(key, 1, length(?1)) = ?1 ORDER BY key")
+            .prepare_cached(META_PREFIX_SQL)
             .map_err(be)?;
-        let v: Vec<_> = st.query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
+        let v: Vec<_> = st
+            .query_map(params![prefix, prefix_successor(prefix)], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?)))
+            .map_err(be)?
+            .collect();
         v.into_iter().map(|r| r.map_err(be)).collect()
     }
 
@@ -842,5 +866,52 @@ impl WriteTx for SqliteTx<'_> {
     fn remove_meta(&mut self, key: &str) -> Result<()> {
         self.tx.prepare_cached("DELETE FROM t_meta WHERE key = ?1").map_err(be)?.execute([key]).map_err(be)?;
         Ok(())
+    }
+}
+
+/// The least string above every string that starts with `p`, if any: the
+/// last character that can be raised is raised to the next one (code point
+/// order is UTF-8 byte order, SQLite's `BINARY` collation). `None` when
+/// every string starts with `p` (the empty prefix) or no character can be
+/// raised.
+pub(crate) fn prefix_successor(p: &str) -> Option<String> {
+    let mut cs: Vec<char> = p.chars().collect();
+    while let Some(c) = cs.pop() {
+        let next = (c as u32 + 1..=char::MAX as u32).find_map(char::from_u32);
+        if let Some(n) = next {
+            cs.push(n);
+            return Some(cs.into_iter().collect());
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod prefix_tests {
+    use super::*;
+
+    /// The prefix reads seek the primary key; none scans its table
+    /// (Moonkale P-232: `substr` and an OR predicate did).
+    #[test]
+    fn prefix_reads_use_the_index() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for sql in [NAME_EXACT_SQL, NAMES_BELOW_SQL, META_PREFIX_SQL] {
+            let mut st = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+            let nulls = vec![rusqlite::types::Null; st.parameter_count()];
+            let plan: Vec<String> =
+                st.query_map(rusqlite::params_from_iter(nulls), |r| r.get::<_, String>(3)).unwrap().map(|r| r.unwrap()).collect();
+            assert!(plan.iter().all(|d| !d.starts_with("SCAN")), "{sql}: {plan:?}");
+            assert!(plan.iter().any(|d| d.starts_with("SEARCH")), "{sql}: {plan:?}");
+        }
+    }
+
+    #[test]
+    fn successors() {
+        assert_eq!(prefix_successor(""), None);
+        assert_eq!(prefix_successor("ns/"), Some("ns0".into()));
+        assert_eq!(prefix_successor("a\u{D7FF}"), Some("a\u{E000}".into()), "surrogates skipped");
+        assert_eq!(prefix_successor("a\u{10FFFF}"), Some("b".into()));
+        assert_eq!(prefix_successor("\u{10FFFF}"), None);
     }
 }

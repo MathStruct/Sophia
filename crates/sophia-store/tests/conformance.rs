@@ -246,6 +246,33 @@ fn names_from_is_a_range_scan<B: Backend>(s: Store<B>) {
     assert_eq!(paths(s.read(|tx| tx.names_from("", "ab", 100)).unwrap()), vec!["ab.x".to_string()]);
 }
 
+/// `names_under` and `meta_prefix` give the same answers on every
+/// backend, around namespace boundaries and with non-ASCII keys (Moonkale
+/// P-232 rewrote SQLite's as index seeks).
+fn prefix_reads_agree<B: Backend>(s: Store<B>) {
+    let (_, records) = sample();
+    let named: Vec<(String, usize, Visibility)> = AROUND.iter().map(|p| (p.to_string(), 1, Visibility::Public)).collect();
+    s.add(&records, &named).unwrap();
+    let paths = |v: Vec<NameEntry>| v.into_iter().map(|n| n.path).collect::<Vec<_>>();
+    for prefix in ["", "a", "a.b", "a.`b.c`", "ab", "a.b.c.d", "zz"] {
+        let mut want: Vec<String> =
+            AROUND.iter().filter(|p| prefix.is_empty() || **p == prefix || p.starts_with(&format!("{prefix}."))).map(|p| p.to_string()).collect();
+        want.sort();
+        assert_eq!(paths(s.read(|tx| tx.names_under(prefix, usize::MAX)).unwrap()), want, "names_under({prefix:?})");
+        assert_eq!(paths(s.read(|tx| tx.names_under(prefix, 2)).unwrap()), want.iter().take(2).cloned().collect::<Vec<_>>(), "limit, {prefix:?}");
+    }
+    let keys = ["zz/a", "zz/a.b", "zz0", "zz", "zz/é", "zz/\u{10FFFF}x", "zz/\u{10FFFF}", "zy\u{10FFFF}", "zz/"];
+    for k in keys {
+        s.set_meta(k, k.as_bytes()).unwrap();
+    }
+    for prefix in ["zz/", "zz", "zz/\u{10FFFF}", "zy", "zz/é", "nothing/"] {
+        let mut want: Vec<&str> = keys.iter().copied().filter(|k| k.starts_with(prefix)).collect();
+        want.sort();
+        let got: Vec<String> = s.meta_prefix(prefix).unwrap().into_iter().map(|(k, _)| k).collect();
+        assert_eq!(got, want, "meta_prefix({prefix:?})");
+    }
+}
+
 macro_rules! suite {
     ($module:ident, $make:expr) => {
         mod $module {
@@ -261,7 +288,7 @@ macro_rules! suite {
                 update_moves_name_extends_lineage_reports_dependants, update_is_optimistic_and_reingest_is_a_noop,
                 recursive_groups_share_a_component, incomplete_definitions_store, methods_change_no_ids_and_stale_facts,
                 annotations_attach_to_subjects, changes_since_pages_through_the_log, meta_round_trips,
-                failed_writes_roll_back, kinds_follow_from_content, names_from_is_a_range_scan);
+                failed_writes_roll_back, kinds_follow_from_content, names_from_is_a_range_scan, prefix_reads_agree);
         }
     };
     (@tests $($t:ident),*) => {

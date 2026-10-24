@@ -32,3 +32,11 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
 - a WAL-mode file (Sophia's are) makes SQLite open `-wal` and `-shm` files even to read, which fails in memory with "unable to open database file"; the copy's header bytes 18 and 19 are set from 2 (WAL) to 1 (rollback journal), which is safe for a complete file;
 - on wasm, `Connection::open_in_memory` does not open under `sqlite-wasm-rs`; a named database in its default in-memory VFS does;
 - `PRAGMA temp_store = MEMORY`, since there is no file system for temporary tables.
+
+**Prefix reads seek the index (2026-10-24, Moonkale P-232, found by Moonkale's Codex in a profile).** Two prefix reads scanned their tables:
+- `meta_prefix` compared `substr(key, 1, length(?1))`. It now reads the key range from the prefix to `prefix_successor(prefix)`, the least string above every extension: the last character that can be raised is raised, surrogates are skipped, and there is no upper bound for the empty prefix.
+- `names_under` used one predicate with `OR`. It now makes separate seeks for the root, the exact name, and the range `prefix.` … `prefix/`.
+
+`prefix_reads_use_the_index` checks with `EXPLAIN QUERY PLAN` that the statements `SEARCH` and never `SCAN`. The old forms show `SCAN t_meta` and `SCAN t_name` on Moonkale's store. `prefix_reads_agree` (conformance, all four backends) covers namespace boundaries, quoted segments, `é` and U+10FFFF keys, and limits.
+
+On a collected copy of Moonkale's store (`listing_timing … rs 5`, release), `Interface::all(100000)` goes from 274 ms to 120 ms, with the same output digest; it was 2089 ms before the namespace-edge fix. `children(ns:)` goes from 1.1 to 0.5 ms.
