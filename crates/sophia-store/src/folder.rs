@@ -416,10 +416,10 @@ impl<B: Backend> Store<B> {
                         outside.insert(r.member, c as i64);
                     }
                     for m in old.values() {
-                        for (gn, _, ms) in &m.generics {
-                            if gn == n {
-                                for x in ms.iter().collect::<BTreeSet<_>>() {
-                                    *outside.entry(*x).or_default() -= 1;
+                        for ((gn, _), ms) in m.contributions() {
+                            if gn == *n {
+                                for x in ms {
+                                    *outside.entry(x).or_default() -= 1;
                                 }
                             }
                         }
@@ -704,7 +704,7 @@ impl<B: Backend> Store<B> {
     }
 
     /// Collects every record of a derived store that no current file,
-    /// name, generic member or fact reaches (SR-146), for stores written
+    /// name or generic member reaches (SR-146), for stores written
     /// before collection. Refused when the store is not derived: there the
     /// store is the truth and its history is kept.
     pub fn collect_folder(&self) -> Result<usize> {
@@ -720,9 +720,11 @@ impl<B: Backend> Store<B> {
     /// Removes the records among `seeds` that nothing reaches, then what
     /// only they reached. A component goes as a whole. A record is kept
     /// while it is a current file manifest, a name's target, a current
-    /// generic member, a fact's subject, or referenced by a stored record
-    /// outside its component; removing a referrer checks its references
-    /// again.
+    /// generic member, or referenced by a stored record outside its
+    /// component; removing a referrer checks its references again. Facts do
+    /// not keep records: the files are the truth, so the store holds what a
+    /// fresh build of them holds, and a fact about a record no file has any
+    /// more dangles there too.
     fn collect(&self, tx: &mut dyn WriteTx, seeds: Vec<Digest>) -> Result<usize> {
         let mut stack = seeds;
         let mut removed = 0;
@@ -735,7 +737,6 @@ impl<B: Backend> Store<B> {
                 reached = (m.lang == MANIFEST_LANG && m.kind == MANIFEST_KIND && current_manifest(tx, m)?)
                     || !tx.names_of(&m.id)?.is_empty()
                     || !tx.memberships_of(&m.id)?.is_empty()
-                    || !tx.facts_of(&m.id)?.is_empty()
                     || tx.dependants(&m.id)?.iter().any(|d| !ids.contains(d));
                 if reached {
                     break;

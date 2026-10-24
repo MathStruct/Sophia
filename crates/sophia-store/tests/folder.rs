@@ -307,6 +307,50 @@ fn store_truth_keeps_history_until_swept<B: Backend>(s: Store<B>, fresh: impl Fn
     assert_eq!(state(&s), state(&t));
 }
 
+/// Applies `commits` to `s` (derived) and after each compares its records
+/// with a fresh derived build of the tree.
+fn replay_records<B: Backend>(s: &Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir), commits: Vec<Vec<FileIngest>>) {
+    s.set_derived().unwrap();
+    let mut tree = Tree::new();
+    for (i, c) in commits.into_iter().enumerate() {
+        s.replace_files(&c).unwrap();
+        for f in c {
+            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+        }
+        let (t, _d) = fresh();
+        t.set_derived().unwrap();
+        t.replace_files(&tree.values().cloned().collect::<Vec<_>>()).unwrap();
+        assert_eq!(all_records(s), all_records(&t), "after commit {i}");
+    }
+}
+
+/// Facts do not keep records: a record no file has any more is collected
+/// even while a fact is about it or uses it, as a fresh build would not
+/// have it either (Codex's review of SR-146; the fact dangles in both).
+fn facts_do_not_keep_records<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    let a_id = rec("1", "const_statement").id;
+    let b_id = rec("2", "const_statement").id;
+    for (subject, inputs) in [(b_id, vec![Input::Content(a_id)]), (a_id, vec![])] {
+        let (s, _d) = fresh();
+        let mut b = file("b.jl", &[("b", "2")]);
+        b.facts.push(Fact::new("uses", subject, vec![], ("test", "0"), inputs, 0));
+        replay_records(&s, &fresh, vec![vec![file("a.jl", &[("a", "1")]), b.clone()], vec![deleted("a.jl")], vec![file("b.jl", &[("b", "2")])]]);
+        assert!(s.record(&a_id).unwrap().is_none());
+    }
+    drop(s);
+}
+
+/// One file listing a generic function twice is one contributor: it cannot
+/// outvote another file's method when its name becomes a definition's.
+fn a_file_listing_a_generic_twice_is_one_contributor<B: Backend>(s: Store<B>) {
+    let mut a = file("a.jl", &[("g:1", "g(x) = 0")]);
+    a.generics.push(a.generics[0].clone());
+    s.replace_files(&[a, file("b.jl", &[("g:1", "g(x) = 0")])]).unwrap();
+    let r = s.replace_files(&[file("a.jl", &[("g", "1")])]);
+    assert!(matches!(r, Err(StoreError::NameClaimed { .. })), "b.jl still contributes: {r:?}");
+    assert_eq!(methods(&s).len(), 1);
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -418,6 +462,16 @@ macro_rules! suite {
             fn store_truth_keeps_history_until_swept() {
                 let (s, _d) = store();
                 super::store_truth_keeps_history_until_swept(s, store);
+            }
+            #[test]
+            fn facts_do_not_keep_records() {
+                let (s, _d) = store();
+                super::facts_do_not_keep_records(s, store);
+            }
+            #[test]
+            fn a_file_listing_a_generic_twice_is_one_contributor() {
+                let (s, _d) = store();
+                super::a_file_listing_a_generic_twice_is_one_contributor(s);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

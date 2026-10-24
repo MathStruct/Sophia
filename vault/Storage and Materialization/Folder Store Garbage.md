@@ -70,9 +70,8 @@ The incremental check costs nothing measurable: the differences are within noise
    - a name targets it (`names_of`);
    - it is a current member of a generic function (`memberships_of`);
    - a stored record references it (`dependants`, the existing `t_ref` reverse index);
-   - a fact is about it.
 
-   A removed record's `refs` become seeds in turn. This is reference counting over indexes that already exist. It adds no table and changes no layout: rows are deleted. It needs one new `WriteTx::remove_record` on all four backends. Each removal is logged, as [[Garbage Collection]] asks.
+   As implemented, facts do not keep records. A fresh build of the files would not have a record no file provides, so the store must not keep it either; Codex's review found the inconsistency ([[folder]]). A removed record's `refs` become seeds in turn. This is reference counting over indexes that already exist. It adds no table and changes no layout: rows are deleted. It needs one new `WriteTx::remove_record` on all four backends. Each removal is logged, as [[Garbage Collection]] asks.
 2. **A one-off sweep, `Store::collect_folder()`**, which computes what [[folder_garbage]] computes, for stores written before (1). It runs in one write transaction.
 3. **Only in derived mode.** In a store that is not derived, the files are not the truth, so nothing changes there.
 4. **Lineage history: Daniel's choice.** In a folder store, git already keeps the history.

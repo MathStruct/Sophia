@@ -49,7 +49,6 @@ Tests: `repeated_methods_survive_a_refresh` and `names_changing_kind_keep_member
   - it is a current file manifest;
   - a name targets it;
   - it is a current generic member;
-  - a fact is about it;
   - a stored record outside its component references it (`dependants`).
 
   A component goes as a whole. Each removal is logged as `remove-definition`, with the id as `old`. `WriteTx::remove_record` deletes the record and its index rows on all four backends. Lineage entries stay, as ids without bodies. `Store::collect_folder()` sweeps a derived store once, for stores written before this.
@@ -60,3 +59,12 @@ Tests, all four backends:
 - `store_truth_keeps_history_until_swept`: every version stays; the sweep is refused, then after `set_derived` leaves a fresh build's records.
 
 On copies of Moonkale's replayed stores, `folder_garbage STORE --collect` removed 5 601 records in 1.81 s (Moonkale, 471 commits) and 1 005 in 0.39 s (Lenticulum). In both, the record set afterwards equals the fresh build's, checked in SQL. After `VACUUM` the files are 39.2 and 10.3 MB, against 36.2 and 9.8 MB fresh; the rest is the log ([[Folder Store Garbage]]). SQLite reuses the freed pages; the file shrinks only on `VACUUM`.
+
+**Codex's review of the changes since `v0.1.0` (2026-10-24).** Daniel let Sophia's agent give tasks to a Codex agent. Its read-only review reported three findings, traced in the code but not executed; each was checked here:
+1. **"Collection ignores facts' content inputs"**: a record a fact uses could be collected. Checked: true. The answer, though, is the opposite fix: facts no longer keep records at all. In a derived store the files are the truth, and a fresh build of them stores neither a fact's input nor its subject when no file provides them. Protecting them would make the store differ from a fresh build. A fact whose record has gone dangles, as it does in a fresh build; facts still follow their files. Moonkale's facts (`uses_generic`) each have their own subject as their only input (checked in SQL on both replays), so they never meet this case.
+2. **"Removing a fact leaves protected garbage"**: true, and caused by the subject protection that (1) removes.
+3. **"Retirement subtracts duplicate contributions across entries"**: true. The check before a generic function's name becomes a definition's counted per manifest entry, so a file listing one generic twice outvoted another file's method and retired it. It now uses `contributions()` like the counting.
+
+Tests, all four backends: `facts_do_not_keep_records` (a fact's input and a fact's subject, compared with a fresh build after every commit) and `a_file_listing_a_generic_twice_is_one_contributor`. Both fail before the fix.
+
+Codex found nothing in `remove_record`, the SQLite prefix reads or `Interface::all`.
