@@ -59,7 +59,7 @@ A convention ("Moonkale never calls the write path") would work until someone ca
 
 **Proposal:** tag `v0.1.0` (the workspace version already) when:
 1. §1–§3 are implemented with tests on all four backends (`replace_files`, the derived mode);
-2. [[SP-015 Stored definitions deeper than the parse limit cannot be edited]] is closed (its proposal: bound depth on entry, cap the generator; it needs Daniel's go-ahead);
+2. [[SP-015 Stored definitions deeper than the parse limit cannot be edited]] is closed (revised 2026-10-24: no depth limit; every pass depth-safe);
 3. the wasm read-only test of §4 passes.
 
 Afterwards 0.x semantics: a breaking API change bumps the minor version. A change of any content id is a migration (SPEC-006 §6) whatever the version, and is coordinated with Moonkale as v7 was. Tagging is Daniel's decision.

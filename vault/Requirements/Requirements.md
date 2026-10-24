@@ -197,6 +197,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-138 | S-ADR-0012 accepted: the query algebra stays a separate IR sharing identity, types and evidence infrastructure with sophialang. | R5 §1 | now | accepted |
 | SR-139 | Next order: finish Mathlib and Reactant; reconstruction before compaction; Moonkale's end-to-end edit benchmark; cross-session artifacts; compact edges; only then other compilers or the agent server. | R5 §4 | now | adopted ([[Semantic Boundary Experiments]]) |
 | SR-140 | WebAssembly as a compilation target, "for way later". Daniel (2026-10-22): **both**. (a) sophialang code compiled to WASM (a backend beside the planned ones; WASM's validation and sandbox make the artifact checkable and portable, an input-addressed artifact in the sense of SPEC-006 §3); (b) Sophia's own crates built for wasm32 (a store or the query engine in a browser). (b) conflicts with SR-39 / S-ADR-0005 (the wasm client never opens the store) and needs its own decision before it is built. | D (2026-10-22) | later | both wanted; not planned before SR-139's order is done |
+| SR-145 | No limit on expressiveness: terms of any depth are stored, decoded, printed and parsed; depth may cost memory, never a refusal or a crash. Deep regions are the UI's to fold. | D (2026-10-24, revision of SP-015, relayed by the Moonkale agent) | next | planned ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]) |
 
 ## From Moonkale
 
@@ -232,7 +233,8 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
-- 2026-10-24: SR-141 to SR-143 accepted with SPEC-009 (Daniel); SP-015's proposal and the v0.1.0 tag approved.
+- 2026-10-24: SR-145 added: no limit on expressiveness (Daniel's revision of SP-015, ~10:15).
+- 2026-10-24: SR-141 to SR-143 accepted with SPEC-009 (Daniel); SP-015's proposal and the v0.1.0 tag approved (SP-015 revised the same day, SR-145).
 - 2026-10-23: SR-141 to SR-144 added (Moonkale ADR-0029, accepted by Daniel: Sophia stores the code graph).
 - 2026-10-22: SR-140 added (WASM as a compilation target, for later).
 - 2026-10-20: SR-133 to SR-139 added (the second real-code review).
