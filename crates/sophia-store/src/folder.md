@@ -27,7 +27,7 @@ An unchanged batch logs nothing. A definition moves between files only when both
 
 **Tests** (`tests/folder.rs`, all four backends): two files with a shared generic function; an edit (one name removed, one moved, one added, a method replaced); a move between files; a claim of another file's name (refused, rolled back); two files of one batch claiming one name; deletions; one method in two files; a normaliser change.
 
-**Not yet:** garbage collection of records no manifest references; Rust and Python names in Moonkale's crate-and-module form (the producer computes names, so this is Moonkale's side).
+**Not yet:** garbage collection of records no manifest references (measured and proposed: [[Folder Store Garbage]]); Rust and Python names in Moonkale's crate-and-module form (the producer computes names, so this is Moonkale's side).
 
 **Facts follow their file (2026-10-24, found by Moonkale's Codex before WP-21).** At `cafe940e`, `replace_files` stored a file's facts but never retracted them: a replacement with fewer facts, or deleting the file, left them in `facts_of`. Now:
 - the manifest (`sophia-file-manifest@1`; `@0` manifests still decode, with no facts) lists the file's fact ids;

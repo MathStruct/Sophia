@@ -32,6 +32,7 @@ Answering the third question "no" never changes the first two: a dropped object 
 | [[Object Lifecycle]] | compute → discard, cache or persist; promotion and demotion; what must survive when bytes are dropped |
 | [[Materialization Policy]] | the default policy per category, the hard rules, and the cost model for later |
 | [[Garbage Collection]] | roots, reachability, eviction, log compaction |
+| [[Folder Store Garbage]] | how much of a replayed folder store is garbage, and a proposal to collect it |
 | [[Compression]] | shrinking what *is* kept, independent of identity |
 | [[AD as a Materialization Case]] | automatic differentiation: source, transformation, derived program, compiled artifact; when each deserves to be kept |
 | [[Storage Measurements]] | what to measure, and the experiments that decide the open questions |
