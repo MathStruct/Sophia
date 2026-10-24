@@ -1,0 +1,78 @@
+# file	start	end	name	binding	entity_path	diagnostic
+geometry.rs	0	52	"Point"	Some(Named(["Fixture", "geometry", "Point"]))	Some("rs.Fixture.geometry.Point")	None
+geometry.rs	54	110	"norm2"	Some(Method(["Fixture", "geometry", "norm2"]))	Some("rs.Fixture.geometry.norm2")	None
+geometry.rs	112	223	"dist"	Some(Method(["Fixture", "geometry", "dist"]))	Some("rs.Fixture.geometry.dist")	None
+geometry.rs	225	301	"is_even"	Some(Method(["Fixture", "geometry", "is_even"]))	Some("rs.Fixture.geometry.is_even")	None
+geometry.rs	303	380	"is_odd"	Some(Method(["Fixture", "geometry", "is_odd"]))	Some("rs.Fixture.geometry.is_odd")	None
+geometry.py	0	80	"Point"	Some(Named(["Fixture", "geometry", "Point"]))	Some("py.Fixture.geometry.Point")	None
+geometry.py	17	80	"__init__"	Some(Method(["Fixture", "geometry", "Point", "__init__"]))	Some("py.Fixture.geometry.Point.__init__")	None
+geometry.py	83	129	"norm2"	Some(Method(["Fixture", "geometry", "norm2"]))	Some("py.Fixture.geometry.norm2")	None
+geometry.py	132	210	"dist"	Some(Method(["Fixture", "geometry", "dist"]))	Some("py.Fixture.geometry.dist")	None
+geometry.py	213	288	"is_even"	Some(Method(["Fixture", "geometry", "is_even"]))	Some("py.Fixture.geometry.is_even")	None
+geometry.py	291	367	"is_odd"	Some(Method(["Fixture", "geometry", "is_odd"]))	Some("py.Fixture.geometry.is_odd")	None
+geometry.jl	0	46	"Point"	Some(Named(["Fixture", "Point"]))	Some("jl.Fixture.Point")	None
+geometry.jl	48	87	"norm2"	Some(Method(["Fixture", "norm2"]))	Some("jl.Fixture.norm2")	None
+geometry.jl	89	181	"dist"	Some(Method(["Fixture", "dist"]))	Some("jl.Fixture.dist")	None
+geometry.jl	183	266	"iseven2"	Some(Method(["Fixture", "iseven2"]))	Some("jl.Fixture.iseven2")	None
+geometry.jl	268	352	"isodd2"	Some(Method(["Fixture", "isodd2"]))	Some("jl.Fixture.isodd2")	None
+geometry.jl	416	513	"distance"	Some(Method(["Fixture", "distance"]))	Some("jl.Fixture.distance")	None
+scopes.jl	0	44	"Band"	Some(Named(["Fixture", "Band"]))	Some("jl.Fixture.Band")	None
+scopes.jl	46	80	"offset"	Some(Method(["Fixture", "offset"]))	Some("jl.Fixture.offset")	None
+scopes.jl	82	215	"total"	Some(Method(["Fixture", "total"]))	Some("jl.Fixture.total")	None
+scopes.jl	217	329	"widths"	Some(Method(["Fixture", "widths"]))	Some("jl.Fixture.widths")	None
+scopes.jl	331	448	"shifted"	Some(Method(["Fixture", "shifted"]))	Some("jl.Fixture.shifted")	None
+scopes.jl	450	610	"guarded"	Some(Method(["Fixture", "guarded"]))	Some("jl.Fixture.guarded")	None
+scopes.jl	612	682	"countdown"	Some(Method(["Fixture", "countdown"]))	Some("jl.Fixture.countdown")	None
+module/Geo.jl	107	120	"helper"	Some(Method(["Geo", "Inner", "helper"]))	Some("jl.Geo.Inner.helper")	None
+module/Geo.jl	121	141	"scale"	Some(Method(["Geo", "Inner", "scale"]))	Some("jl.Geo.Inner.scale")	None
+module/types.jl	0	46	"Point"	Some(Named(["Geo", "Point"]))	Some("jl.Geo.Point")	None
+module/types.jl	47	73	"origin"	Some(Method(["Geo", "origin"]))	Some("jl.Geo.origin")	None
+module/types.jl	74	107	"Wrap"	Some(Named(["Geo", "Wrap"]))	Some("jl.Geo.Wrap")	None
+module/types.jl	108	128	"parent"	Some(Method(["Geo", "parent"]))	Some("jl.Geo.parent")	None
+module/types.jl	129	177	"Base.show"	Some(Method(["Base", "show"]))	Some("jl.Base.show")	None
+module/types.jl	178	195	"SCALE"	Some(Named(["Geo", "SCALE"]))	Some("jl.Geo.SCALE")	None
+module/ops.jl	0	39	"norm2"	Some(Method(["Geo", "norm2"]))	Some("jl.Geo.norm2")	None
+module/ops.jl	40	107	"dist"	Some(Method(["Geo", "dist"]))	Some("jl.Geo.dist")	None
+module/ops.jl	108	131	"len"	Some(Method(["Geo", "len"]))	Some("jl.Geo.len")	None
+module/ops.jl	132	158	"area"	Some(Method(["Geo", "area"]))	Some("jl.Geo.area")	None
+module/ops.jl	159	190	"show2"	Some(Method(["Geo", "show2"]))	Some("jl.Geo.show2")	None
+module/ops.jl	191	204	"twice"	Some(Method(["Geo", "twice"]))	Some("jl.Geo.twice")	None
+module/ops.jl	205	225	"twice"	Some(Method(["Geo", "twice"]))	Some("jl.Geo.twice")	None
+module/ops.jl	226	249	"use_twice"	Some(Method(["Geo", "use_twice"]))	Some("jl.Geo.use_twice")	None
+module/ops.jl	250	280	"scaled"	Some(Method(["Geo", "scaled"]))	Some("jl.Geo.scaled")	None
+module/ops.jl	281	312	"show3"	Some(Method(["Geo", "show3"]))	Some("jl.Geo.show3")	None
+module/Dyn.jl	71	86	"f"	Some(Method(["Dyn", "f"]))	Some("jl.Dyn.f")	None
+module/Dyn.jl	87	105	"g"	Some(Method(["Dyn", "g"]))	Some("jl.Dyn.g")	None
+module/Callable.jl	16	39	"S"	Some(Named(["Callable", "S"]))	Some("jl.Callable.S")	None
+module/Callable.jl	40	70	"Box"	Some(Named(["Callable", "Box"]))	Some("jl.Callable.Box")	None
+module/Callable.jl	140	194	""	None	None	Some("unnamed, unresolved qualified name, or unspellable store path")
+module/Callable.jl	258	267	""	None	None	Some("unnamed, unresolved qualified name, or unspellable store path")
+module/Callable.jl	318	346	"first_of"	Some(Method(["Callable", "first_of"]))	Some("jl.Callable.first_of")	None
+module/Callable.jl	347	370	"uses_struct"	Some(Method(["Callable", "uses_struct"]))	Some("jl.Callable.uses_struct")	None
+module/Callable.jl	371	389	"apply"	Some(Method(["Callable", "apply"]))	Some("jl.Callable.apply")	None
+module/Callable.jl	390	414	"apply"	Some(Method(["Callable", "apply"]))	Some("jl.Callable.apply")	None
+module/Callable.jl	480	513	"twice"	Some(Method(["Callable", "twice"]))	Some("jl.Callable.twice")	None
+module/Callable.jl	514	543	"calls"	Some(Method(["Callable", "calls"]))	Some("jl.Callable.calls")	None
+module/Macros.jl	14	32	"NoPivot"	Some(Named(["Macros", "NoPivot"]))	Some("jl.Macros.NoPivot")	None
+module/Macros.jl	33	68	"fact!"	Some(Method(["Macros", "fact!"]))	Some("jl.Macros.fact!")	None
+module/Macros.jl	287	300	"twice"	Some(Method(["Macros", "twice"]))	Some("jl.Macros.twice")	None
+module/Macros.jl	334	363	"thrice"	Some(Method(["Macros", "thrice"]))	Some("jl.Macros.thrice")	None
+module/Macros.jl	372	388	"halve"	Some(Method(["Macros", "halve"]))	Some("jl.Macros.halve")	None
+module/Macros.jl	410	453	"picked"	Some(Method(["Macros", "picked"]))	Some("jl.Macros.picked")	None
+module/Macros.jl	509	544	"configure"	Some(Method(["Macros", "configure"]))	Some("jl.Macros.configure")	None
+generics/Gen.jl	193	205	"f"	Some(Method(["Gen", "A", "f"]))	Some("jl.Gen.A.f")	None
+generics/Gen.jl	206	221	"f"	Some(Method(["Gen", "A", "f"]))	Some("jl.Gen.A.f")	None
+generics/Gen.jl	236	248	"f"	Some(Method(["Gen", "B", "f"]))	Some("jl.Gen.B.f")	None
+generics/Gen.jl	249	264	"g"	Some(Method(["Gen", "B", "g"]))	Some("jl.Gen.B.g")	None
+generics/Gen.jl	270	301	"Point"	Some(Named(["Gen", "Point"]))	Some("jl.Gen.Point")	None
+generics/Gen.jl	302	322	"Point"	Some(Method(["Gen", "Point"]))	Some("jl.Gen.Point")	None
+generics/Gen.jl	323	349	"Point"	Some(Method(["Gen", "Point"]))	Some("jl.Gen.Point")	None
+generics/Gen.jl	351	390	"show"	Some(Method(["Base", "show"]))	Some("jl.Base.show")	None
+generics/Gen.jl	391	411	"length"	Some(Method(["Base", "length"]))	Some("jl.Base.length")	None
+generics/Gen.jl	412	458	"Base.:+"	Some(Method(["Base", "+"]))	Some("jl.Base.`+`")	None
+generics/Gen.jl	459	491	"Base.getindex"	Some(Method(["Base", "getindex"]))	Some("jl.Base.getindex")	None
+generics/Gen.jl	492	511	"A.f"	Some(Method(["Gen", "A", "f"]))	Some("jl.Gen.A.f")	None
+generics/Gen.jl	513	528	"f"	Some(Method(["Gen", "f"]))	Some("jl.Gen.f")	None
+generics/Gen.jl	529	547	"f"	Some(Method(["Gen", "f"]))	Some("jl.Gen.f")	None
+generics/Gen.jl	548	571	"use"	Some(Method(["Gen", "use"]))	Some("jl.Gen.use")	None
+generics/sub.jl	23	39	"f"	Some(Method(["Gen", "A", "f"]))	Some("jl.Gen.A.f")	None

@@ -162,7 +162,8 @@ fn store_items<B: Backend>(
     store.add(&named_records, &names)?;
     // The package's own top-level modules; a function under any other is
     // another package's (or Base's) that this one extends.
-    let roots: std::collections::HashSet<String> = items.iter().map(|(d, _)| home(d, pkg)[0].clone()).collect();
+    let roots: std::collections::HashSet<String> =
+        items.iter().map(|(d, _)| d.module.first().cloned().unwrap_or_else(|| pkg.to_string())).collect();
     for (k, ms) in &methods {
         let mut ms = ms.clone();
         ms.sort();
@@ -177,55 +178,12 @@ fn store_items<B: Backend>(
     Ok(())
 }
 
-/// What a definition binds, as Sophia stores it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Binding {
-    /// A method of the generic function (module path, name).
-    Method(Vec<String>),
-    /// A directly named definition (type, constant, macro, module item).
-    Named(Vec<String>),
-}
-
-fn home(d: &code::Def, pkg: &str) -> Vec<String> {
-    if d.module.is_empty() { vec![pkg.to_string()] } else { d.module.clone() }
-}
-
-/// The one grouping rule ([[Julia Name Resolution]]): a function is a
-/// method of `extends` if set, else of (its module, its name); other
-/// definitions are named (module, name). A qualified method that could not
-/// be placed (`Base.$f`), and anything unnamed, binds nothing.
-pub fn binding(d: &code::Def, pkg: &str) -> Option<Binding> {
-    if d.name.is_empty() {
-        return None;
-    }
-    let function = matches!(d.kind.as_str(), "function_definition" | "assignment" | "function_item" | "function_signature_item");
-    if function {
-        if d.qualified && d.extends.is_none() {
-            return None;
-        }
-        Some(Binding::Method(d.extends.clone().unwrap_or_else(|| {
-            let mut k = home(d, pkg);
-            k.push(d.name.clone());
-            k
-        })))
-    } else if d.qualified {
-        None
-    } else {
-        let mut k = home(d, pkg);
-        k.push(d.name.clone());
-        Some(Binding::Named(k))
-    }
-}
-
-/// `jl` + `[LinearAlgebra, BLAS, gemm!]` → `jl.LinearAlgebra.BLAS.gemm!`.
-pub fn entity_path(prefix: &str, key: &[String]) -> String {
-    let mut s = prefix.to_string();
-    for k in key {
-        s.push('.');
-        s.push_str(&segment(k));
-    }
-    s
-}
+/// What a definition binds and its dotted spelling: one rule for Moonkale
+/// and Sophia, in `moonkale-content-id` since SPEC-009 §8 (a method of the
+/// generic function `extends` or (module, name); otherwise named (module,
+/// name); nothing for an unnamed definition, a qualified method it cannot
+/// place, or a name that is not a valid store path).
+pub use moonkale_content_id::{Binding, binding, entity_path};
 
 /// Stores a whole Julia module through the crate's module-level resolver
 /// (normaliser v5, SPEC-008): ids are Moonkale's; calls to generic
@@ -331,12 +289,6 @@ pub struct CodeReport {
     pub methods: usize,
     /// Resolved same-file references.
     pub references: usize,
-}
-
-fn segment(name: &str) -> String {
-    let plain = name.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
-        && name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '!');
-    if plain { name.to_string() } else { format!("`{}`", name.replace('`', "")) }
 }
 
 /// Stores the sources of one package (Julia, Rust or Python) under `pkg`:

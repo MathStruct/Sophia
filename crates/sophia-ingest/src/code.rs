@@ -21,29 +21,12 @@ pub enum CodeError {
     ContentId(#[from] moonkale_content_id::ContentIdError),
 }
 
-/// One definition found in a file.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Def {
-    pub name: String,
-    /// The syntax node kind (`function_definition`, `struct_definition`, …).
-    pub kind: String,
-    pub start: usize,
-    pub end: usize,
-    /// The byte span of the definition's own name.
-    pub name_span: Option<(usize, usize)>,
-    /// The name is qualified (`Base.show(…) = …`): the definition adds a
-    /// method to another module's function and binds nothing here.
-    pub qualified: bool,
-    /// Julia: the module path the definition is in (its `module … end`
-    /// blocks; in module mode, from the package root). Empty elsewhere.
-    pub module: Vec<String>,
-    /// Julia: the function a method extends when it is not one of its own
-    /// module's (`Base.show(…) = …`, or `show(…) = …` after
-    /// `import Base: show`), as an absolute module path plus name. Set by
-    /// [`julia_extends`]; a qualified method it cannot place (`Base.$f`)
-    /// keeps `None` and belongs to no generic function.
-    pub extends: Option<Vec<String>>,
-}
+/// One definition found in a file: name, kind, span, module path and the
+/// function a Julia method extends. Moonkale's type since SPEC-009 §8, so
+/// both tools name definitions by one rule (`moonkale-content-id`'s
+/// `binding`, `julia_scopes`, `julia_extends`).
+pub use moonkale_content_id::Definition as Def;
+pub use moonkale_content_id::{JuliaScopes, julia_extends, julia_scopes};
 
 pub(crate) fn text<'a>(n: Syntax, src: &'a str) -> &'a str {
     &src[n.start_byte()..n.end_byte()]
@@ -70,7 +53,8 @@ fn name_node<'t>(lang: &str, n: Syntax<'t>) -> Option<Syntax<'t>> {
     }
 }
 
-/// The `module … end` names around a node, within its file.
+/// The `module … end` names around a node, within its file. A copy of
+/// `moonkale-content-id`'s own, which the crate does not export yet.
 pub fn modules_around(mut n: Syntax, src: &str) -> Vec<String> {
     let mut out = Vec::new();
     while let Some(p) = n.parent() {
@@ -85,150 +69,6 @@ pub fn modules_around(mut n: Syntax, src: &str) -> Vec<String> {
     out
 }
 
-/// Julia's module structure, as far as deciding **which generic function a
-/// method belongs to** needs it. A generic function is identified by the
-/// module that owns its binding and its name, never by its name alone
-/// ([[Julia Name Resolution]]): `A.f` and `B.f` are different functions.
-#[derive(Debug, Clone, Default)]
-pub struct JuliaScopes {
-    /// Every module declared (`module … end`), as a path from the root.
-    pub modules: HashSet<Vec<String>>,
-    /// (module, name) → the module path, as written (leading dots, then
-    /// segments), of an `import M: name` or `import M.name` there: a method
-    /// for `name` in that module extends `M.name`.
-    pub imports: HashMap<(Vec<String>, String), (usize, Vec<String>)>,
-}
-
-/// A module path as written: `Base.Broadcast` → (0, [Base, Broadcast]);
-/// `..B` → (2, [B]).
-fn written_path(t: &str) -> (usize, Vec<String>) {
-    let dots = t.len() - t.trim_start_matches('.').len();
-    let rest = t.trim_start_matches('.');
-    (dots, if rest.is_empty() { Vec::new() } else { rest.split('.').map(|s| s.trim().to_string()).collect() })
-}
-
-/// Collects the modules and the function imports of one file included at
-/// `base`. Only `import` makes a later method extend another module's
-/// function; `using M: f` followed by a method for `f` is an error in Julia,
-/// and `import M` / `import M as N` imports a module, not a function.
-pub fn julia_scopes(root: Syntax, src: &str, base: &[String], out: &mut JuliaScopes) {
-    let mut stack = vec![root];
-    while let Some(n) = stack.pop() {
-        match n.kind() {
-            "module_definition" => {
-                let mut m = base.to_vec();
-                m.extend(modules_around(n, src));
-                if let Some(x) = n.child_by_field_name("name").or_else(|| n.named_child(0)) {
-                    m.push(text(x, src).to_string());
-                }
-                out.modules.insert(m);
-            }
-            "import_statement" => {
-                let mut m = base.to_vec();
-                m.extend(modules_around(n, src));
-                let mut c = n.walk();
-                for item in n.named_children(&mut c) {
-                    match item.kind() {
-                        // `import M: a, b, +`
-                        "selected_import" => {
-                            let mut ic = item.walk();
-                            let parts: Vec<Syntax> = item.named_children(&mut ic).collect();
-                            let Some((from, names)) = parts.split_first() else { continue };
-                            let path = written_path(text(*from, src));
-                            for x in names {
-                                if matches!(x.kind(), "identifier" | "operator") {
-                                    out.imports.insert((m.clone(), text(*x, src).to_string()), path.clone());
-                                }
-                            }
-                        }
-                        // `import M.f` (a single segment imports a module).
-                        "import_path" => {
-                            let (dots, mut segs) = written_path(text(item, src));
-                            if segs.len() >= 2 {
-                                let f = segs.pop().unwrap();
-                                out.imports.insert((m.clone(), f), (dots, segs));
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                continue;
-            }
-            _ => {}
-        }
-        let mut c = n.walk();
-        let children: Vec<Syntax> = n.named_children(&mut c).collect();
-        stack.extend(children.into_iter().rev());
-    }
-}
-
-/// Base's submodules that every module sees through the implicit
-/// `using Base` (Julia 1.13 `names(Base)`; `Core` and `Main` are top-level
-/// already). `Broadcast.broadcasted(…) = …` extends `Base.Broadcast`.
-const BASE_SUBMODULES: &[&str] = &[
-    "Broadcast", "Checked", "Docs", "Filesystem", "GC", "IR", "Iterators", "Libc", "MathConstants", "Meta", "Order",
-    "ScopedValues", "Sort", "StackTraces", "Sys", "Threads",
-];
-
-/// Where a module path written in module `m` points. Relative paths
-/// (`.X`, `..X`) go up from `m`. A plain path's first segment is looked up
-/// as Julia does, innermost module outwards: a declared submodule, or the
-/// enclosing module's own name; then Base's exported submodules; otherwise
-/// it is a top-level module (`Base`, `Core`, another package). Bindings made by `using` are not
-/// followed (an approximation: [[Julia Name Resolution]]).
-pub fn locate(m: &[String], dots: usize, q: &[String], scopes: &JuliaScopes) -> Vec<String> {
-    if dots > 0 {
-        let up = m.len().saturating_sub(dots - 1);
-        return m[..up].iter().chain(q).cloned().collect();
-    }
-    let Some(first) = q.first() else { return m.to_vec() };
-    for k in (0..=m.len()).rev() {
-        let mut cand = m[..k].to_vec();
-        cand.push(first.clone());
-        if scopes.modules.contains(&cand) {
-            return m[..k].iter().chain(q).cloned().collect();
-        }
-        if k > 0 && m[k - 1] == *first {
-            return m[..k].iter().chain(&q[1..]).cloned().collect();
-        }
-    }
-    if BASE_SUBMODULES.contains(&first.as_str()) {
-        return std::iter::once("Base".to_string()).chain(q.iter().cloned()).collect();
-    }
-    q.to_vec()
-}
-
-/// Sets `d.extends` for a Julia method that extends another module's
-/// function: a qualified head (`Base.show`, `Base.:+`, `BLAS.gemm!`) or a
-/// name its module imported with `import`.
-pub fn julia_extends(d: &mut Def, scopes: &JuliaScopes) {
-    if !matches!(d.kind.as_str(), "function_definition" | "assignment") || d.name.is_empty() {
-        return;
-    }
-    if d.qualified {
-        // `Base.:+` / `Base.:(==)` / `LinearAlgebra.BLAS.gemm!`
-        let (q, f) = match d.name.find(".:") {
-            Some(i) => (&d.name[..i], &d.name[i + 2..]),
-            None => match d.name.rsplit_once('.') {
-                Some(x) => x,
-                None => return,
-            },
-        };
-        let f = f.trim_start_matches('(').trim_end_matches(')').trim();
-        // `Base.$f(…)` in an `@eval` loop: the function is not known.
-        if f.contains('$') || q.contains('$') {
-            return;
-        }
-        let (dots, segs) = written_path(q);
-        let mut path = locate(&d.module, dots, &segs, scopes);
-        path.push(f.to_string());
-        d.extends = Some(path);
-    } else if let Some((dots, segs)) = scopes.imports.get(&(d.module.clone(), d.name.clone())) {
-        let mut path = locate(&d.module, *dots, segs, scopes);
-        path.push(d.name.clone());
-        d.extends = Some(path);
-    }
-}
 
 /// Every definition the normal form covers, in source order (nested ones,
 /// such as methods in a Python class or items in a module, included).
@@ -251,6 +91,7 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
             };
             out.push((
                 Def {
+                    language: lang.to_string(),
                     name: nn.map(|x| text(x, src).to_string()).unwrap_or_default(),
                     kind: n.kind().to_string(),
                     start: n.start_byte(),
@@ -259,6 +100,8 @@ pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syn
                     qualified: qualified || (lang == "julia" && nn.is_none()),
                     module: if lang == "julia" { modules_around(n, src) } else { Vec::new() },
                     extends: None,
+                    path_derived: false,
+                    diagnostic: None,
                 },
                 n,
             ));

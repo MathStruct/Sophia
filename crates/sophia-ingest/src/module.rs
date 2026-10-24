@@ -190,6 +190,7 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
         let refs: HashMap<(usize, usize), DefKey> = x.references.iter().copied().collect();
         let parts = definition("julia", node, &d.files[f].text, &refs, &mut budget)?;
         let mut def = mine[f].get(&(start, end)).cloned().unwrap_or(Def {
+            language: "julia".into(),
             name: x.name.clone().unwrap_or_default(),
             kind: node.kind().to_string(),
             start,
@@ -198,6 +199,8 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
             qualified: x.name.is_none(),
             module: Vec::new(),
             extends: None,
+            path_derived: false,
+            diagnostic: None,
         });
         def.module = x.module.clone();
         julia_extends(&mut def, &scopes);

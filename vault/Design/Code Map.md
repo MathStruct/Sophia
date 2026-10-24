@@ -78,3 +78,4 @@ Three files, for three different reasons:
 
 - [[Repository Layout]] · [[Design Overview]] · [[Roadmap]]
 - [[Tests and Documentation as Nodes]] — these paired files are a manual, filesystem-level version of the `DOCUMENTS` edge
+| `sophia-ingest` | `tests/bindings.rs` | [[code]] | Julia names equal Moonkale's golden `bindings.tsv` (SPEC-009 §8) |
