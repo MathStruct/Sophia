@@ -302,3 +302,80 @@ proptest! {
         }
     }
 }
+
+/// `Term`'s hand-written `Debug` (iterative, SP-015) prints exactly what
+/// `#[derive(Debug)]` printed: compared with a mirror type that derives it.
+mod debug_like_derive {
+    use sophia_hash::{Digest, NominalId};
+    use sophialang_core::{Aspect, Binder, Lit, Term};
+
+    #[allow(dead_code)]
+    #[derive(Debug)]
+    enum M {
+        Var(u32),
+        Ref(Digest),
+        Member(u32),
+        Draft(u32),
+        Nominal(NominalId),
+        Con { ty: Box<M>, index: u32 },
+        Lam { binder: Binder, domain: Option<Box<M>>, body: Box<M> },
+        App(Box<M>, Vec<M>),
+        Pi { binder: Binder, domain: Box<M>, codomain: Box<M> },
+        Let { binder: Binder, ty: Option<Box<M>>, value: Box<M>, body: Box<M> },
+        Match { scrutinee: Box<M>, data: Option<Box<M>>, motive: Option<Box<M>>, cases: Vec<Case> },
+        Type(u32),
+        Prop,
+        Lit(Lit),
+        Prim(String),
+        Hole(Box<M>),
+        Unresolved(Vec<String>),
+        Unsafe(Aspect, Box<M>),
+    }
+
+    #[allow(dead_code)]
+    #[derive(Debug)]
+    struct Case {
+        constructor: u32,
+        binders: Vec<Binder>,
+        body: M,
+    }
+
+    fn m(t: &Term) -> M {
+        let b = |t: &Term| Box::new(m(t));
+        let ob = |t: &Option<Box<Term>>| t.as_ref().map(|x| Box::new(m(x)));
+        match t {
+            Term::Var(x) => M::Var(*x),
+            Term::Ref(x) => M::Ref(*x),
+            Term::Member(x) => M::Member(*x),
+            Term::Draft(x) => M::Draft(*x),
+            Term::Nominal(x) => M::Nominal(*x),
+            Term::Con { ty, index } => M::Con { ty: b(ty), index: *index },
+            Term::Lam { binder, domain, body } => M::Lam { binder: binder.clone(), domain: ob(domain), body: b(body) },
+            Term::App(h, args) => M::App(b(h), args.iter().map(m).collect()),
+            Term::Pi { binder, domain, codomain } => M::Pi { binder: binder.clone(), domain: b(domain), codomain: b(codomain) },
+            Term::Let { binder, ty, value, body } => M::Let { binder: binder.clone(), ty: ob(ty), value: b(value), body: b(body) },
+            Term::Match { scrutinee, data, motive, cases } => M::Match {
+                scrutinee: b(scrutinee),
+                data: ob(data),
+                motive: ob(motive),
+                cases: cases.iter().map(|c| Case { constructor: c.constructor, binders: c.binders.clone(), body: m(&c.body) }).collect(),
+            },
+            Term::Type(x) => M::Type(*x),
+            Term::Prop => M::Prop,
+            Term::Lit(x) => M::Lit(x.clone()),
+            Term::Prim(x) => M::Prim(x.clone()),
+            Term::Hole(x) => M::Hole(b(x)),
+            Term::Unresolved(x) => M::Unresolved(x.clone()),
+            Term::Unsafe(a, x) => M::Unsafe(*a, b(x)),
+        }
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::prelude::ProptestConfig::with_cases(2000))]
+        #[test]
+        fn same_text_in_both_modes(t in super::arb_term()) {
+            proptest::prop_assert_eq!(format!("{t:?}"), format!("{:?}", m(&t)));
+            proptest::prop_assert_eq!(format!("{t:#?}"), format!("{:#?}", m(&t)));
+        }
+    }
+}

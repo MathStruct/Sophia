@@ -108,3 +108,5 @@ WASM_BINDGEN_USE_BROWSER=1 GECKODRIVER=$(which geckodriver) PATH=$SOPHIA_CORPORA
   CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
   cargo test -p sophia-interface --no-default-features --features sqlite --target wasm32-unknown-unknown --test wasm_deep
 ```
+
+Since the parser and elaborator use explicit stacks too (2026-10-24, later), `tests/wasm_deep.rs` also checks `Debug` and parses the printed text back to the same id in both profiles: 3 of 3 under Node (22 s, debug build) and in Firefox (19 s).

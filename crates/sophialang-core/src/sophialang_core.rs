@@ -2,6 +2,7 @@
 //! normaliser that turns definitions into content-addressed records for the
 //! Sophia store. See `sophialang_core.md` and SPEC-003.
 
+pub mod debug;
 pub mod definition;
 pub mod encode;
 pub mod normalise;

@@ -1,8 +1,7 @@
-//! SP-015 on wasm: the read path at depth 100 000 in a wasm engine (Node or
-//! a browser), where the stack cannot grow. Encoding, decoding, display
-//! names, equality, cloning, hashing, printing and dropping all use explicit
-//! stacks. (Parsing and elaborating, the write path, still recurse through
-//! `deep::grow`, whose wasm placeholder does not grow the stack.)
+//! SP-015 on wasm: every pass over terms at depth 100 000 in a wasm engine
+//! (Node or a browser), where the stack cannot grow: encoding, decoding,
+//! display names, equality, cloning, hashing, `Debug`, printing, parsing,
+//! elaborating and dropping all use explicit stacks.
 #![cfg(target_arch = "wasm32")]
 
 use sophialang_core::samples::builtin;
@@ -44,9 +43,12 @@ fn read_path(t: Term) {
     assert!(back == def.clone(), "decode inverts encode");
     let mut h = std::collections::hash_map::DefaultHasher::new();
     std::hash::Hash::hash(&back, &mut h);
+    assert!(format!("{back:?}").len() > DEPTH);
+    let big = Limits { max_bytes: 256 << 20, max_nodes: 1 << 24, ..Limits::default() };
     for profile in [Profile::julia(), Profile::built_in("rust").unwrap()] {
         let text = print(&EmptyEnv, "", &profile, &[ToPrint { name: "t", def: &back, id: Some(r.id), index: 0, relation: false }]);
-        assert!(text.len() > DEPTH);
+        let (items, _) = parse_text(&EmptyEnv, "", &text, big).unwrap_or_else(|e| panic!("{:?}", e[0]));
+        assert_eq!(normalise_one(items[0].definition()).unwrap().id, r.id, "{} round trip", profile.name);
     }
 }
 

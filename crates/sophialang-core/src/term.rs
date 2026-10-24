@@ -291,9 +291,6 @@ impl Drop for Term {
     }
 }
 
-// Clone, PartialEq, Hash and Debug by hand, one `deep::grow` per level, so
-// that copying, comparing, hashing or printing a term of any depth cannot
-// overflow the stack (SP-015). They do what the derived impls did.
 
 /// The node itself with its subterms replaced by `Prop` placeholders: what
 /// `Clone` copies at each step, and what `PartialEq` and `Hash` compare.
@@ -449,27 +446,65 @@ impl std::hash::Hash for Term {
     }
 }
 
+/// `Debug` as derive printed it, without recursion (SP-015, [`crate::debug`]).
 impl std::fmt::Debug for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        sophia_hash::deep::grow(|| match self {
-            Term::Var(a_0) => f.debug_tuple("Var").field(a_0).finish(),
-            Term::Ref(a_0) => f.debug_tuple("Ref").field(a_0).finish(),
-            Term::Member(a_0) => f.debug_tuple("Member").field(a_0).finish(),
-            Term::Draft(a_0) => f.debug_tuple("Draft").field(a_0).finish(),
-            Term::Nominal(a_0) => f.debug_tuple("Nominal").field(a_0).finish(),
-            Term::Con { ty: a_ty, index: a_index } => f.debug_struct("Con").field("ty", a_ty).field("index", a_index).finish(),
-            Term::Lam { binder: a_binder, domain: a_domain, body: a_body } => f.debug_struct("Lam").field("binder", a_binder).field("domain", a_domain).field("body", a_body).finish(),
-            Term::App(a_0, a_1) => f.debug_tuple("App").field(a_0).field(a_1).finish(),
-            Term::Pi { binder: a_binder, domain: a_domain, codomain: a_codomain } => f.debug_struct("Pi").field("binder", a_binder).field("domain", a_domain).field("codomain", a_codomain).finish(),
-            Term::Let { binder: a_binder, ty: a_ty, value: a_value, body: a_body } => f.debug_struct("Let").field("binder", a_binder).field("ty", a_ty).field("value", a_value).field("body", a_body).finish(),
-            Term::Match { scrutinee: a_scrutinee, data: a_data, motive: a_motive, cases: a_cases } => f.debug_struct("Match").field("scrutinee", a_scrutinee).field("data", a_data).field("motive", a_motive).field("cases", a_cases).finish(),
-            Term::Type(a_0) => f.debug_tuple("Type").field(a_0).finish(),
-            Term::Prop => f.write_str("Prop"),
-            Term::Lit(a_0) => f.debug_tuple("Lit").field(a_0).finish(),
-            Term::Prim(a_0) => f.debug_tuple("Prim").field(a_0).finish(),
-            Term::Hole(a_0) => f.debug_tuple("Hole").field(a_0).finish(),
-            Term::Unresolved(a_0) => f.debug_tuple("Unresolved").field(a_0).finish(),
-            Term::Unsafe(a_0, a_1) => f.debug_tuple("Unsafe").field(a_0).field(a_1).finish(),
-        })
+        use crate::debug::{DNode, opt, render};
+        fn ob(o: &Option<Box<Term>>) -> DNode<'_, Term> {
+            opt(o.as_deref())
+        }
+        fn one(t: &Term, alt: bool) -> DNode<'_, Term> {
+            let l = |v: &dyn std::fmt::Debug| DNode::Leaf(if alt { format!("{v:#?}") } else { format!("{v:?}") });
+            let c = DNode::Child;
+            match t {
+                Term::Var(x) => DNode::Tuple("Var", vec![l(x)]),
+                Term::Ref(x) => DNode::Tuple("Ref", vec![l(x)]),
+                Term::Member(x) => DNode::Tuple("Member", vec![l(x)]),
+                Term::Draft(x) => DNode::Tuple("Draft", vec![l(x)]),
+                Term::Nominal(x) => DNode::Tuple("Nominal", vec![l(x)]),
+                Term::Con { ty, index } => DNode::Struct("Con", vec![("ty", c(ty)), ("index", l(index))]),
+                Term::Lam { binder, domain, body } => {
+                    DNode::Struct("Lam", vec![("binder", l(binder)), ("domain", ob(domain)), ("body", c(body))])
+                }
+                Term::App(h, args) => DNode::Tuple("App", vec![c(h), DNode::List(args.iter().map(c).collect())]),
+                Term::Pi { binder, domain, codomain } => {
+                    DNode::Struct("Pi", vec![("binder", l(binder)), ("domain", c(domain)), ("codomain", c(codomain))])
+                }
+                Term::Let { binder, ty, value, body } => DNode::Struct(
+                    "Let",
+                    vec![("binder", l(binder)), ("ty", ob(ty)), ("value", c(value)), ("body", c(body))],
+                ),
+                Term::Match { scrutinee, data, motive, cases } => DNode::Struct(
+                    "Match",
+                    vec![
+                        ("scrutinee", c(scrutinee)),
+                        ("data", ob(data)),
+                        ("motive", ob(motive)),
+                        (
+                            "cases",
+                            DNode::List(
+                                cases
+                                    .iter()
+                                    .map(|k| {
+                                        DNode::Struct(
+                                            "Case",
+                                            vec![("constructor", l(&k.constructor)), ("binders", l(&k.binders)), ("body", c(&k.body))],
+                                        )
+                                    })
+                                    .collect(),
+                            ),
+                        ),
+                    ],
+                ),
+                Term::Type(x) => DNode::Tuple("Type", vec![l(x)]),
+                Term::Prop => DNode::Tuple("Prop", vec![]),
+                Term::Lit(x) => DNode::Tuple("Lit", vec![l(x)]),
+                Term::Prim(x) => DNode::Tuple("Prim", vec![l(x)]),
+                Term::Hole(x) => DNode::Tuple("Hole", vec![c(x)]),
+                Term::Unresolved(x) => DNode::Tuple("Unresolved", vec![l(x)]),
+                Term::Unsafe(a, x) => DNode::Tuple("Unsafe", vec![l(a), c(x)]),
+            }
+        }
+        render(f, self, one)
     }
 }

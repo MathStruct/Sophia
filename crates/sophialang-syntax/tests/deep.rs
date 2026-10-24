@@ -1,7 +1,7 @@
 //! SP-015 / SR-145: terms of any depth. Every pass over a term (encode,
 //! decode, clone, compare, hash, Debug, walk, map, print, parse, elaborate,
-//! drop) runs at depth 100 000 on a 256 KiB thread stack; the stack
-//! segments it needs come from `sophia_hash::deep::grow`.
+//! drop) runs at depth 100 000 on a 256 KiB thread stack: none of them
+//! recurses on the call stack.
 
 use sophialang_core::samples::builtin;
 use sophialang_core::*;

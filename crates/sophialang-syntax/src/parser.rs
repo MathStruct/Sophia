@@ -295,140 +295,102 @@ impl Parser {
 
     // ---- expressions ----
 
-    /// Any depth: one `deep::grow` per level (SP-015). The bound is the
-    /// node budget in `atom`, not nesting.
+    /// An expression. The grammar (arrow > comparison > sum > product >
+    /// unary > postfix > atom, with `let`, `match` and brackets nesting
+    /// expressions) is run as a machine with an explicit stack of
+    /// continuations instead of recursive calls (SP-015): any depth on every
+    /// target, wasm included. The bound is the node budget, not nesting.
     fn expr(&mut self) -> R<SExpr> {
-        sophia_hash::deep::grow(|| self.arrow())
+        self.run(Goal::Expr)
     }
 
-    fn arrow(&mut self) -> R<SExpr> {
-        let lhs = self.cmp()?;
-        if self.sym("->") || self.sym("↦") {
-            self.bump();
-            let body = self.expr()?;
-            let b = to_binder(&lhs, false)?;
-            let span = lhs.span.to(body.span);
-            return Ok(SExpr { kind: SKind::Lam(b, Box::new(body)), span });
+    fn run(&mut self, goal: Goal) -> R<SExpr> {
+        let mut frames: Vec<Frame> = Vec::new();
+        let mut call = Some(goal);
+        let mut ret: Option<SExpr> = None;
+        loop {
+            if let Some(g) = call.take() {
+                match self.start(g, &mut frames)? {
+                    Start::Value(v) => ret = Some(v),
+                    Start::Call(g) => call = Some(g),
+                }
+                continue;
+            }
+            let v = ret.take().expect("a value");
+            let Some(f) = frames.pop() else { return Ok(v) };
+            match self.resume(f, v, &mut frames)? {
+                Start::Value(v) => ret = Some(v),
+                Start::Call(g) => call = Some(g),
+            }
         }
-        if self.sym("-->") || self.sym("→") {
-            self.bump();
-            let cod = self.expr()?;
-            let b = to_binder(&lhs, true)?;
-            let span = lhs.span.to(cod.span);
-            return Ok(SExpr { kind: SKind::Pi(b, Box::new(cod)), span });
-        }
-        Ok(lhs)
     }
 
-    fn cmp(&mut self) -> R<SExpr> {
-        let l = self.add()?;
-        for op in ["==", "!=", "<=", ">=", "<", ">", "≤", "≥", "≠"] {
-            if self.sym(op) {
-                self.bump();
-                let r = self.add()?;
-                let op = match op {
-                    "≤" => "<=",
-                    "≥" => ">=",
-                    "≠" => "!=",
-                    o => o,
+    /// Starts a grammar rule: a value at once, or frames and a first call.
+    fn start(&mut self, g: Goal, frames: &mut Vec<Frame>) -> R<Start> {
+        let call = |frames: &mut Vec<Frame>, f: Frame, g: Goal| {
+            frames.push(f);
+            Ok(Start::Call(g))
+        };
+        match g {
+            Goal::Expr => call(frames, Frame::Arrow, Goal::Cmp),
+            Goal::Cmp => call(frames, Frame::Cmp, Goal::Add),
+            Goal::Add => call(frames, Frame::AddLoop, Goal::Mul),
+            Goal::Mul => call(frames, Frame::MulLoop, Goal::Unary),
+            Goal::Unary => {
+                if !self.sym("-") {
+                    return Ok(Start::Call(Goal::Postfix));
+                }
+                let sp = self.bump().span;
+                let v = match self.tok().clone() {
+                    Tok::Int(v) => {
+                        let s = self.bump().span;
+                        SExpr { kind: SKind::Int(v.wrapping_neg()), span: sp.to(s) }
+                    }
+                    Tok::Float(bits) => {
+                        let s = self.bump().span;
+                        SExpr { kind: SKind::Float((-f64::from_bits(bits)).to_bits()), span: sp.to(s) }
+                    }
+                    Tok::Ident(i) if i == "Inf" => {
+                        let s = self.bump().span;
+                        SExpr { kind: SKind::Float(f64::NEG_INFINITY.to_bits()), span: sp.to(s) }
+                    }
+                    _ => return self.err("expected a number after unary `-`"),
                 };
-                let span = l.span.to(r.span);
-                return Ok(SExpr { kind: SKind::BinOp(op.into(), Box::new(l), Box::new(r)), span });
+                Ok(Start::Value(v))
             }
+            Goal::Postfix => call(frames, Frame::PostfixLoop, Goal::Atom),
+            Goal::Atom => self.atom(frames),
         }
-        Ok(l)
     }
 
-    fn add(&mut self) -> R<SExpr> {
-        let mut l = self.mul()?;
-        while self.sym("+") || self.sym("-") {
-            let Tok::Sym(op) = self.bump().tok else { unreachable!() };
-            let r = self.mul()?;
-            let span = l.span.to(r.span);
-            l = SExpr { kind: SKind::BinOp(op.into(), Box::new(l), Box::new(r)), span };
-        }
-        Ok(l)
-    }
-
-    fn mul(&mut self) -> R<SExpr> {
-        let mut l = self.unary()?;
-        while self.sym("*") || self.sym("/") {
-            let Tok::Sym(op) = self.bump().tok else { unreachable!() };
-            let r = self.unary()?;
-            let span = l.span.to(r.span);
-            l = SExpr { kind: SKind::BinOp(op.into(), Box::new(l), Box::new(r)), span };
-        }
-        Ok(l)
-    }
-
-    fn unary(&mut self) -> R<SExpr> {
-        if self.sym("-") {
-            let sp = self.bump().span;
-            return match self.tok().clone() {
-                Tok::Int(v) => {
-                    let s = self.bump().span;
-                    Ok(SExpr { kind: SKind::Int(v.wrapping_neg()), span: sp.to(s) })
-                }
-                Tok::Float(bits) => {
-                    let s = self.bump().span;
-                    Ok(SExpr { kind: SKind::Float((-f64::from_bits(bits)).to_bits()), span: sp.to(s) })
-                }
-                Tok::Ident(i) if i == "Inf" => {
-                    let s = self.bump().span;
-                    Ok(SExpr { kind: SKind::Float(f64::NEG_INFINITY.to_bits()), span: sp.to(s) })
-                }
-                _ => self.err("expected a number after unary `-`"),
-            };
-        }
-        self.postfix()
-    }
-
-    fn postfix(&mut self) -> R<SExpr> {
-        let mut e = self.atom()?;
-        while matches!(self.toks[self.at].tok, Tok::Sym("(")) {
-            self.open_paren("(")?;
-            let mut args = Vec::new();
-            while !self.sym(")") {
-                args.push(self.expr()?);
-                if !self.sym(")") {
-                    self.expect_sym(",")?;
-                }
-            }
-            let end = self.close_paren(")")?;
-            let span = e.span.to(end);
-            e = SExpr { kind: SKind::Call(Box::new(e), args), span };
-        }
-        Ok(e)
-    }
-
-    fn atom(&mut self) -> R<SExpr> {
+    fn atom(&mut self, frames: &mut Vec<Frame>) -> R<Start> {
         self.nodes += 1;
         if self.nodes > self.limits.max_nodes {
             return self.err(format!("more than {} expression nodes", self.limits.max_nodes));
         }
-        sophia_hash::deep::grow(|| self.atom_step())
-    }
-
-    fn atom_step(&mut self) -> R<SExpr> {
         let t = self.tok().clone();
         let sp = self.span();
-        let mk = |kind, span| Ok(SExpr { kind, span });
+        let val = |kind, span| Ok(Start::Value(SExpr { kind, span }));
+        let call = |frames: &mut Vec<Frame>, f: Frame, g: Goal| {
+            frames.push(f);
+            Ok(Start::Call(g))
+        };
         match t {
             Tok::Ident(ref s) if s == "true" || s == "false" => {
                 self.bump();
-                mk(SKind::Bool(s == "true"), sp)
+                val(SKind::Bool(s == "true"), sp)
             }
             Tok::Ident(ref s) if s == "NaN" => {
                 self.bump();
-                mk(SKind::Float(f64::NAN.to_bits()), sp)
+                val(SKind::Float(f64::NAN.to_bits()), sp)
             }
             Tok::Ident(ref s) if s == "Inf" => {
                 self.bump();
-                mk(SKind::Float(f64::INFINITY.to_bits()), sp)
+                val(SKind::Float(f64::INFINITY.to_bits()), sp)
             }
             Tok::Ident(ref s) if s == "Prop" => {
                 self.bump();
-                mk(SKind::Prop, sp)
+                val(SKind::Prop, sp)
             }
             Tok::Ident(ref s) if s == "Type" => {
                 self.bump();
@@ -437,12 +399,18 @@ impl Parser {
                     self.open_paren("{")?;
                     let Tok::Int(l) = self.bump().tok else { return self.err("expected a universe level") };
                     let end = self.close_paren("}")?;
-                    return mk(SKind::Type(l as u32), sp.to(end));
+                    return val(SKind::Type(l as u32), sp.to(end));
                 }
-                mk(SKind::Type(0), sp)
+                val(SKind::Type(0), sp)
             }
-            Tok::Ident(ref s) if s == "let" => self.let_(),
-            Tok::Ident(ref s) if s == "match" => self.match_(),
+            Tok::Ident(ref s) if s == "let" => {
+                let start = self.expect_kw("let")?;
+                call(frames, Frame::LetLhs(start), Goal::Postfix)
+            }
+            Tok::Ident(ref s) if s == "match" => {
+                let start = self.expect_kw("match")?;
+                call(frames, Frame::MatchScrutinee(start), Goal::Cmp)
+            }
             Tok::Ident(_) | Tok::Quoted(_) => {
                 let mut path = vec![self.name()?.0];
                 let mut end = sp;
@@ -452,84 +420,61 @@ impl Parser {
                     path.push(n);
                     end = s;
                 }
-                mk(SKind::Path(path), sp.to(end))
+                val(SKind::Path(path), sp.to(end))
             }
             Tok::HashRef(h) => {
                 self.bump();
-                mk(SKind::HashRef(h), sp)
+                val(SKind::HashRef(h), sp)
             }
             Tok::NominalRef(h) => {
                 self.bump();
-                mk(SKind::NominalRef(h), sp)
+                val(SKind::NominalRef(h), sp)
             }
             Tok::Int(v) => {
                 self.bump();
-                mk(SKind::Int(v), sp)
+                val(SKind::Int(v), sp)
             }
             Tok::UInt(v) => {
                 self.bump();
-                mk(SKind::UInt(v), sp)
+                val(SKind::UInt(v), sp)
             }
             Tok::Float(v) => {
                 self.bump();
-                mk(SKind::Float(v), sp)
+                val(SKind::Float(v), sp)
             }
             Tok::Str(s) => {
                 self.bump();
-                mk(SKind::Str(s), sp)
+                val(SKind::Str(s), sp)
             }
             Tok::Char(c) => {
                 self.bump();
-                mk(SKind::Char(c), sp)
+                val(SKind::Char(c), sp)
             }
             Tok::Sym("(") => {
                 self.open_paren("(")?;
-                let e = self.expr()?;
-                if self.sym("::") || self.sym(":") {
-                    self.bump();
-                    let ty = self.expr()?;
-                    let end = self.close_paren(")")?;
-                    return mk(SKind::Annot(Box::new(e), Box::new(ty)), sp.to(end));
-                }
-                let end = self.close_paren(")")?;
-                let mut e = e;
-                e.span = sp.to(end);
-                Ok(e)
+                call(frames, Frame::Paren(sp), Goal::Expr)
             }
             Tok::Sym("{") => {
                 self.open_paren("{")?;
-                let e = self.expr()?;
-                let inner = if self.sym("::") || self.sym(":") {
-                    self.bump();
-                    let ty = self.expr()?;
-                    SExpr { span: e.span.to(ty.span), kind: SKind::Annot(Box::new(e), Box::new(ty)) }
-                } else {
-                    e
-                };
-                let end = self.close_paren("}")?;
-                mk(SKind::Implicit(Box::new(inner)), sp.to(end))
+                call(frames, Frame::Brace(sp), Goal::Expr)
             }
             Tok::Sym("?") => {
                 self.bump();
                 self.open_paren("(")?;
-                let ty = self.expr()?;
-                let end = self.close_paren(")")?;
-                mk(SKind::Hole(Box::new(ty)), sp.to(end))
+                call(frames, Frame::Hole(sp), Goal::Expr)
             }
             Tok::At(m) => {
                 self.bump();
                 match m.as_str() {
                     "erased" | "linear" => {
-                        let inner = self.postfix()?;
                         let u = if m == "erased" { Usage::Zero } else { Usage::One };
-                        let span = sp.to(inner.span);
-                        mk(SKind::Usage(u, Box::new(inner)), span)
+                        call(frames, Frame::Usage(sp, u), Goal::Postfix)
                     }
                     "prim" => {
                         self.open_paren("(")?;
                         let (n, _) = self.name()?;
                         let end = self.close_paren(")")?;
-                        mk(SKind::Prim(n), sp.to(end))
+                        val(SKind::Prim(n), sp.to(end))
                     }
                     "unsafe" => {
                         self.open_paren("(")?;
@@ -537,29 +482,23 @@ impl Parser {
                         let aspect = Aspect::parse(&a)
                             .ok_or_else(|| Diagnostic::error(asp, format!("unknown unsafe aspect `{a}`")))?;
                         self.expect_sym(",")?;
-                        let e = self.expr()?;
-                        let end = self.close_paren(")")?;
-                        mk(SKind::Unsafe(aspect, Box::new(e)), sp.to(end))
+                        call(frames, Frame::Unsafe(sp, aspect), Goal::Expr)
                     }
                     "con" => {
                         self.open_paren("(")?;
-                        let ty = self.expr()?;
-                        self.expect_sym(",")?;
-                        let Tok::Int(j) = self.bump().tok else { return self.err("expected a constructor index") };
-                        let end = self.close_paren(")")?;
-                        mk(SKind::ConIndex(Box::new(ty), j as u32), sp.to(end))
+                        call(frames, Frame::Con(sp), Goal::Expr)
                     }
                     "member" => {
                         self.open_paren("(")?;
                         let Tok::Int(k) = self.bump().tok else { return self.err("expected a member index") };
                         let end = self.close_paren(")")?;
-                        mk(SKind::Member(k as u32), sp.to(end))
+                        val(SKind::Member(k as u32), sp.to(end))
                     }
                     "float" => {
                         self.open_paren("(")?;
                         let Tok::UInt(bits) = self.bump().tok else { return self.err("expected 0x… bits") };
                         let end = self.close_paren(")")?;
-                        mk(SKind::Float(bits), sp.to(end))
+                        val(SKind::Float(bits), sp.to(end))
                     }
                     other => Err(Diagnostic::error(sp, format!("unknown marker `@{other}`"))),
                 }
@@ -568,130 +507,346 @@ impl Parser {
         }
     }
 
-    fn let_(&mut self) -> R<SExpr> {
-        let start = self.expect_kw("let")?;
-        let lhs = self.postfix()?;
-        let lhs = if self.sym("::") || self.sym(":") {
-            self.bump();
-            let ty = self.expr_no_eq()?;
-            SExpr { span: lhs.span.to(ty.span), kind: SKind::Annot(Box::new(lhs), Box::new(ty)) }
-        } else {
-            lhs
+    /// Continues a rule with the value `v` its last call returned.
+    fn resume(&mut self, f: Frame, v: SExpr, frames: &mut Vec<Frame>) -> R<Start> {
+        let call = |frames: &mut Vec<Frame>, f: Frame, g: Goal| {
+            frames.push(f);
+            Ok(Start::Call(g))
         };
-        let b = to_binder(&lhs, false)?;
-        self.expect_sym("=")?;
-        let value = self.expr()?;
-        // `let x = v {` body `}` (brace profiles), when the brace is on the
-        // `let`'s line; otherwise `let x = v [in]` body `end`.
-        let brace = self.sym("{");
-        let same_line = !self.toks[..self.at].iter().rev().take_while(|t| t.span.start >= value.span.end).any(|t| t.tok == Tok::Newline);
-        if brace && same_line {
-            self.bump();
-            self.skip_separators();
-            let body = self.expr()?;
-            self.skip_separators();
-            let end = self.expect_sym("}")?;
-            return Ok(SExpr { kind: SKind::Let(b, Box::new(value), Box::new(body)), span: start.to(end) });
-        }
-        if self.kw("in") {
-            self.bump();
-        }
-        self.skip_separators();
-        let body = self.expr()?;
-        self.skip_separators();
-        let end = self.expect_kw("end")?;
-        Ok(SExpr { kind: SKind::Let(b, Box::new(value), Box::new(body)), span: start.to(end) })
-    }
-
-    /// A type in `let x::T = v`: an expression, which cannot contain `=` anyway.
-    fn expr_no_eq(&mut self) -> R<SExpr> {
-        self.expr()
-    }
-
-    fn match_(&mut self) -> R<SExpr> {
-        let start = self.expect_kw("match")?;
-        let scrutinee = self.cmp()?;
-        let data = if self.sym("::") || self.sym(":") {
-            self.bump();
-            Some(Box::new(self.cmp()?))
-        } else {
-            None
-        };
-        let braces = self.sym("{");
-        if braces {
-            self.bump();
-        }
-        let mut cases = Vec::new();
-        loop {
-            self.skip_separators();
-            while self.sym(",") {
-                self.bump();
-                self.skip_separators();
+        let val = |kind, span| Ok(Start::Value(SExpr { kind, span }));
+        match f {
+            Frame::Arrow => {
+                if self.sym("->") || self.sym("↦") {
+                    self.bump();
+                    return call(frames, Frame::Lam(v), Goal::Expr);
+                }
+                if self.sym("-->") || self.sym("→") {
+                    self.bump();
+                    return call(frames, Frame::Pi(v), Goal::Expr);
+                }
+                Ok(Start::Value(v))
             }
-            if (braces && self.sym("}")) || (!braces && self.kw("end")) {
-                break;
+            Frame::Lam(lhs) => {
+                let b = to_binder(&lhs, false)?;
+                let span = lhs.span.to(v.span);
+                val(SKind::Lam(b, Box::new(v)), span)
             }
-            let cs = self.span();
-            let pattern = if self.at_("ctor") {
-                self.bump();
-                self.open_paren("(")?;
-                let Tok::Int(j) = self.bump().tok else { return self.err("expected a constructor index") };
-                self.close_paren(")")?;
-                Pattern::Index(j as u32)
-            } else {
-                Pattern::Name(self.name()?.0)
-            };
-            let mut binders = Vec::new();
-            if matches!(self.toks[self.at].tok, Tok::Sym("(")) {
-                self.open_paren("(")?;
-                while !self.sym(")") {
-                    let (n, s) = self.name()?;
-                    binders.push(SBinder { name: n, ty: None, usage: Usage::Many, implicit: false, span: s });
-                    if !self.sym(")") {
-                        self.expect_sym(",")?;
+            Frame::Pi(lhs) => {
+                let b = to_binder(&lhs, true)?;
+                let span = lhs.span.to(v.span);
+                val(SKind::Pi(b, Box::new(v)), span)
+            }
+            Frame::Cmp => {
+                for op in ["==", "!=", "<=", ">=", "<", ">", "≤", "≥", "≠"] {
+                    if self.sym(op) {
+                        self.bump();
+                        let op = match op {
+                            "≤" => "<=",
+                            "≥" => ">=",
+                            "≠" => "!=",
+                            o => o,
+                        };
+                        return call(frames, Frame::BinOp(v, op), Goal::Add);
                     }
                 }
-                self.close_paren(")")?;
+                Ok(Start::Value(v))
             }
-            self.expect_sym("=>")?;
-            let body = self.expr()?;
-            let span = cs.to(body.span);
-            cases.push(SCase { pattern, binders, body, span });
+            Frame::BinOp(l, op) => {
+                let span = l.span.to(v.span);
+                val(SKind::BinOp(op.into(), Box::new(l), Box::new(v)), span)
+            }
+            Frame::AddLoop => {
+                if self.sym("+") || self.sym("-") {
+                    let Tok::Sym(op) = self.bump().tok else { unreachable!() };
+                    return call(frames, Frame::AddR(v, op), Goal::Mul);
+                }
+                Ok(Start::Value(v))
+            }
+            Frame::AddR(l, op) => {
+                let span = l.span.to(v.span);
+                frames.push(Frame::AddLoop);
+                val(SKind::BinOp(op.into(), Box::new(l), Box::new(v)), span)
+            }
+            Frame::MulLoop => {
+                if self.sym("*") || self.sym("/") {
+                    let Tok::Sym(op) = self.bump().tok else { unreachable!() };
+                    return call(frames, Frame::MulR(v, op), Goal::Unary);
+                }
+                Ok(Start::Value(v))
+            }
+            Frame::MulR(l, op) => {
+                let span = l.span.to(v.span);
+                frames.push(Frame::MulLoop);
+                val(SKind::BinOp(op.into(), Box::new(l), Box::new(v)), span)
+            }
+            Frame::PostfixLoop => {
+                if !matches!(self.toks[self.at].tok, Tok::Sym("(")) {
+                    return Ok(Start::Value(v));
+                }
+                self.open_paren("(")?;
+                self.call_args(v, Vec::new(), frames)
+            }
+            Frame::Args(callee, mut args) => {
+                args.push(v);
+                if !self.sym(")") {
+                    self.expect_sym(",")?;
+                }
+                self.call_args(callee, args, frames)
+            }
+            Frame::Paren(sp) => {
+                if self.sym("::") || self.sym(":") {
+                    self.bump();
+                    return call(frames, Frame::ParenAnnot(sp, v), Goal::Expr);
+                }
+                let end = self.close_paren(")")?;
+                let mut e = v;
+                e.span = sp.to(end);
+                Ok(Start::Value(e))
+            }
+            Frame::ParenAnnot(sp, e) => {
+                let end = self.close_paren(")")?;
+                val(SKind::Annot(Box::new(e), Box::new(v)), sp.to(end))
+            }
+            Frame::Brace(sp) => {
+                if self.sym("::") || self.sym(":") {
+                    self.bump();
+                    return call(frames, Frame::BraceAnnot(sp, v), Goal::Expr);
+                }
+                let end = self.close_paren("}")?;
+                val(SKind::Implicit(Box::new(v)), sp.to(end))
+            }
+            Frame::BraceAnnot(sp, e) => {
+                let inner = SExpr { span: e.span.to(v.span), kind: SKind::Annot(Box::new(e), Box::new(v)) };
+                let end = self.close_paren("}")?;
+                val(SKind::Implicit(Box::new(inner)), sp.to(end))
+            }
+            Frame::Hole(sp) => {
+                let end = self.close_paren(")")?;
+                val(SKind::Hole(Box::new(v)), sp.to(end))
+            }
+            Frame::Usage(sp, u) => {
+                let span = sp.to(v.span);
+                val(SKind::Usage(u, Box::new(v)), span)
+            }
+            Frame::Unsafe(sp, aspect) => {
+                let end = self.close_paren(")")?;
+                val(SKind::Unsafe(aspect, Box::new(v)), sp.to(end))
+            }
+            Frame::Con(sp) => {
+                self.expect_sym(",")?;
+                let Tok::Int(j) = self.bump().tok else { return self.err("expected a constructor index") };
+                let end = self.close_paren(")")?;
+                val(SKind::ConIndex(Box::new(v), j as u32), sp.to(end))
+            }
+            Frame::LetLhs(start) => {
+                if self.sym("::") || self.sym(":") {
+                    self.bump();
+                    // A type in `let x::T = v`: an expression, which cannot contain `=` anyway.
+                    return call(frames, Frame::LetLhsType(start, v), Goal::Expr);
+                }
+                self.let_value(start, v, frames)
+            }
+            Frame::LetLhsType(start, lhs) => {
+                let lhs = SExpr { span: lhs.span.to(v.span), kind: SKind::Annot(Box::new(lhs), Box::new(v)) };
+                self.let_value(start, lhs, frames)
+            }
+            Frame::LetValue(start, b) => {
+                // `let x = v {` body `}` (brace profiles), when the brace is on the
+                // `let`'s line; otherwise `let x = v [in]` body `end`.
+                let brace = self.sym("{");
+                let same_line =
+                    !self.toks[..self.at].iter().rev().take_while(|t| t.span.start >= v.span.end).any(|t| t.tok == Tok::Newline);
+                if brace && same_line {
+                    self.bump();
+                    self.skip_separators();
+                    return call(frames, Frame::LetBody(start, b, v, true), Goal::Expr);
+                }
+                if self.kw("in") {
+                    self.bump();
+                }
+                self.skip_separators();
+                call(frames, Frame::LetBody(start, b, v, false), Goal::Expr)
+            }
+            Frame::LetBody(start, b, value, braces) => {
+                self.skip_separators();
+                let end = if braces { self.expect_sym("}")? } else { self.expect_kw("end")? };
+                val(SKind::Let(b, Box::new(value), Box::new(v)), start.to(end))
+            }
+            Frame::MatchScrutinee(start) => {
+                if self.sym("::") || self.sym(":") {
+                    self.bump();
+                    return call(frames, Frame::MatchData(start, v), Goal::Cmp);
+                }
+                let st = MatchState::open(self, start, v, None);
+                self.match_cases(st, frames)
+            }
+            Frame::MatchData(start, scrutinee) => {
+                let st = MatchState::open(self, start, scrutinee, Some(Box::new(v)));
+                self.match_cases(st, frames)
+            }
+            Frame::MatchCase(mut st, pattern, binders, cs) => {
+                let span = cs.to(v.span);
+                st.cases.push(SCase { pattern, binders, body: v, span });
+                self.match_cases(st, frames)
+            }
         }
-        let end = self.bump().span;
-        Ok(SExpr { kind: SKind::Match { scrutinee: Box::new(scrutinee), data, cases }, span: start.to(end) })
+    }
+
+    /// After `(` or a `,` of a call: the next argument, or the call itself.
+    fn call_args(&mut self, callee: SExpr, args: Vec<SExpr>, frames: &mut Vec<Frame>) -> R<Start> {
+        if self.sym(")") {
+            let end = self.close_paren(")")?;
+            let span = callee.span.to(end);
+            frames.push(Frame::PostfixLoop);
+            return Ok(Start::Value(SExpr { kind: SKind::Call(Box::new(callee), args), span }));
+        }
+        frames.push(Frame::Args(callee, args));
+        Ok(Start::Call(Goal::Expr))
+    }
+
+    fn let_value(&mut self, start: Span, lhs: SExpr, frames: &mut Vec<Frame>) -> R<Start> {
+        let b = to_binder(&lhs, false)?;
+        self.expect_sym("=")?;
+        frames.push(Frame::LetValue(start, b));
+        Ok(Start::Call(Goal::Expr))
+    }
+
+    /// The next case of a match, or the end of the match.
+    fn match_cases(&mut self, st: MatchState, frames: &mut Vec<Frame>) -> R<Start> {
+        self.skip_separators();
+        while self.sym(",") {
+            self.bump();
+            self.skip_separators();
+        }
+        if (st.braces && self.sym("}")) || (!st.braces && self.kw("end")) {
+            let end = self.bump().span;
+            let MatchState { start, scrutinee, data, cases, .. } = st;
+            return Ok(Start::Value(SExpr { kind: SKind::Match { scrutinee: Box::new(scrutinee), data, cases }, span: start.to(end) }));
+        }
+        let cs = self.span();
+        let pattern = if self.at_("ctor") {
+            self.bump();
+            self.open_paren("(")?;
+            let Tok::Int(j) = self.bump().tok else { return self.err("expected a constructor index") };
+            self.close_paren(")")?;
+            Pattern::Index(j as u32)
+        } else {
+            Pattern::Name(self.name()?.0)
+        };
+        let mut binders = Vec::new();
+        if matches!(self.toks[self.at].tok, Tok::Sym("(")) {
+            self.open_paren("(")?;
+            while !self.sym(")") {
+                let (n, s) = self.name()?;
+                binders.push(SBinder { name: n, ty: None, usage: Usage::Many, implicit: false, span: s });
+                if !self.sym(")") {
+                    self.expect_sym(",")?;
+                }
+            }
+            self.close_paren(")")?;
+        }
+        self.expect_sym("=>")?;
+        frames.push(Frame::MatchCase(st, pattern, binders, cs));
+        Ok(Start::Call(Goal::Expr))
+    }
+}
+
+/// The grammar rules the expression machine calls.
+#[derive(Clone, Copy)]
+enum Goal {
+    Expr,
+    Cmp,
+    Add,
+    Mul,
+    Unary,
+    Postfix,
+    Atom,
+}
+
+/// What starting or resuming a rule gives: a value, or a rule to call.
+enum Start {
+    Value(SExpr),
+    Call(Goal),
+}
+
+/// A rule waiting for the value of the rule it called.
+enum Frame {
+    Arrow,
+    Lam(SExpr),
+    Pi(SExpr),
+    Cmp,
+    BinOp(SExpr, &'static str),
+    AddLoop,
+    AddR(SExpr, &'static str),
+    MulLoop,
+    MulR(SExpr, &'static str),
+    PostfixLoop,
+    Args(SExpr, Vec<SExpr>),
+    Paren(Span),
+    ParenAnnot(Span, SExpr),
+    Brace(Span),
+    BraceAnnot(Span, SExpr),
+    Hole(Span),
+    Usage(Span, Usage),
+    Unsafe(Span, Aspect),
+    Con(Span),
+    LetLhs(Span),
+    LetLhsType(Span, SExpr),
+    LetValue(Span, SBinder),
+    LetBody(Span, SBinder, SExpr, bool),
+    MatchScrutinee(Span),
+    MatchData(Span, SExpr),
+    MatchCase(MatchState, Pattern, Vec<SBinder>, Span),
+}
+
+/// A match being read: what precedes its cases, and the cases so far.
+struct MatchState {
+    start: Span,
+    scrutinee: SExpr,
+    data: Option<Box<SExpr>>,
+    braces: bool,
+    cases: Vec<SCase>,
+}
+
+impl MatchState {
+    fn open(p: &mut Parser, start: Span, scrutinee: SExpr, data: Option<Box<SExpr>>) -> MatchState {
+        let braces = p.sym("{");
+        if braces {
+            p.bump();
+        }
+        MatchState { start, scrutinee, data, braces, cases: Vec::new() }
     }
 }
 
 /// Reads an expression as a binder: `x`, `x::T`, `{x}`, `@erased x`.
 /// For a Pi (`allow_anon`), any other expression is an anonymous domain.
 fn to_binder(e: &SExpr, allow_anon: bool) -> R<SBinder> {
-    fn go(e: &SExpr, b: &mut SBinder, top: bool) -> Result<bool, ()> {
-        match &e.kind {
-            SKind::Path(p) if p.len() == 1 && !top => {
-                b.name = p[0].clone();
-                Ok(true)
-            }
-            SKind::Path(p) if p.len() == 1 => {
-                b.name = p[0].clone();
-                Ok(true)
-            }
-            SKind::Annot(inner, ty) => {
-                b.ty = Some(ty.clone());
-                go(inner, b, false)
-            }
-            SKind::Implicit(inner) => {
-                b.implicit = true;
-                if b.usage == Usage::Many {
-                    b.usage = Usage::Zero;
+    /// Peels annotations, implicit braces and usage markers down to the
+    /// name: a loop, since each form has one inner expression.
+    fn go(mut e: &SExpr, b: &mut SBinder) -> Result<(), ()> {
+        loop {
+            match &e.kind {
+                SKind::Path(p) if p.len() == 1 => {
+                    b.name = p[0].clone();
+                    return Ok(());
                 }
-                go(inner, b, false)
+                SKind::Annot(inner, ty) => {
+                    b.ty = Some(ty.clone());
+                    e = inner;
+                }
+                SKind::Implicit(inner) => {
+                    b.implicit = true;
+                    if b.usage == Usage::Many {
+                        b.usage = Usage::Zero;
+                    }
+                    e = inner;
+                }
+                SKind::Usage(u, inner) => {
+                    b.usage = *u;
+                    e = inner;
+                }
+                _ => return Err(()),
             }
-            SKind::Usage(u, inner) => {
-                b.usage = *u;
-                go(inner, b, false)
-            }
-            _ => Err(()),
         }
     }
     let mut b = SBinder { name: String::new(), ty: None, usage: Usage::Many, implicit: false, span: e.span };
@@ -699,8 +854,8 @@ fn to_binder(e: &SExpr, allow_anon: bool) -> R<SBinder> {
     if allow_anon && !named_form {
         return Ok(SBinder { name: "_".into(), ty: Some(Box::new(e.clone())), usage: Usage::Many, implicit: false, span: e.span });
     }
-    match go(e, &mut b, true) {
-        Ok(_) => Ok(b),
+    match go(e, &mut b) {
+        Ok(()) => Ok(b),
         Err(()) => Err(Diagnostic::error(e.span, "expected a binder (`x`, `(x::T)`, `{x}` or `@erased x`)")),
     }
 }

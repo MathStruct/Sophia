@@ -41,7 +41,7 @@ pub fn split_path(path: &str) -> Vec<&str> {
 /// failure, the errors. Nothing is stored either way.
 ///
 /// Parsing and elaborating are recursive and run at any depth through
-/// `deep::grow` (SP-015), on the caller's thread: no parser thread, which
+/// explicit stacks (SP-015), on the caller's thread: no parser thread, which
 /// wasm would not have. A panic is reported as an error, not propagated.
 pub fn parse_text(env: &dyn Env, ns: &str, text: &str, limits: Limits) -> Result<(Vec<Item>, Vec<Diagnostic>), Vec<Diagnostic>> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

@@ -5,7 +5,7 @@
 
 use sophia_hash::Digest;
 use sophialang_core::samples::builtin;
-use sophialang_core::{Binder, Body, Case, Constructor, Definition, Field, Kind, Lit, Term, Usage};
+use sophialang_core::{Aspect, Binder, Body, Case, Constructor, Definition, Field, Kind, Lit, Term, Usage};
 
 use crate::ast::*;
 use crate::diagnostic::Diagnostic;
@@ -39,8 +39,47 @@ pub struct Elab<'a> {
     pub env: &'a dyn Env,
     pub ns: &'a str,
     items: &'a [SItem],
-    scope: Vec<String>,
+    scope: Scope,
     pub warnings: Vec<Diagnostic>,
+}
+
+/// Names in scope, innermost last, indexed by name, so a variable's de
+/// Bruijn index costs O(1) instead of a scan of the scope (SP-015: deep
+/// chains of binders).
+#[derive(Default)]
+struct Scope {
+    names: Vec<String>,
+    at: std::collections::HashMap<String, Vec<usize>>,
+}
+
+impl Scope {
+    fn push(&mut self, n: String) {
+        self.at.entry(n.clone()).or_default().push(self.names.len());
+        self.names.push(n);
+    }
+    fn pop(&mut self) {
+        if let Some(n) = self.names.pop() {
+            if let Some(v) = self.at.get_mut(&n) {
+                v.pop();
+            }
+        }
+    }
+    fn truncate(&mut self, len: usize) {
+        while self.names.len() > len {
+            self.pop();
+        }
+    }
+    fn clear(&mut self) {
+        self.truncate(0);
+    }
+    fn len(&self) -> usize {
+        self.names.len()
+    }
+    /// The de Bruijn index of the innermost binder named `name`.
+    fn index(&self, name: &str) -> Option<u32> {
+        let i = *self.at.get(name)?.last()?;
+        Some((self.names.len() - 1 - i) as u32)
+    }
 }
 
 type R<T> = Result<T, Diagnostic>;
@@ -51,7 +90,7 @@ pub fn elaborate(env: &dyn Env, ns: &str, items: &[SItem]) -> R<(Vec<Item>, Vec<
             return Err(Diagnostic::error(a.name_span, format!("`{}` is defined twice in this text", a.name)));
         }
     }
-    let mut e = Elab { env, ns, items, scope: Vec::new(), warnings: Vec::new() };
+    let mut e = Elab { env, ns, items, scope: Scope::default(), warnings: Vec::new() };
     let out = items.iter().map(|it| e.item(it)).collect::<R<Vec<_>>>()?;
     Ok((out, e.warnings))
 }
@@ -139,7 +178,7 @@ impl Elab<'_> {
     }
 
     fn local(&self, name: &str) -> Option<u32> {
-        self.scope.iter().rev().position(|n| n == name).map(|i| i as u32)
+        self.scope.index(name)
     }
 
     fn item_index(&self, name: &str) -> Option<u32> {
@@ -188,112 +227,205 @@ impl Elab<'_> {
         None
     }
 
-    fn binder(&mut self, b: &SBinder) -> R<(Binder, Option<Term>)> {
-        let ty = b.ty.as_ref().map(|t| self.expr(t)).transpose()?;
-        Ok((Binder { name: b.name.clone(), usage: b.usage, implicit: b.implicit }, ty))
+    fn binder(b: &SBinder) -> Binder {
+        Binder { name: b.name.clone(), usage: b.usage, implicit: b.implicit }
     }
 
-    /// One level per call, through `deep::grow` (SP-015): any depth.
+    /// Elaborates an expression with an explicit stack of steps instead of
+    /// recursion (SP-015): any depth on every target, wasm included. Steps
+    /// run in order; `Eval` pushes a term, `Build` pops its subterms.
     pub fn expr(&mut self, e: &SExpr) -> R<Term> {
-        sophia_hash::deep::grow(|| self.expr_step(e))
+        let mut steps: Vec<Step> = vec![Step::Eval(e)];
+        let mut vals: Vec<Term> = Vec::new();
+        while let Some(step) = steps.pop() {
+            match step {
+                Step::Eval(e) => self.plan(e, &mut steps, &mut vals)?,
+                Step::Push(n) => self.scope.push(n),
+                Step::Pop => self.scope.pop(),
+                Step::Truncate(n) => self.scope.truncate(n),
+                Step::MatchCases(e) => self.plan_cases(e, &mut steps, &vals)?,
+                Step::Build(b) => {
+                    let t = self.build(b, &mut vals);
+                    vals.push(t);
+                }
+            }
+        }
+        Ok(vals.pop().unwrap_or_default())
     }
 
-    fn expr_step(&mut self, e: &SExpr) -> R<Term> {
-        Ok(match &e.kind {
+    /// Plans one syntax node: a leaf's term goes to `vals`; an inner node
+    /// pushes its steps.
+    fn plan<'e>(&mut self, e: &'e SExpr, steps: &mut Vec<Step<'e>>, vals: &mut Vec<Term>) -> R<()> {
+        let mut seq: Vec<Step<'e>> = Vec::new();
+        let leaf = |vals: &mut Vec<Term>, t: Term| {
+            vals.push(t);
+            Ok(())
+        };
+        match &e.kind {
             SKind::Path(p) => {
                 if p.len() == 1 {
                     if let Some(i) = self.local(&p[0]) {
-                        return Ok(Term::Var(i));
+                        return leaf(vals, Term::Var(i));
                     }
                 }
-                match self.path(p) {
+                let t = match self.path(p) {
                     Some(t) => t,
                     None => {
                         self.warnings.push(Diagnostic::warning(e.span, format!("`{}` is not defined; stored as unresolved", p.join("."))));
                         Term::Unresolved(p.clone())
                     }
-                }
+                };
+                return leaf(vals, t);
             }
-            SKind::HashRef(h) => Term::Ref(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad content id"))?),
+            SKind::HashRef(h) => return leaf(vals, Term::Ref(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad content id"))?)),
             SKind::NominalRef(h) => {
-                Term::Nominal(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad nominal id"))?)
+                return leaf(vals, Term::Nominal(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad nominal id"))?));
             }
-            SKind::Int(v) => Term::Lit(Lit::Int64(*v)),
-            SKind::UInt(v) => Term::Lit(Lit::UInt64(*v)),
-            SKind::Float(b) => Term::Lit(Lit::Float64(*b)),
-            SKind::Str(s) => Term::Lit(Lit::String(s.clone())),
-            SKind::Char(c) => Term::Lit(Lit::Char(*c)),
-            SKind::Bool(b) => Term::Lit(Lit::Bool(*b)),
-            SKind::Type(l) => Term::Type(*l),
-            SKind::Prop => Term::Prop,
-            SKind::Prim(n) => Term::Prim(n.clone()),
-            SKind::Hole(t) => Term::Hole(Box::new(self.expr(t)?)),
-            SKind::Unsafe(a, t) => Term::Unsafe(*a, Box::new(self.expr(t)?)),
-            SKind::ConIndex(t, j) => Term::Con { ty: Box::new(self.expr(t)?), index: *j },
-            SKind::Member(k) => Term::Member(*k),
+            SKind::Int(v) => return leaf(vals, Term::Lit(Lit::Int64(*v))),
+            SKind::UInt(v) => return leaf(vals, Term::Lit(Lit::UInt64(*v))),
+            SKind::Float(b) => return leaf(vals, Term::Lit(Lit::Float64(*b))),
+            SKind::Str(s) => return leaf(vals, Term::Lit(Lit::String(s.clone()))),
+            SKind::Char(c) => return leaf(vals, Term::Lit(Lit::Char(*c))),
+            SKind::Bool(b) => return leaf(vals, Term::Lit(Lit::Bool(*b))),
+            SKind::Type(l) => return leaf(vals, Term::Type(*l)),
+            SKind::Prop => return leaf(vals, Term::Prop),
+            SKind::Prim(n) => return leaf(vals, Term::Prim(n.clone())),
+            SKind::Member(k) => return leaf(vals, Term::Member(*k)),
+            SKind::Hole(t) => seq.extend([Step::Eval(t), Step::Build(Build::Hole)]),
+            SKind::Unsafe(a, t) => seq.extend([Step::Eval(t), Step::Build(Build::Unsafe(*a))]),
+            SKind::ConIndex(t, j) => seq.extend([Step::Eval(t), Step::Build(Build::Con(*j))]),
             SKind::Call(h, args) => {
-                let h = self.expr(h)?;
-                Term::App(Box::new(h), args.iter().map(|a| self.expr(a)).collect::<R<_>>()?)
+                seq.push(Step::Eval(h));
+                seq.extend(args.iter().map(Step::Eval));
+                seq.push(Step::Build(Build::App(args.len())));
             }
-            SKind::BinOp(op, l, r) => {
-                let l = self.expr(l)?;
-                let r = self.expr(r)?;
-                Term::App(Box::new(Term::Nominal(builtin(op))), vec![l, r])
-            }
+            SKind::BinOp(op, l, r) => seq.extend([Step::Eval(l), Step::Eval(r), Step::Build(Build::BinOp(op))]),
             SKind::Lam(b, body) => {
-                let (binder, domain) = self.binder(b)?;
-                self.scope.push(b.name.clone());
-                let body = self.expr(body);
-                self.scope.pop();
-                Term::Lam { binder, domain: domain.map(Box::new), body: Box::new(body?) }
+                seq.extend(b.ty.iter().map(|t| Step::Eval(t)));
+                seq.extend([Step::Push(b.name.clone()), Step::Eval(body), Step::Pop]);
+                seq.push(Step::Build(Build::Lam(Self::binder(b), b.ty.is_some())));
             }
             SKind::Pi(b, cod) => {
-                let (binder, domain) = self.binder(b)?;
-                let domain = domain.unwrap_or_else(any);
-                self.scope.push(b.name.clone());
-                let cod = self.expr(cod);
-                self.scope.pop();
-                Term::Pi { binder, domain: Box::new(domain), codomain: Box::new(cod?) }
+                seq.extend(b.ty.iter().map(|t| Step::Eval(t)));
+                seq.extend([Step::Push(b.name.clone()), Step::Eval(cod), Step::Pop]);
+                seq.push(Step::Build(Build::Pi(Self::binder(b), b.ty.is_some())));
             }
             SKind::Let(b, value, body) => {
-                let (binder, ty) = self.binder(b)?;
-                let value = self.expr(value)?;
-                self.scope.push(b.name.clone());
-                let body = self.expr(body);
-                self.scope.pop();
-                Term::Let { binder, ty: ty.map(Box::new), value: Box::new(value), body: Box::new(body?) }
+                seq.extend(b.ty.iter().map(|t| Step::Eval(t)));
+                seq.extend([Step::Eval(value), Step::Push(b.name.clone()), Step::Eval(body), Step::Pop]);
+                seq.push(Step::Build(Build::Let(Self::binder(b), b.ty.is_some())));
             }
-            SKind::Match { scrutinee, data, cases } => {
-                let scrutinee = self.expr(scrutinee)?;
-                let data = data.as_ref().map(|d| self.expr(d)).transpose()?;
-                let names = data.as_ref().and_then(|d| self.ctor_names(d));
-                let mut out = Vec::new();
-                for c in cases {
-                    let constructor = match &c.pattern {
-                        Pattern::Index(j) => *j,
-                        Pattern::Name(n) => names
-                            .as_ref()
-                            .and_then(|ns| ns.iter().position(|x| x == n))
-                            .ok_or_else(|| Diagnostic::error(c.span, format!("`{n}` is not a constructor of the matched type")))?
-                            as u32,
-                    };
-                    let n0 = self.scope.len();
-                    for b in &c.binders {
-                        self.scope.push(b.name.clone());
-                    }
-                    let body = self.expr(&c.body);
-                    self.scope.truncate(n0);
-                    out.push(Case {
-                        constructor,
-                        binders: c.binders.iter().map(|b| Binder { name: b.name.clone(), usage: Usage::Many, implicit: false }).collect(),
-                        body: body?,
-                    });
-                }
-                Term::Match { scrutinee: Box::new(scrutinee), data: data.map(Box::new), motive: None, cases: out }
+            SKind::Match { scrutinee, data, .. } => {
+                seq.push(Step::Eval(scrutinee));
+                seq.extend(data.iter().map(|d| Step::Eval(d)));
+                // Constructor names come from the elaborated data type.
+                seq.push(Step::MatchCases(e));
             }
             SKind::Annot(..) | SKind::Implicit(_) | SKind::Usage(..) => {
                 return Err(Diagnostic::error(e.span, "a binder form is only allowed before `->` or `-->`"));
             }
-        })
+        }
+        steps.extend(seq.into_iter().rev());
+        Ok(())
     }
+
+    /// A match's cases, once its scrutinee and data type are elaborated (on
+    /// top of `vals`): constructors resolved by name, bodies scheduled.
+    fn plan_cases<'e>(&mut self, e: &'e SExpr, steps: &mut Vec<Step<'e>>, vals: &[Term]) -> R<()> {
+        let SKind::Match { data, cases, .. } = &e.kind else { return Ok(()) };
+        let names = if data.is_some() { vals.last().and_then(|d| self.ctor_names(d)) } else { None };
+        let mut seq: Vec<Step<'e>> = Vec::new();
+        let mut meta = Vec::new();
+        for c in cases {
+            let constructor = match &c.pattern {
+                Pattern::Index(j) => *j,
+                Pattern::Name(n) => names
+                    .as_ref()
+                    .and_then(|ns| ns.iter().position(|x| x == n))
+                    .ok_or_else(|| Diagnostic::error(c.span, format!("`{n}` is not a constructor of the matched type")))?
+                    as u32,
+            };
+            let n0 = self.scope.len();
+            seq.extend(c.binders.iter().map(|b| Step::Push(b.name.clone())));
+            seq.extend([Step::Eval(&c.body), Step::Truncate(n0)]);
+            let binders = c.binders.iter().map(|b| Binder { name: b.name.clone(), usage: Usage::Many, implicit: false }).collect();
+            meta.push((constructor, binders));
+        }
+        seq.push(Step::Build(Build::Match { has_data: data.is_some(), cases: meta }));
+        steps.extend(seq.into_iter().rev());
+        Ok(())
+    }
+
+    /// Pops a node's subterms (in evaluation order) and builds it.
+    fn build(&mut self, b: Build, vals: &mut Vec<Term>) -> Term {
+        let mut pop = || vals.pop().unwrap_or_default();
+        match b {
+            Build::Hole => Term::Hole(Box::new(pop())),
+            Build::Unsafe(a) => Term::Unsafe(a, Box::new(pop())),
+            Build::Con(j) => Term::Con { ty: Box::new(pop()), index: j },
+            Build::App(n) => {
+                let mut args: Vec<Term> = (0..n).map(|_| pop()).collect();
+                args.reverse();
+                let h = pop();
+                Term::App(Box::new(h), args)
+            }
+            Build::BinOp(op) => {
+                let r = pop();
+                let l = pop();
+                Term::App(Box::new(Term::Nominal(builtin(op))), vec![l, r])
+            }
+            Build::Lam(binder, has_domain) => {
+                let body = pop();
+                let domain = if has_domain { Some(Box::new(pop())) } else { None };
+                Term::Lam { binder, domain, body: Box::new(body) }
+            }
+            Build::Pi(binder, has_domain) => {
+                let codomain = pop();
+                let domain = if has_domain { pop() } else { any() };
+                Term::Pi { binder, domain: Box::new(domain), codomain: Box::new(codomain) }
+            }
+            Build::Let(binder, has_ty) => {
+                let body = pop();
+                let value = pop();
+                let ty = if has_ty { Some(Box::new(pop())) } else { None };
+                Term::Let { binder, ty, value: Box::new(value), body: Box::new(body) }
+            }
+            Build::Match { has_data, cases } => {
+                let mut bodies: Vec<Term> = (0..cases.len()).map(|_| pop()).collect();
+                bodies.reverse();
+                let data = if has_data { Some(Box::new(pop())) } else { None };
+                let scrutinee = pop();
+                let cases = cases
+                    .into_iter()
+                    .zip(bodies)
+                    .map(|((constructor, binders), body)| Case { constructor, binders, body })
+                    .collect();
+                Term::Match { scrutinee: Box::new(scrutinee), data, motive: None, cases }
+            }
+        }
+    }
+}
+
+/// One step of the elaborator's machine ([`Elab::expr`]).
+enum Step<'e> {
+    Eval(&'e SExpr),
+    Push(String),
+    Pop,
+    Truncate(usize),
+    /// Resolve a match's constructors and schedule its case bodies.
+    MatchCases(&'e SExpr),
+    Build(Build<'e>),
+}
+
+/// How to build a node from the subterms on top of the value stack.
+enum Build<'e> {
+    Hole,
+    Unsafe(Aspect),
+    Con(u32),
+    App(usize),
+    BinOp(&'e str),
+    Lam(Binder, bool),
+    Pi(Binder, bool),
+    Let(Binder, bool),
+    Match { has_data: bool, cases: Vec<(u32, Vec<Binder>)> },
 }

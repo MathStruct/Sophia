@@ -15,3 +15,5 @@ Names are resolved in this order:
 `function f(params)::R body` becomes a Π chain plus a λ chain. An untyped parameter has type `Any` (Julia's rule, SR-29). Binary operators become calls of the built-in generic functions. `match e :: T` takes its constructor names from `T`.
 
 A `relation` becomes `Item::Relation`. The interface creates the nominal entity (S-ADR-0009).
+
+**An explicit-stack elaborator (2026-10-24).** `Elab::expr` runs steps (`Eval`, `Push` / `Pop` / `Truncate` of scope names, `MatchCases`, `Build`) instead of recursing; a match's constructors are resolved by a `MatchCases` step once its data type is elaborated. The scope is indexed by name (`Scope`), so a variable's de Bruijn index costs O(1) instead of a scan. Same terms as before (20 000 random round trips, the sample, 300 generated definitions saved back unchanged); any depth on every target.
