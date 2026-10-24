@@ -559,7 +559,9 @@ impl<B: Backend + Sync> Interface<B> {
             let dependency = ["Names", "References", "Calls", "Tests", "sophia:Supersedes", "sophia:InLineage"];
             let mut seen_edges: HashSet<EdgeView> = g.edges.iter().cloned().collect();
             for k in &keys {
-                if !present.contains(k) {
+                // A namespace's edges are Contains, drawn above; listing its
+                // children again cost 1.85 of 2.1 s on Moonkale's store.
+                if !present.contains(k) || matches!(k, Key::Derived(s) if s.starts_with("ns:")) {
                     continue;
                 }
                 let dir = match k {

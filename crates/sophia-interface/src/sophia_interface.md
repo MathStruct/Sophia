@@ -76,6 +76,8 @@ Moonkale first measured 0.9 s, 0.9 s and 3.3 s through its adapter; that was a c
 
 `tests/acceptance.rs` now also covers listing around namespace boundaries (`a.b`, `a.b!`, `a.b.c`, ``a.`b.c` ``, `a.b0`, `ab.x`), foreign records printing, and diagnostics; 45 tests on four backends.
 
+**Many namespaces (2026-10-24).** Moonkale saw `All(1000)` take about 6.2 s on its own folder store. That store has 481 files and 5 569 names in deep module paths. On a collected copy, `all(100000)` took 2.1 s in release. Of that, 1.85 s went to namespace keys: the edge loop asked each namespace for its out-edges, which lists its children (`children_in`). Those are all `Contains` edges, which `all` draws itself and the loop then discards. The loop now skips namespaces: **2127 → 280 ms** (`listing_timing … rs 3`, best of 3). The output is the same: 16 427 nodes, 23 154 edges, and an equal digest of the sorted nodes and edges, from a scratch example run before and after the change. Measured by temporarily timing `all`'s phases; that timing was not committed.
+
 ## Deep definitions and large graphs (2026-10-23)
 
 Moonkale's coarse graph query called `all(2 000 000)` on a copy of B-15's 100 000-name store, and a Tokio blocking worker (2 MiB stack) overflowed (Moonkale P-229). Two causes, both fixed:

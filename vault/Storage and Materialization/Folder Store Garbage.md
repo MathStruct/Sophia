@@ -52,6 +52,19 @@ Payload bytes = canonical bytes + display + 32 per reference.
 
 **Accepted and implemented on 2026-10-24 (SR-146), with one change:** the source-of-truth setting decides point 4. When the files are the truth, old versions are collected, as in (a). When the store is the truth, nothing is collected and every version stays. The sweep on the real replays: Moonkale 5 601 records removed in 1.81 s, 39.2 MB after `VACUUM`; Lenticulum 1 005 in 0.39 s, 10.3 MB. In both, the record set equals the fresh build's ([[folder]]).
 
+**Moonkale's replays with collection** (Sophia `aa4b46f`, the same commit ranges, debug build; Moonkale's measurement, reported by its agent, raw reports in `~/.cache/sophia-corpora/folder-replay/{moonkale,lenticulum}-gc.jsonl`): 0 differences at every checkpoint, 0 errors. Each pair is without collection (v0.1.1) → with it:
+
+| | Moonkale (471 commits) | Lenticulum.jl (130 commits) |
+|---|---|---|
+| batch median | 76.2 → 74.1 ms | 218.9 → 170.8 ms |
+| batch p95 | 565.8 → 562.4 ms | 1086.9 → 1079.5 ms |
+| sum of batch times | 78.3 → 78.6 s | 50.3 → 49.2 s |
+| final store size, no `VACUUM` | 92.6 → 41.5 MB | 20.2 → 11.4 MB |
+| records | 11 541 → 5 940 | 2 775 → 1 770 |
+| fresh build | 36.9 MB | 10.1 MB |
+
+The incremental check costs nothing measurable: the differences are within noise.
+
 1. **Incremental collection inside `replace_files`**, in the same transaction. The seeds are what the batch's old manifests referenced: the old manifest itself, its source, and its records. A seed is removed when none of these hold:
    - it is a current file manifest (`file/` values);
    - a name targets it (`names_of`);
