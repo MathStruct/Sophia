@@ -100,3 +100,11 @@ cargo install wasm-bindgen-cli --version 0.2.129 --locked --root $SOPHIA_CORPORA
 PATH=$SOPHIA_CORPORA/tools/bin:$PATH CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
   cargo test -p sophia-interface --no-default-features --features sqlite --target wasm32-unknown-unknown --test wasm_read
 ```
+
+`tests/wasm_deep.rs` (2026-10-24): the read path (normalise and encode, decode with display names, equality, clone, hash, print in two profiles, drop) on sum, lambda and let chains 100 000 deep, in wasm: 3 of 3 pass under Node and in headless Firefox (geckodriver 0.37.1). Before the explicit stacks, 10 000 levels already raised `RangeError: Maximum call stack size exceeded` under Node. `tests/wasm_read.rs` also passes in Firefox:
+
+```sh
+WASM_BINDGEN_USE_BROWSER=1 GECKODRIVER=$(which geckodriver) PATH=$SOPHIA_CORPORA/tools/bin:$PATH \
+  CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
+  cargo test -p sophia-interface --no-default-features --features sqlite --target wasm32-unknown-unknown --test wasm_deep
+```

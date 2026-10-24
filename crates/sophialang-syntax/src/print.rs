@@ -93,67 +93,67 @@ impl std::ops::Index<usize> for Scope {
     }
 }
 
-/// For every binder in `t`, whether its body uses it: one pass, any depth.
-/// Lam, Pi and Let bind slot 0 at their own address; a match case binds
-/// slot k at its body's address.
-fn binder_uses(t: &Term, stack: &mut Vec<bool>, out: &mut HashMap<(usize, u32), bool>) {
-    sophia_hash::deep::grow(|| {
-        let at = |x: &Term| x as *const Term as usize;
-        let under = |b: &Term, stack: &mut Vec<bool>, out: &mut HashMap<(usize, u32), bool>, key: usize| {
-            stack.push(false);
-            binder_uses(b, stack, out);
-            let used = stack.pop().unwrap_or(true);
-            out.insert((key, 0), used);
-        };
-        match t {
-            Term::Var(i) => {
-                let n = stack.len();
-                if (*i as usize) < n {
-                    stack[n - 1 - *i as usize] = true;
+/// For every binder in `t`, whether its body uses it: one pass with an
+/// explicit stack, any depth. Lam, Pi and Let bind slot 0 at their own
+/// address; a match case binds slot k at its body's address.
+fn binder_uses(t: &Term, out: &mut HashMap<(usize, u32), bool>) {
+    enum W<'t> {
+        Visit(&'t Term),
+        /// Open `n` binders.
+        Bind(usize),
+        /// Close `n` binders, recording each under (`key`, slot).
+        Unbind(usize, usize),
+    }
+    let at = |x: &Term| x as *const Term as usize;
+    let mut used: Vec<bool> = Vec::new();
+    let mut work = vec![W::Visit(t)];
+    while let Some(w) = work.pop() {
+        match w {
+            W::Bind(n) => used.extend(std::iter::repeat_n(false, n)),
+            W::Unbind(key, n) => {
+                for slot in (0..n).rev() {
+                    let u = used.pop().unwrap_or(true);
+                    out.insert((key, slot as u32), u);
                 }
             }
-            Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => binder_uses(ty, stack, out),
-            Term::Lam { domain, body, .. } => {
-                if let Some(d) = domain {
-                    binder_uses(d, stack, out);
-                }
-                under(body, stack, out, at(t));
-            }
-            Term::App(h, args) => {
-                binder_uses(h, stack, out);
-                for a in args {
-                    binder_uses(a, stack, out);
-                }
-            }
-            Term::Pi { domain, codomain, .. } => {
-                binder_uses(domain, stack, out);
-                under(codomain, stack, out, at(t));
-            }
-            Term::Let { ty, value, body, .. } => {
-                if let Some(x) = ty {
-                    binder_uses(x, stack, out);
-                }
-                binder_uses(value, stack, out);
-                under(body, stack, out, at(t));
-            }
-            Term::Match { scrutinee, data, motive, cases } => {
-                binder_uses(scrutinee, stack, out);
-                for x in [data, motive].into_iter().flatten() {
-                    binder_uses(x, stack, out);
-                }
-                for c in cases {
-                    let k = c.binders.len();
-                    stack.extend(std::iter::repeat_n(false, k));
-                    binder_uses(&c.body, stack, out);
-                    for j in (0..k).rev() {
-                        let used = stack.pop().unwrap_or(true);
-                        out.insert((at(&c.body), j as u32), used);
+            W::Visit(t) => {
+                // Pushed in reverse: the last pushed runs first.
+                match t {
+                    Term::Var(i) => {
+                        let n = used.len();
+                        if (*i as usize) < n {
+                            used[n - 1 - *i as usize] = true;
+                        }
                     }
+                    Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => work.push(W::Visit(ty)),
+                    Term::Lam { domain, body, .. } => {
+                        work.extend([W::Unbind(at(t), 1), W::Visit(body), W::Bind(1)]);
+                        work.extend(domain.iter().map(|d| W::Visit(d)));
+                    }
+                    Term::App(h, args) => {
+                        work.extend(args.iter().rev().map(W::Visit));
+                        work.push(W::Visit(h));
+                    }
+                    Term::Pi { domain, codomain, .. } => {
+                        work.extend([W::Unbind(at(t), 1), W::Visit(codomain), W::Bind(1), W::Visit(domain)]);
+                    }
+                    Term::Let { ty, value, body, .. } => {
+                        work.extend([W::Unbind(at(t), 1), W::Visit(body), W::Bind(1), W::Visit(value)]);
+                        work.extend(ty.iter().map(|x| W::Visit(x)));
+                    }
+                    Term::Match { scrutinee, data, motive, cases } => {
+                        for c in cases.iter().rev() {
+                            let k = c.binders.len();
+                            work.extend([W::Unbind(at(&c.body), k), W::Visit(&c.body), W::Bind(k)]);
+                        }
+                        work.extend(motive.iter().chain(data.iter()).map(|x| W::Visit(x)));
+                        work.push(W::Visit(scrutinee));
+                    }
+                    _ => {}
                 }
             }
-            _ => {}
         }
-    })
+    }
 }
 
 /// Indentation stops growing after this many columns: nested blocks keep
@@ -173,7 +173,7 @@ pub fn print(env: &dyn Env, ns: &str, profile: &Profile, items: &[ToPrint]) -> S
         }
         let mut uses = HashMap::new();
         for t in it.def.terms() {
-            binder_uses(t, &mut Vec::new(), &mut uses);
+            binder_uses(t, &mut uses);
         }
         let mut pr = Printer { env, ns, p: profile, group: items, scope: Scope::default(), indent: 0, uses };
         out.push_str(&pr.item(it));
@@ -190,30 +190,89 @@ fn valid_ident(s: &str) -> bool {
     matches!(cs.next(), Some(c) if is_ident_start(c)) && cs.all(is_ident_char) && !KEYWORDS.contains(&s)
 }
 
-/// Whether `Var(depth)` occurs free in `t`, at any depth (SP-015).
+/// Whether `Var(depth)` occurs free in `t`, with an explicit stack: any
+/// depth (SP-015).
 fn occurs(t: &Term, depth: u32) -> bool {
-    sophia_hash::deep::grow(|| occurs_step(t, depth))
+    let mut stack = vec![(t, depth)];
+    while let Some((t, d)) = stack.pop() {
+        match t {
+            Term::Var(i) if *i == d => return true,
+            Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => stack.push((ty, d)),
+            Term::Lam { domain, body, .. } => {
+                stack.extend(domain.iter().map(|x| (x.as_ref(), d)));
+                stack.push((body, d + 1));
+            }
+            Term::App(h, args) => {
+                stack.push((h, d));
+                stack.extend(args.iter().map(|a| (a, d)));
+            }
+            Term::Pi { domain, codomain, .. } => {
+                stack.push((domain, d));
+                stack.push((codomain, d + 1));
+            }
+            Term::Let { ty, value, body, .. } => {
+                stack.extend(ty.iter().map(|x| (x.as_ref(), d)));
+                stack.push((value, d));
+                stack.push((body, d + 1));
+            }
+            Term::Match { scrutinee, data, motive, cases } => {
+                stack.push((scrutinee, d));
+                stack.extend(data.iter().chain(motive.iter()).map(|x| (x.as_ref(), d)));
+                stack.extend(cases.iter().map(|c| (&c.body, d + c.binders.len() as u32)));
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
-fn occurs_step(t: &Term, depth: u32) -> bool {
-    match t {
-        Term::Var(i) => *i == depth,
-        Term::Con { ty, .. } => occurs(ty, depth),
-        Term::Lam { domain, body, .. } => domain.as_ref().is_some_and(|d| occurs(d, depth)) || occurs(body, depth + 1),
-        Term::App(h, args) => occurs(h, depth) || args.iter().any(|a| occurs(a, depth)),
-        Term::Pi { domain, codomain, .. } => occurs(domain, depth) || occurs(codomain, depth + 1),
-        Term::Let { ty, value, body, .. } => {
-            ty.as_ref().is_some_and(|t| occurs(t, depth)) || occurs(value, depth) || occurs(body, depth + 1)
+/// The printer's output before it is joined: a tree of pieces, so a parent
+/// takes its children's text without copying it.
+enum Doc {
+    Text(String),
+    Cat(Vec<Doc>),
+}
+
+/// Joins a [`Doc`] with an explicit stack: any depth, linear time.
+fn flatten(d: Doc) -> String {
+    let mut out = String::new();
+    let mut stack = vec![d];
+    while let Some(d) = stack.pop() {
+        match d {
+            Doc::Text(s) => out.push_str(&s),
+            Doc::Cat(mut v) => {
+                while let Some(x) = v.pop() {
+                    stack.push(x);
+                }
+            }
         }
-        Term::Match { scrutinee, data, motive, cases } => {
-            occurs(scrutinee, depth)
-                || data.as_ref().is_some_and(|d| occurs(d, depth))
-                || motive.as_ref().is_some_and(|m| occurs(m, depth))
-                || cases.iter().any(|c| occurs(&c.body, depth + c.binders.len() as u32))
-        }
-        Term::Hole(t) | Term::Unsafe(_, t) => occurs(t, depth),
-        _ => false,
     }
+    out
+}
+
+fn paren(d: Doc, level: u8, min: u8) -> Doc {
+    if level < min { Doc::Cat(vec![Doc::Text("(".into()), d, Doc::Text(")".into())]) } else { d }
+}
+
+/// A part of a node's text: literal text or the text of its k-th child.
+enum Piece {
+    Text(String),
+    Child(usize),
+}
+
+/// One step of the printer's machine ([`Printer::doc`]).
+enum Step<'t> {
+    /// Print this term at this minimum level, pushing its text.
+    Eval(&'t Term, u8),
+    Push(String),
+    Pop,
+    Truncate(usize),
+    Indent(isize),
+    /// Pop `children` texts, join them with `pieces`, parenthesise if
+    /// `level < min`, push the result.
+    Combine { pieces: Vec<Piece>, children: usize, level: u8, min: u8 },
+    /// Pop a type's text and push the constructor `j` of that type.
+    Con { names: Option<Vec<String>>, j: u32, min: u8 },
 }
 
 impl Printer<'_> {
@@ -331,9 +390,10 @@ impl Printer<'_> {
         }
     }
 
-    fn con(&mut self, ty: &Term, j: u32) -> String {
-        let t = self.term(ty, ATOM);
-        if let Some(names) = self.ctor_names(ty) {
+    /// A constructor's text from its type's text: `T.name` when that
+    /// spelling is unique and resolves back, else `@con(T, j)`.
+    fn con_text(&self, t: &str, names: Option<Vec<String>>, j: u32) -> String {
+        if let Some(names) = names {
             if let Some(c) = names.get(j as usize) {
                 let unique = names.iter().position(|x| x == c) == Some(j as usize);
                 let spelled = format!("{t}.{c}");
@@ -381,137 +441,230 @@ impl Printer<'_> {
         }
     }
 
+    /// A term's text, parenthesised when its level is below `min`.
     pub fn term(&mut self, t: &Term, min: u8) -> String {
-        let (s, level) = self.term_level(t);
-        if level < min { format!("({s})") } else { s }
+        flatten(self.doc(t, min))
     }
 
-    /// One level per call, through `deep::grow` (SP-015): any depth.
-    fn term_level(&mut self, t: &Term) -> (String, u8) {
-        sophia_hash::deep::grow(|| self.term_level_step(t))
+    /// Prints a term with an explicit stack of steps instead of recursion
+    /// (SP-015): any depth on every target, wasm included, and linear time,
+    /// since children's text is assembled as a tree of pieces ([`Doc`]) and
+    /// joined once ([`flatten`]) instead of being copied into every parent.
+    /// Each node is planned when its `Eval` step runs, so the scope and the
+    /// indentation are exactly those the recursive printer saw.
+    fn doc(&mut self, t: &Term, min: u8) -> Doc {
+        let mut steps: Vec<Step> = vec![Step::Eval(t, min)];
+        let mut vals: Vec<Doc> = Vec::new();
+        while let Some(step) = steps.pop() {
+            match step {
+                Step::Eval(t, min) => self.plan(t, min, &mut steps, &mut vals),
+                Step::Push(n) => self.scope.push(n),
+                Step::Pop => self.scope.pop(),
+                Step::Truncate(n) => self.scope.truncate(n),
+                Step::Indent(d) => self.indent = self.indent.wrapping_add_signed(d),
+                Step::Combine { pieces, children, level, min } => {
+                    let mut args: Vec<Option<Doc>> = vals.split_off(vals.len() - children).into_iter().map(Some).collect();
+                    let parts = pieces
+                        .into_iter()
+                        .map(|p| match p {
+                            Piece::Text(s) => Doc::Text(s),
+                            Piece::Child(i) => args[i].take().unwrap_or(Doc::Text(String::new())),
+                        })
+                        .collect();
+                    vals.push(paren(Doc::Cat(parts), level, min));
+                }
+                Step::Con { names, j, min } => {
+                    let ty = flatten(vals.pop().unwrap_or(Doc::Text(String::new())));
+                    vals.push(paren(Doc::Text(self.con_text(&ty, names, j)), ATOM, min));
+                }
+            }
+        }
+        vals.pop().unwrap_or(Doc::Text(String::new()))
     }
 
-    fn term_level_step(&mut self, t: &Term) -> (String, u8) {
+    /// Plans one node: a leaf's text goes to `vals`; an inner node pushes
+    /// its steps (children, scope changes, the combination) onto `steps`.
+    fn plan<'t>(&mut self, t: &'t Term, min: u8, steps: &mut Vec<Step<'t>>, vals: &mut Vec<Doc>) {
+        let leaf = |vals: &mut Vec<Doc>, s: String, level: u8| vals.push(paren(Doc::Text(s), level, min));
+        // Steps are run first to last; the stack wants them reversed.
+        let mut seq: Vec<Step<'t>> = Vec::new();
         match t {
             Term::Var(i) => {
                 let n = self.scope.len();
                 match (*i as usize).checked_add(1).and_then(|k| n.checked_sub(k)) {
-                    Some(at) => (self.scope[at].clone(), ATOM),
-                    None => (format!("@var({i})"), ATOM),
+                    Some(at) => leaf(vals, self.scope[at].clone(), ATOM),
+                    None => leaf(vals, format!("@var({i})"), ATOM),
                 }
+                return;
             }
-            Term::Ref(d) => (self.ref_name(d), ATOM),
-            Term::Member(k) => (self.member_name(*k), ATOM),
-            Term::Draft(i) => match self.group.get(*i as usize) {
-                Some(g) if !self.scope.contains(g.name) => (g.name.to_string(), ATOM),
-                _ => (format!("@member({i})"), ATOM),
-            },
-            Term::Nominal(n) => (self.nominal_name(n), ATOM),
-            Term::Con { ty, index } => (self.con(ty, *index), ATOM),
+            Term::Ref(d) => return leaf(vals, self.ref_name(d), ATOM),
+            Term::Member(k) => return leaf(vals, self.member_name(*k), ATOM),
+            Term::Draft(i) => {
+                let s = match self.group.get(*i as usize) {
+                    Some(g) if !self.scope.contains(g.name) => g.name.to_string(),
+                    _ => format!("@member({i})"),
+                };
+                return leaf(vals, s, ATOM);
+            }
+            Term::Nominal(n) => return leaf(vals, self.nominal_name(n), ATOM),
+            Term::Type(0) => return leaf(vals, "Type".into(), ATOM),
+            Term::Type(l) => return leaf(vals, format!("Type{{{l}}}"), ATOM),
+            Term::Prop => return leaf(vals, "Prop".into(), ATOM),
+            Term::Lit(l) => {
+                let (s, level) = self.lit(l);
+                return leaf(vals, s, level);
+            }
+            Term::Prim(n) => return leaf(vals, format!("@prim({n})"), ATOM),
+            Term::Unresolved(path) => return leaf(vals, path.join("."), ATOM),
+            Term::Con { ty, index } => {
+                seq.push(Step::Eval(ty, ATOM));
+                seq.push(Step::Con { names: self.ctor_names(ty), j: *index, min });
+            }
             Term::Lam { binder, domain, body } => {
                 let name = self.fresh(&binder.name, self.used(t, 0, || occurs(body, 0)));
-                let head = match domain {
-                    None if binder.usage == Usage::Many && !binder.implicit => name.clone(),
-                    None if binder.implicit => format!("{{{}{name}}}", Self::binder_prefix(binder)),
-                    None => format!("({}{name})", Self::binder_prefix(binder)),
+                let mut pieces = Vec::new();
+                let pre = Self::binder_prefix(binder);
+                let mut children = 0;
+                match domain {
+                    None if binder.usage == Usage::Many && !binder.implicit => pieces.push(Piece::Text(name.clone())),
+                    None if binder.implicit => pieces.push(Piece::Text(format!("{{{pre}{name}}}"))),
+                    None => pieces.push(Piece::Text(format!("({pre}{name})"))),
                     Some(d) => {
-                        let d = self.term(d, 1);
-                        if binder.implicit {
-                            format!("{{{}{name}{}{d}}}", Self::binder_prefix(binder), self.p.ann())
-                        } else {
-                            format!("({}{name}{}{d})", Self::binder_prefix(binder), self.p.ann())
-                        }
+                        seq.push(Step::Eval(d, 1));
+                        let (open, close) = if binder.implicit { ("{", "}") } else { ("(", ")") };
+                        pieces.push(Piece::Text(format!("{open}{pre}{name}{}", self.p.ann())));
+                        pieces.push(Piece::Child(0));
+                        pieces.push(Piece::Text(close.into()));
+                        children = 1;
                     }
-                };
-                self.scope.push(name);
-                let b = self.term(body, ARROW);
-                self.scope.pop();
-                (format!("{head} -> {b}"), ARROW)
+                }
+                pieces.push(Piece::Text(" -> ".into()));
+                pieces.push(Piece::Child(children));
+                seq.push(Step::Push(name));
+                seq.push(Step::Eval(body, ARROW));
+                seq.push(Step::Pop);
+                seq.push(Step::Combine { pieces, children: children + 1, level: ARROW, min });
             }
             Term::Pi { binder, domain, codomain } => {
                 let used = self.used(t, 0, || occurs(codomain, 0));
                 let plain = !used && binder.usage == Usage::Many && !binder.implicit;
-                let d = self.term(domain, if plain { 1 } else { ARROW });
-                let (head, name) = if plain {
-                    (d, "_".to_string())
+                seq.push(Step::Eval(domain, if plain { 1 } else { ARROW }));
+                let mut pieces = Vec::new();
+                let name = if plain {
+                    pieces.push(Piece::Child(0));
+                    "_".to_string()
                 } else {
                     let name = self.fresh(&binder.name, true);
-                    let inner = format!("{}{name}{}{d}", Self::binder_prefix(binder), self.p.ann());
-                    let h = if binder.implicit { format!("{{{inner}}}") } else { format!("({inner})") };
-                    (h, name)
+                    let (open, close) = if binder.implicit { ("{", "}") } else { ("(", ")") };
+                    pieces.push(Piece::Text(format!("{open}{}{name}{}", Self::binder_prefix(binder), self.p.ann())));
+                    pieces.push(Piece::Child(0));
+                    pieces.push(Piece::Text(close.into()));
+                    name
                 };
-                self.scope.push(name);
-                let c = self.term(codomain, ARROW);
-                self.scope.pop();
-                (format!("{head} {} {c}", self.p.pi_arrow()), ARROW)
+                pieces.push(Piece::Text(format!(" {} ", self.p.pi_arrow())));
+                pieces.push(Piece::Child(1));
+                seq.push(Step::Push(name));
+                seq.push(Step::Eval(codomain, ARROW));
+                seq.push(Step::Pop);
+                seq.push(Step::Combine { pieces, children: 2, level: ARROW, min });
             }
             Term::App(h, args) => {
-                if let (Term::Nominal(id), [l, r]) = (h.as_ref(), args.as_slice()) {
-                    if let Some(op) = builtin_name(id).filter(|o| infix_prec(o).is_some()) {
-                        let prec = infix_prec(op).unwrap();
-                        let ls = self.term(l, if prec == 1 { 2 } else { prec });
-                        let rs = self.term(r, prec + 1);
-                        let op = match (self.p.unicode, op) {
-                            (true, "<=") => "≤",
-                            (true, ">=") => "≥",
-                            (true, "!=") => "≠",
-                            (_, o) => o,
-                        };
-                        return (format!("{ls} {op} {rs}"), prec);
+                let infix = match (h.as_ref(), args.as_slice()) {
+                    (Term::Nominal(id), [l, r]) => builtin_name(id).filter(|o| infix_prec(o).is_some()).map(|op| (op, l, r)),
+                    _ => None,
+                };
+                if let Some((op, l, r)) = infix {
+                    let prec = infix_prec(op).unwrap();
+                    let op = match (self.p.unicode, op) {
+                        (true, "<=") => "≤",
+                        (true, ">=") => "≥",
+                        (true, "!=") => "≠",
+                        (_, o) => o,
+                    };
+                    seq.push(Step::Eval(l, if prec == 1 { 2 } else { prec }));
+                    seq.push(Step::Eval(r, prec + 1));
+                    let pieces = vec![Piece::Child(0), Piece::Text(format!(" {op} ")), Piece::Child(1)];
+                    seq.push(Step::Combine { pieces, children: 2, level: prec, min });
+                } else {
+                    seq.push(Step::Eval(h, ATOM));
+                    let mut pieces = vec![Piece::Child(0), Piece::Text("(".into())];
+                    for (k, a) in args.iter().enumerate() {
+                        seq.push(Step::Eval(a, ARROW));
+                        if k > 0 {
+                            pieces.push(Piece::Text(", ".into()));
+                        }
+                        pieces.push(Piece::Child(k + 1));
                     }
+                    pieces.push(Piece::Text(")".into()));
+                    seq.push(Step::Combine { pieces, children: args.len() + 1, level: ATOM, min });
                 }
-                let hs = self.term(h, ATOM);
-                let a: Vec<String> = args.iter().map(|a| self.term(a, ARROW)).collect();
-                (format!("{hs}({})", a.join(", ")), ATOM)
             }
             Term::Let { binder, ty, value, body } => {
-                let node = t;
-                let v = self.term(value, ARROW);
-                let t = ty.as_ref().map(|t| self.term(t, 1));
-                let name = self.fresh(&binder.name, self.used(node, 0, || occurs(body, 0)));
-                let inner = match t {
-                    Some(t) => format!("{}{name}{}{t}", Self::binder_prefix(binder), self.p.ann()),
-                    None => format!("{}{name}", Self::binder_prefix(binder)),
-                };
-                let lhs = if binder.implicit {
-                    format!("{{{inner}}}")
+                let name = self.fresh(&binder.name, self.used(t, 0, || occurs(body, 0)));
+                let pre = Self::binder_prefix(binder);
+                let (open_b, close_b) = if binder.implicit {
+                    ("{", "}")
                 } else if binder.usage != Usage::Many {
-                    format!("({inner})")
+                    ("(", ")")
                 } else {
-                    inner
+                    ("", "")
                 };
-                self.scope.push(name);
-                self.indent += 4;
-                let b = self.term(body, ARROW);
-                self.indent -= 4;
-                self.scope.pop();
+                seq.push(Step::Eval(value, ARROW));
+                let mut pieces = vec![Piece::Text(format!("let {open_b}{pre}{name}"))];
+                let mut children = 1;
+                if let Some(ty) = ty {
+                    seq.push(Step::Eval(ty, 1));
+                    pieces.push(Piece::Text(self.p.ann().to_string()));
+                    pieces.push(Piece::Child(1));
+                    children = 2;
+                }
+                let nl = self.nl();
                 let (open, close) = match self.p.blocks {
-                    Blocks::End => (String::new(), format!("{}end", self.nl())),
-                    Blocks::Braces => (" {".into(), format!("{}}}", self.nl())),
+                    Blocks::End => (String::new(), format!("{nl}end")),
+                    Blocks::Braces => (" {".into(), format!("{nl}}}")),
                     Blocks::Indent => (":".into(), String::new()),
                 };
-                (format!("let {lhs} = {v}{open}{}    {b}{close}", self.nl()), ARROW)
+                pieces.push(Piece::Text(format!("{close_b} = ")));
+                pieces.push(Piece::Child(0));
+                pieces.push(Piece::Text(format!("{open}{nl}    ")));
+                pieces.push(Piece::Child(children));
+                pieces.push(Piece::Text(close));
+                seq.push(Step::Push(name));
+                seq.push(Step::Indent(4));
+                seq.push(Step::Eval(body, ARROW));
+                seq.push(Step::Indent(-4));
+                seq.push(Step::Pop);
+                seq.push(Step::Combine { pieces, children: children + 1, level: ARROW, min });
             }
             Term::Match { scrutinee, data, motive: _, cases } => {
-                let s = self.term(scrutinee, 1);
                 let names = data.as_ref().and_then(|d| self.ctor_names(d));
-                let d = data.as_ref().map(|d| self.term(d, 1));
-                let mut out = format!("match {s}");
-                if let Some(d) = d {
-                    out.push_str(if self.p.annotation == ":" { ": " } else { " :: " });
-                    out.push_str(&d);
+                seq.push(Step::Eval(scrutinee, 1));
+                let mut pieces = vec![Piece::Text("match ".into()), Piece::Child(0)];
+                let mut children = 1;
+                if let Some(d) = data {
+                    seq.push(Step::Eval(d, 1));
+                    pieces.push(Piece::Text(if self.p.annotation == ":" { ": " } else { " :: " }.into()));
+                    pieces.push(Piece::Child(1));
+                    children = 2;
                 }
-                out.push_str(match self.p.blocks {
-                    Blocks::End => "",
-                    Blocks::Braces => " {",
-                    Blocks::Indent => ":",
-                });
+                pieces.push(Piece::Text(
+                    match self.p.blocks {
+                        Blocks::End => "",
+                        Blocks::Braces => " {",
+                        Blocks::Indent => ":",
+                    }
+                    .into(),
+                ));
+                let outer = self.nl();
                 self.indent += 4;
+                let inner = self.nl();
                 for c in cases {
                     let pat = match names.as_ref().and_then(|ns| ns.get(c.constructor as usize)) {
                         Some(n) if valid_ident(n) => n.clone(),
                         _ => format!("@ctor({})", c.constructor),
                     };
+                    // Binder names as the recursive printer chose them: each
+                    // sees the ones before it in scope.
                     let n0 = self.scope.len();
                     let mut bs = Vec::new();
                     for (k, b) in c.binders.iter().enumerate() {
@@ -520,34 +673,39 @@ impl Printer<'_> {
                         self.scope.push(name.clone());
                         bs.push(name);
                     }
-                    let body = self.term(&c.body, ARROW);
                     self.scope.truncate(n0);
                     let args = if bs.is_empty() { String::new() } else { format!("({})", bs.join(", ")) };
-                    out.push_str(&format!("{}{pat}{args} => {body}", self.nl()));
+                    pieces.push(Piece::Text(format!("{inner}{pat}{args} => ")));
+                    pieces.push(Piece::Child(children));
+                    children += 1;
+                    seq.push(Step::Indent(4));
+                    for b in bs {
+                        seq.push(Step::Push(b));
+                    }
+                    seq.push(Step::Eval(&c.body, ARROW));
+                    seq.push(Step::Truncate(n0));
+                    seq.push(Step::Indent(-4));
                 }
                 self.indent -= 4;
                 match self.p.blocks {
-                    Blocks::End => out.push_str(&format!("{}end", self.nl())),
-                    Blocks::Braces => out.push_str(&format!("{}}}", self.nl())),
+                    Blocks::End => pieces.push(Piece::Text(format!("{outer}end"))),
+                    Blocks::Braces => pieces.push(Piece::Text(format!("{outer}}}"))),
                     Blocks::Indent => {}
                 }
-                (out, ARROW)
+                seq.push(Step::Combine { pieces, children, level: ARROW, min });
             }
-            Term::Type(0) => ("Type".into(), ATOM),
-            Term::Type(l) => (format!("Type{{{l}}}"), ATOM),
-            Term::Prop => ("Prop".into(), ATOM),
-            Term::Lit(l) => self.lit(l),
-            Term::Prim(n) => (format!("@prim({n})"), ATOM),
             Term::Hole(t) => {
-                let s = self.term(t, ARROW);
-                (format!("?({s})"), ATOM)
+                seq.push(Step::Eval(t, ARROW));
+                let pieces = vec![Piece::Text("?(".into()), Piece::Child(0), Piece::Text(")".into())];
+                seq.push(Step::Combine { pieces, children: 1, level: ATOM, min });
             }
-            Term::Unresolved(path) => (path.join("."), ATOM),
             Term::Unsafe(a, t) => {
-                let s = self.term(t, ARROW);
-                (format!("@unsafe({}, {s})", a.as_str()), ATOM)
+                seq.push(Step::Eval(t, ARROW));
+                let pieces = vec![Piece::Text(format!("@unsafe({}, ", a.as_str())), Piece::Child(0), Piece::Text(")".into())];
+                seq.push(Step::Combine { pieces, children: 1, level: ATOM, min });
             }
         }
+        steps.extend(seq.into_iter().rev());
     }
 
     // ---- definitions ----

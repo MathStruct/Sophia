@@ -150,113 +150,62 @@ impl Term {
         Term::Hole(Box::new(ty))
     }
 
-    /// Visits every subterm in pre-order (the canonical stream order), at
-    /// any depth (one `deep::grow` per level, SP-015).
+    /// Visits every subterm in pre-order (the canonical stream order), with
+    /// an explicit stack: any depth on every target (SP-015).
     pub fn walk<'a>(&'a self, f: &mut impl FnMut(&'a Term)) {
-        sophia_hash::deep::grow(|| self.walk_step(f))
+        let mut stack = vec![self];
+        while let Some(t) = stack.pop() {
+            f(t);
+            let kids = t.children();
+            stack.extend(kids.into_iter().rev());
+        }
     }
 
-    fn walk_step<'a>(&'a self, f: &mut impl FnMut(&'a Term)) {
-        f(self);
+    /// The direct subterms, in canonical stream order.
+    pub fn children(&self) -> Vec<&Term> {
         match self {
-            Term::Var(_)
-            | Term::Ref(_)
-            | Term::Member(_)
-            | Term::Draft(_)
-            | Term::Nominal(_)
-            | Term::Type(_)
-            | Term::Prop
-            | Term::Lit(_)
-            | Term::Prim(_)
-            | Term::Unresolved(_) => {}
-            Term::Con { ty, .. } => ty.walk(f),
-            Term::Lam { domain, body, .. } => {
-                if let Some(d) = domain {
-                    d.walk(f);
-                }
-                body.walk(f);
-            }
-            Term::App(h, args) => {
-                h.walk(f);
-                for a in args {
-                    a.walk(f);
-                }
-            }
-            Term::Pi { domain, codomain, .. } => {
-                domain.walk(f);
-                codomain.walk(f);
-            }
-            Term::Let { ty, value, body, .. } => {
-                if let Some(t) = ty {
-                    t.walk(f);
-                }
-                value.walk(f);
-                body.walk(f);
-            }
-            Term::Match { scrutinee, data, motive, cases } => {
-                scrutinee.walk(f);
-                if let Some(d) = data {
-                    d.walk(f);
-                }
-                if let Some(m) = motive {
-                    m.walk(f);
-                }
-                for c in cases {
-                    c.body.walk(f);
-                }
-            }
-            Term::Hole(t) | Term::Unsafe(_, t) => t.walk(f),
+            Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => vec![ty],
+            Term::Lam { domain, body, .. } => domain.iter().map(|d| d.as_ref()).chain([body.as_ref()]).collect(),
+            Term::App(h, args) => std::iter::once(h.as_ref()).chain(args.iter()).collect(),
+            Term::Pi { domain, codomain, .. } => vec![domain, codomain],
+            Term::Let { ty, value, body, .. } => ty.iter().map(|t| t.as_ref()).chain([value.as_ref(), body.as_ref()]).collect(),
+            Term::Match { scrutinee, data, motive, cases } => std::iter::once(scrutinee.as_ref())
+                .chain(data.iter().map(|d| d.as_ref()))
+                .chain(motive.iter().map(|m| m.as_ref()))
+                .chain(cases.iter().map(|c| &c.body))
+                .collect(),
+            _ => Vec::new(),
         }
     }
 
     /// Rewrites every subterm bottom-up with `f` (used to resolve drafts),
-    /// at any depth (one `deep::grow` per level, SP-015).
-    pub fn map(mut self, f: &mut impl FnMut(Term) -> Term) -> Term {
-        sophia_hash::deep::grow(|| self.map_children(f));
-        f(self)
-    }
-
-    /// Replaces each direct subterm `c` by `c.map(f)`, in place. (`Term`
-    /// has a `Drop` impl, so subterms are taken out with `mem::take`, not
-    /// moved out by a pattern.)
-    fn map_children(&mut self, f: &mut impl FnMut(Term) -> Term) {
-        let mut on = |b: &mut Term| *b = std::mem::take(b).map(f);
-        match self {
-            Term::Con { ty, .. } => on(ty),
-            Term::Lam { domain, body, .. } => {
-                if let Some(d) = domain {
-                    on(d);
-                }
-                on(body);
-            }
-            Term::App(h, args) => {
-                on(h);
-                args.iter_mut().for_each(&mut on);
-            }
-            Term::Pi { domain, codomain, .. } => {
-                on(domain);
-                on(codomain);
-            }
-            Term::Let { ty, value, body, .. } => {
-                if let Some(t) = ty {
-                    on(t);
-                }
-                on(value);
-                on(body);
-            }
-            Term::Match { scrutinee, data, motive, cases } => {
-                on(scrutinee);
-                if let Some(d) = data {
-                    on(d);
-                }
-                if let Some(m) = motive {
-                    on(m);
-                }
-                cases.iter_mut().for_each(|c| on(&mut c.body));
-            }
-            Term::Hole(t) | Term::Unsafe(_, t) => on(t),
-            _ => {}
+    /// with an explicit stack: any depth on every target (SP-015). A node's
+    /// subterms are taken out, mapped, put back, then `f` sees the node.
+    pub fn map(self, f: &mut impl FnMut(Term) -> Term) -> Term {
+        enum W {
+            Visit(Term),
+            /// A node whose `n` subterms are being mapped.
+            Build(Term, usize),
         }
+        let mut done: Vec<Term> = Vec::new();
+        let mut work = vec![W::Visit(self)];
+        while let Some(w) = work.pop() {
+            match w {
+                W::Visit(mut t) => {
+                    let kids: Vec<Term> = slots(&mut t).into_iter().map(std::mem::take).collect();
+                    work.push(W::Build(t, kids.len()));
+                    work.extend(kids.into_iter().rev().map(W::Visit));
+                }
+                W::Build(mut t, n) => {
+                    let kids = done.split_off(done.len() - n);
+                    for (slot, k) in slots(&mut t).into_iter().zip(kids) {
+                        *slot = k;
+                    }
+                    done.push(f(t));
+                }
+            }
+        }
+        done.pop().unwrap_or_default()
     }
 
     /// Moves every direct subterm into `out`, leaving cheap leaves: the
@@ -346,56 +295,124 @@ impl Drop for Term {
 // that copying, comparing, hashing or printing a term of any depth cannot
 // overflow the stack (SP-015). They do what the derived impls did.
 
+/// The node itself with its subterms replaced by `Prop` placeholders: what
+/// `Clone` copies at each step, and what `PartialEq` and `Hash` compare.
+fn shallow(t: &Term) -> Term {
+    let p = || Box::new(Term::Prop);
+    match t {
+        Term::Var(x) => Term::Var(*x),
+        Term::Ref(x) => Term::Ref(*x),
+        Term::Member(x) => Term::Member(*x),
+        Term::Draft(x) => Term::Draft(*x),
+        Term::Nominal(x) => Term::Nominal(*x),
+        Term::Con { index, .. } => Term::Con { ty: p(), index: *index },
+        Term::Lam { binder, domain, .. } => Term::Lam { binder: binder.clone(), domain: domain.as_ref().map(|_| p()), body: p() },
+        Term::App(_, args) => Term::App(p(), args.iter().map(|_| Term::Prop).collect()),
+        Term::Pi { binder, .. } => Term::Pi { binder: binder.clone(), domain: p(), codomain: p() },
+        Term::Let { binder, ty, .. } => Term::Let { binder: binder.clone(), ty: ty.as_ref().map(|_| p()), value: p(), body: p() },
+        Term::Match { data, motive, cases, .. } => Term::Match {
+            scrutinee: p(),
+            data: data.as_ref().map(|_| p()),
+            motive: motive.as_ref().map(|_| p()),
+            cases: cases.iter().map(|c| Case { constructor: c.constructor, binders: c.binders.clone(), body: Term::Prop }).collect(),
+        },
+        Term::Type(x) => Term::Type(*x),
+        Term::Prop => Term::Prop,
+        Term::Lit(x) => Term::Lit(x.clone()),
+        Term::Prim(x) => Term::Prim(x.clone()),
+        Term::Hole(_) => Term::Hole(p()),
+        Term::Unresolved(x) => Term::Unresolved(x.clone()),
+        Term::Unsafe(a, _) => Term::Unsafe(*a, p()),
+    }
+}
+
+/// The subterm slots of a node, mutable, in canonical order.
+fn slots(t: &mut Term) -> Vec<&mut Term> {
+    match t {
+        Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => vec![ty],
+        Term::Lam { domain, body, .. } => domain.iter_mut().map(|d| d.as_mut()).chain([body.as_mut()]).collect(),
+        Term::App(h, args) => std::iter::once(h.as_mut()).chain(args.iter_mut()).collect(),
+        Term::Pi { domain, codomain, .. } => vec![domain, codomain],
+        Term::Let { ty, value, body, .. } => ty.iter_mut().map(|t| t.as_mut()).chain([value.as_mut(), body.as_mut()]).collect(),
+        Term::Match { scrutinee, data, motive, cases } => std::iter::once(scrutinee.as_mut())
+            .chain(data.iter_mut().map(|d| d.as_mut()))
+            .chain(motive.iter_mut().map(|m| m.as_mut()))
+            .chain(cases.iter_mut().map(|c| &mut c.body))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+// Clone, PartialEq and Hash by hand, with explicit stacks: copying,
+// comparing or hashing a term of any depth works on every target, wasm
+// included (SP-015). They agree with what the derived impls did.
+
 impl Clone for Term {
-    // Generated uniformly over all fields, `Copy` ones included.
-    #[allow(clippy::clone_on_copy)]
     fn clone(&self) -> Term {
-        sophia_hash::deep::grow(|| match self {
-            Term::Var(a_0) => Term::Var(a_0.clone()),
-            Term::Ref(a_0) => Term::Ref(a_0.clone()),
-            Term::Member(a_0) => Term::Member(a_0.clone()),
-            Term::Draft(a_0) => Term::Draft(a_0.clone()),
-            Term::Nominal(a_0) => Term::Nominal(a_0.clone()),
-            Term::Con { ty: a_ty, index: a_index } => Term::Con { ty: a_ty.clone(), index: a_index.clone() },
-            Term::Lam { binder: a_binder, domain: a_domain, body: a_body } => Term::Lam { binder: a_binder.clone(), domain: a_domain.clone(), body: a_body.clone() },
-            Term::App(a_0, a_1) => Term::App(a_0.clone(), a_1.clone()),
-            Term::Pi { binder: a_binder, domain: a_domain, codomain: a_codomain } => Term::Pi { binder: a_binder.clone(), domain: a_domain.clone(), codomain: a_codomain.clone() },
-            Term::Let { binder: a_binder, ty: a_ty, value: a_value, body: a_body } => Term::Let { binder: a_binder.clone(), ty: a_ty.clone(), value: a_value.clone(), body: a_body.clone() },
-            Term::Match { scrutinee: a_scrutinee, data: a_data, motive: a_motive, cases: a_cases } => Term::Match { scrutinee: a_scrutinee.clone(), data: a_data.clone(), motive: a_motive.clone(), cases: a_cases.clone() },
-            Term::Type(a_0) => Term::Type(a_0.clone()),
-            Term::Prop => Term::Prop,
-            Term::Lit(a_0) => Term::Lit(a_0.clone()),
-            Term::Prim(a_0) => Term::Prim(a_0.clone()),
-            Term::Hole(a_0) => Term::Hole(a_0.clone()),
-            Term::Unresolved(a_0) => Term::Unresolved(a_0.clone()),
-            Term::Unsafe(a_0, a_1) => Term::Unsafe(a_0.clone(), a_1.clone()),
-        })
+        // Post-order: a node is built once its subterms are.
+        enum W<'t> {
+            Visit(&'t Term),
+            Build(&'t Term),
+        }
+        let mut done: Vec<Term> = Vec::new();
+        let mut work = vec![W::Visit(self)];
+        while let Some(w) = work.pop() {
+            match w {
+                W::Visit(t) => {
+                    work.push(W::Build(t));
+                    work.extend(t.children().into_iter().rev().map(W::Visit));
+                }
+                W::Build(t) => {
+                    let mut node = shallow(t);
+                    let n = t.children().len();
+                    let kids = done.split_off(done.len() - n);
+                    for (slot, k) in slots(&mut node).into_iter().zip(kids) {
+                        *slot = k;
+                    }
+                    done.push(node);
+                }
+            }
+        }
+        done.pop().unwrap_or_default()
+    }
+}
+
+/// Everything about a node but its subterms, for `PartialEq` and `Hash`.
+fn same_node(a: &Term, b: &Term) -> bool {
+    match (a, b) {
+        (Term::Var(x), Term::Var(y)) | (Term::Member(x), Term::Member(y)) | (Term::Draft(x), Term::Draft(y)) | (Term::Type(x), Term::Type(y)) => x == y,
+        (Term::Ref(x), Term::Ref(y)) | (Term::Nominal(x), Term::Nominal(y)) => x == y,
+        (Term::Con { index: x, .. }, Term::Con { index: y, .. }) => x == y,
+        (Term::Lam { binder: x, domain: dx, .. }, Term::Lam { binder: y, domain: dy, .. }) => x == y && dx.is_some() == dy.is_some(),
+        (Term::App(_, x), Term::App(_, y)) => x.len() == y.len(),
+        (Term::Pi { binder: x, .. }, Term::Pi { binder: y, .. }) => x == y,
+        (Term::Let { binder: x, ty: tx, .. }, Term::Let { binder: y, ty: ty_, .. }) => x == y && tx.is_some() == ty_.is_some(),
+        (Term::Match { data: dx, motive: mx, cases: cx, .. }, Term::Match { data: dy, motive: my, cases: cy, .. }) => {
+            dx.is_some() == dy.is_some()
+                && mx.is_some() == my.is_some()
+                && cx.len() == cy.len()
+                && cx.iter().zip(cy).all(|(a, b)| a.constructor == b.constructor && a.binders == b.binders)
+        }
+        (Term::Prop, Term::Prop) => true,
+        (Term::Lit(x), Term::Lit(y)) => x == y,
+        (Term::Prim(x), Term::Prim(y)) => x == y,
+        (Term::Hole(_), Term::Hole(_)) => true,
+        (Term::Unresolved(x), Term::Unresolved(y)) => x == y,
+        (Term::Unsafe(x, _), Term::Unsafe(y, _)) => x == y,
+        _ => false,
     }
 }
 
 impl PartialEq for Term {
     fn eq(&self, other: &Term) -> bool {
-        sophia_hash::deep::grow(|| match (self, other) {
-            (Term::Var(a_0), Term::Var(b_0)) => a_0 == b_0,
-            (Term::Ref(a_0), Term::Ref(b_0)) => a_0 == b_0,
-            (Term::Member(a_0), Term::Member(b_0)) => a_0 == b_0,
-            (Term::Draft(a_0), Term::Draft(b_0)) => a_0 == b_0,
-            (Term::Nominal(a_0), Term::Nominal(b_0)) => a_0 == b_0,
-            (Term::Con { ty: a_ty, index: a_index }, Term::Con { ty: b_ty, index: b_index }) => a_ty == b_ty && a_index == b_index,
-            (Term::Lam { binder: a_binder, domain: a_domain, body: a_body }, Term::Lam { binder: b_binder, domain: b_domain, body: b_body }) => a_binder == b_binder && a_domain == b_domain && a_body == b_body,
-            (Term::App(a_0, a_1), Term::App(b_0, b_1)) => a_0 == b_0 && a_1 == b_1,
-            (Term::Pi { binder: a_binder, domain: a_domain, codomain: a_codomain }, Term::Pi { binder: b_binder, domain: b_domain, codomain: b_codomain }) => a_binder == b_binder && a_domain == b_domain && a_codomain == b_codomain,
-            (Term::Let { binder: a_binder, ty: a_ty, value: a_value, body: a_body }, Term::Let { binder: b_binder, ty: b_ty, value: b_value, body: b_body }) => a_binder == b_binder && a_ty == b_ty && a_value == b_value && a_body == b_body,
-            (Term::Match { scrutinee: a_scrutinee, data: a_data, motive: a_motive, cases: a_cases }, Term::Match { scrutinee: b_scrutinee, data: b_data, motive: b_motive, cases: b_cases }) => a_scrutinee == b_scrutinee && a_data == b_data && a_motive == b_motive && a_cases == b_cases,
-            (Term::Type(a_0), Term::Type(b_0)) => a_0 == b_0,
-            (Term::Prop, Term::Prop) => true,
-            (Term::Lit(a_0), Term::Lit(b_0)) => a_0 == b_0,
-            (Term::Prim(a_0), Term::Prim(b_0)) => a_0 == b_0,
-            (Term::Hole(a_0), Term::Hole(b_0)) => a_0 == b_0,
-            (Term::Unresolved(a_0), Term::Unresolved(b_0)) => a_0 == b_0,
-            (Term::Unsafe(a_0, a_1), Term::Unsafe(b_0, b_1)) => a_0 == b_0 && a_1 == b_1,
-            _ => false,
-        })
+        let mut stack = vec![(self, other)];
+        while let Some((a, b)) = stack.pop() {
+            if !same_node(a, b) {
+                return false;
+            }
+            stack.extend(a.children().into_iter().zip(b.children()));
+        }
+        true
     }
 }
 
@@ -403,29 +420,32 @@ impl Eq for Term {}
 
 impl std::hash::Hash for Term {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        sophia_hash::deep::grow(|| {
-            std::mem::discriminant(self).hash(state);
-            match self {
-                Term::Var(a_0) => { a_0.hash(state); }
-                Term::Ref(a_0) => { a_0.hash(state); }
-                Term::Member(a_0) => { a_0.hash(state); }
-                Term::Draft(a_0) => { a_0.hash(state); }
-                Term::Nominal(a_0) => { a_0.hash(state); }
-                Term::Con { ty: a_ty, index: a_index } => { a_ty.hash(state); a_index.hash(state); }
-                Term::Lam { binder: a_binder, domain: a_domain, body: a_body } => { a_binder.hash(state); a_domain.hash(state); a_body.hash(state); }
-                Term::App(a_0, a_1) => { a_0.hash(state); a_1.hash(state); }
-                Term::Pi { binder: a_binder, domain: a_domain, codomain: a_codomain } => { a_binder.hash(state); a_domain.hash(state); a_codomain.hash(state); }
-                Term::Let { binder: a_binder, ty: a_ty, value: a_value, body: a_body } => { a_binder.hash(state); a_ty.hash(state); a_value.hash(state); a_body.hash(state); }
-                Term::Match { scrutinee: a_scrutinee, data: a_data, motive: a_motive, cases: a_cases } => { a_scrutinee.hash(state); a_data.hash(state); a_motive.hash(state); a_cases.hash(state); }
-                Term::Type(a_0) => { a_0.hash(state); }
-                Term::Prop => {  }
-                Term::Lit(a_0) => { a_0.hash(state); }
-                Term::Prim(a_0) => { a_0.hash(state); }
-                Term::Hole(a_0) => { a_0.hash(state); }
-                Term::Unresolved(a_0) => { a_0.hash(state); }
-                Term::Unsafe(a_0, a_1) => { a_0.hash(state); a_1.hash(state); }
+        let mut stack = vec![self];
+        while let Some(t) = stack.pop() {
+            // The node without its subterms, then its subterms in order.
+            std::mem::discriminant(t).hash(state);
+            match t {
+                Term::Var(x) | Term::Member(x) | Term::Draft(x) | Term::Type(x) => x.hash(state),
+                Term::Ref(x) | Term::Nominal(x) => x.hash(state),
+                Term::Con { index, .. } => index.hash(state),
+                Term::Lam { binder, domain, .. } => (binder, domain.is_some()).hash(state),
+                Term::App(_, args) => args.len().hash(state),
+                Term::Pi { binder, .. } => binder.hash(state),
+                Term::Let { binder, ty, .. } => (binder, ty.is_some()).hash(state),
+                Term::Match { data, motive, cases, .. } => {
+                    (data.is_some(), motive.is_some(), cases.len()).hash(state);
+                    for c in cases {
+                        (c.constructor, &c.binders).hash(state);
+                    }
+                }
+                Term::Lit(x) => x.hash(state),
+                Term::Prim(x) => x.hash(state),
+                Term::Unresolved(x) => x.hash(state),
+                Term::Unsafe(a, _) => a.hash(state),
+                Term::Prop | Term::Hole(_) => {}
             }
-        })
+            stack.extend(t.children().into_iter().rev());
+        }
     }
 }
 

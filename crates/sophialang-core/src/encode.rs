@@ -122,79 +122,38 @@ impl Encoder<'_> {
         }
     }
 
-    /// One level per call, through `deep::grow` (SP-015): any depth.
+    /// Writes one term with an explicit stack (SP-015): any depth on every
+    /// target. Fields come out in the same order as a recursive pre-order
+    /// walk, so the bytes, and the ids, are unchanged.
     fn term(&mut self, t: &Term) {
-        sophia_hash::deep::grow(|| self.term_step(t))
-    }
-
-    fn term_step(&mut self, t: &Term) {
-        match t {
-            Term::Var(i) => self.w.u32("v", *i),
-            Term::Ref(d) => self.w.field("r", d.as_bytes()),
-            Term::Member(k) => self.w.u32("m", *k),
-            Term::Draft(i) => match (self.draft)(*i) {
-                Resolved::Member(k) => self.w.u32("m", k),
-                Resolved::Ref(d) => self.w.field("r", d.as_bytes()),
-            },
-            Term::Nominal(n) => self.w.field("n", n.as_bytes()),
-            Term::Con { ty, index } => {
-                let o = self.w.open("c");
-                self.term(ty);
-                self.w.u32("i", *index);
-                self.w.close(o);
-            }
-            Term::Lam { binder, domain, body } => {
-                let o = self.w.open("l");
-                self.binder(binder);
-                if let Some(d) = domain {
-                    let od = self.w.open("dom");
-                    self.term(d);
-                    self.w.close(od);
+        enum W<'t> {
+            Visit(&'t Term),
+            /// Open a wrapper field (`dom`, `ty`, `data`, `mot`) around a term.
+            Wrap(&'static str, &'t Term),
+            Case(&'t Case),
+            Close(sophia_hash::canonical::Open),
+            /// Close, then write a trailing u32 field (`Con`'s index).
+            CloseAfter(sophia_hash::canonical::Open, u32),
+        }
+        let mut work = vec![W::Visit(t)];
+        while let Some(w) = work.pop() {
+            let t = match w {
+                W::Close(o) => {
+                    self.w.close(o);
+                    continue;
                 }
-                self.term(body);
-                self.w.close(o);
-            }
-            Term::App(h, args) => {
-                let o = self.w.open("a");
-                self.term(h);
-                for a in args {
-                    self.term(a);
+                W::CloseAfter(o, i) => {
+                    self.w.u32("i", i);
+                    self.w.close(o);
+                    continue;
                 }
-                self.w.close(o);
-            }
-            Term::Pi { binder, domain, codomain } => {
-                let o = self.w.open("p");
-                self.binder(binder);
-                self.term(domain);
-                self.term(codomain);
-                self.w.close(o);
-            }
-            Term::Let { binder, ty, value, body } => {
-                let o = self.w.open("e");
-                self.binder(binder);
-                if let Some(t) = ty {
-                    let ot = self.w.open("ty");
-                    self.term(t);
-                    self.w.close(ot);
+                W::Wrap(tag, t) => {
+                    let o = self.w.open(tag);
+                    work.push(W::Close(o));
+                    work.push(W::Visit(t));
+                    continue;
                 }
-                self.term(value);
-                self.term(body);
-                self.w.close(o);
-            }
-            Term::Match { scrutinee, data, motive, cases } => {
-                let o = self.w.open("x");
-                self.term(scrutinee);
-                if let Some(d) = data {
-                    let od = self.w.open("data");
-                    self.term(d);
-                    self.w.close(od);
-                }
-                if let Some(m) = motive {
-                    let om = self.w.open("mot");
-                    self.term(m);
-                    self.w.close(om);
-                }
-                for c in cases {
+                W::Case(c) => {
                     let oc = self.w.open("case");
                     self.w.u32("i", c.constructor);
                     let ob = self.w.open("bs");
@@ -202,34 +161,95 @@ impl Encoder<'_> {
                         self.binder(b);
                     }
                     self.w.close(ob);
-                    self.term(&c.body);
-                    self.w.close(oc);
+                    work.push(W::Close(oc));
+                    work.push(W::Visit(&c.body));
+                    continue;
                 }
-                self.w.close(o);
-            }
-            Term::Type(l) => self.w.u32("t", *l),
-            Term::Prop => self.w.field("P", &[]),
-            Term::Lit(l) => self.lit(l),
-            Term::Prim(name) => self.w.str("o", name),
-            Term::Hole(ty) => {
-                let o = self.w.open("?");
-                self.w.u32("h", self.holes);
-                self.holes += 1;
-                self.term(ty);
-                self.w.close(o);
-            }
-            Term::Unresolved(path) => {
-                let o = self.w.open("!");
-                for s in path {
-                    self.w.str("s", s);
+                W::Visit(t) => t,
+            };
+            // Items are pushed in reverse: the last pushed is written first.
+            match t {
+                Term::Var(i) => self.w.u32("v", *i),
+                Term::Ref(d) => self.w.field("r", d.as_bytes()),
+                Term::Member(k) => self.w.u32("m", *k),
+                Term::Draft(i) => match (self.draft)(*i) {
+                    Resolved::Member(k) => self.w.u32("m", k),
+                    Resolved::Ref(d) => self.w.field("r", d.as_bytes()),
+                },
+                Term::Nominal(n) => self.w.field("n", n.as_bytes()),
+                Term::Con { ty, index } => {
+                    let o = self.w.open("c");
+                    work.push(W::CloseAfter(o, *index));
+                    work.push(W::Visit(ty));
                 }
-                self.w.close(o);
-            }
-            Term::Unsafe(a, t) => {
-                let o = self.w.open("U");
-                self.w.str("aspect", a.as_str());
-                self.term(t);
-                self.w.close(o);
+                Term::Lam { binder, domain, body } => {
+                    let o = self.w.open("l");
+                    self.binder(binder);
+                    work.push(W::Close(o));
+                    work.push(W::Visit(body));
+                    if let Some(d) = domain {
+                        work.push(W::Wrap("dom", d));
+                    }
+                }
+                Term::App(h, args) => {
+                    let o = self.w.open("a");
+                    work.push(W::Close(o));
+                    work.extend(args.iter().rev().map(W::Visit));
+                    work.push(W::Visit(h));
+                }
+                Term::Pi { binder, domain, codomain } => {
+                    let o = self.w.open("p");
+                    self.binder(binder);
+                    work.push(W::Close(o));
+                    work.push(W::Visit(codomain));
+                    work.push(W::Visit(domain));
+                }
+                Term::Let { binder, ty, value, body } => {
+                    let o = self.w.open("e");
+                    self.binder(binder);
+                    work.push(W::Close(o));
+                    work.push(W::Visit(body));
+                    work.push(W::Visit(value));
+                    if let Some(t) = ty {
+                        work.push(W::Wrap("ty", t));
+                    }
+                }
+                Term::Match { scrutinee, data, motive, cases } => {
+                    let o = self.w.open("x");
+                    work.push(W::Close(o));
+                    work.extend(cases.iter().rev().map(W::Case));
+                    if let Some(m) = motive {
+                        work.push(W::Wrap("mot", m));
+                    }
+                    if let Some(d) = data {
+                        work.push(W::Wrap("data", d));
+                    }
+                    work.push(W::Visit(scrutinee));
+                }
+                Term::Type(l) => self.w.u32("t", *l),
+                Term::Prop => self.w.field("P", &[]),
+                Term::Lit(l) => self.lit(l),
+                Term::Prim(name) => self.w.str("o", name),
+                Term::Hole(ty) => {
+                    let o = self.w.open("?");
+                    self.w.u32("h", self.holes);
+                    self.holes += 1;
+                    work.push(W::Close(o));
+                    work.push(W::Visit(ty));
+                }
+                Term::Unresolved(path) => {
+                    let o = self.w.open("!");
+                    for s in path {
+                        self.w.str("s", s);
+                    }
+                    self.w.close(o);
+                }
+                Term::Unsafe(a, t) => {
+                    let o = self.w.open("U");
+                    self.w.str("aspect", a.as_str());
+                    work.push(W::Close(o));
+                    work.push(W::Visit(t));
+                }
             }
         }
     }
@@ -382,77 +402,103 @@ fn lit(tag: &str, p: &[u8]) -> Result<Option<Lit>, DecodeError> {
     }))
 }
 
-/// One level per call, through `deep::grow` (SP-015): any depth.
+/// Decodes one term with an explicit stack of frames, one per composite
+/// term being read: any depth on every target, wasm included (SP-015).
 fn term(r: &mut Reader) -> Result<Term, DecodeError> {
-    sophia_hash::deep::grow(|| term_step(r))
+    let mut stack: Vec<Frame> = Vec::new();
+    let mut pending = match start(r)? {
+        Started::Done(t) => return Ok(t),
+        Started::Frame(f) => {
+            stack.push(f);
+            None
+        }
+    };
+    loop {
+        let top = stack.last_mut().expect("a frame");
+        if let Some(out) = pending.take() {
+            top.accept(out);
+        }
+        match top.next()? {
+            Next::Child(Started::Done(t)) => pending = Some(Out::Term(t)),
+            Next::Child(Started::Frame(f)) => stack.push(f),
+            Next::Finished(out) => {
+                stack.pop();
+                if stack.is_empty() {
+                    return match out {
+                        Out::Term(t) => Ok(t),
+                        Out::Case(_) => Err(DecodeError::Malformed("case outside a match")),
+                    };
+                }
+                pending = Some(out);
+            }
+        }
+    }
 }
 
-fn term_step(r: &mut Reader) -> Result<Term, DecodeError> {
+enum Started<'a> {
+    Done(Term),
+    Frame(Frame<'a>),
+}
+
+enum Out {
+    Term(Term),
+    Case(Case),
+}
+
+enum Next<'a> {
+    Child(Started<'a>),
+    Finished(Out),
+}
+
+enum Shape {
+    Con,
+    Lam { binder: Binder, has_dom: bool },
+    App,
+    Pi { binder: Binder },
+    Let { binder: Binder, has_ty: bool },
+    /// Stage: 0 scrutinee, 1 data?, 2 motive?, 3 cases.
+    Match { stage: u8, data: Option<Term>, motive: Option<Term>, cases: Vec<Case> },
+    Case { constructor: u32, binders: Vec<Binder> },
+    Hole,
+    Unsafe(Aspect),
+}
+
+/// A composite term being read: its own reader and the subterms so far.
+struct Frame<'a> {
+    kind: Shape,
+    r: Reader<'a>,
+    kids: Vec<Term>,
+}
+
+/// Reads a leaf term whole, or opens a frame for a composite one.
+fn start<'a>(r: &mut Reader<'a>) -> Result<Started<'a>, DecodeError> {
     let tag = r.peek_tag()?;
-    Ok(match tag {
+    let frame = |kind, r| Ok(Started::Frame(Frame { kind, r, kids: Vec::new() }));
+    Ok(Started::Done(match tag {
         "v" => Term::Var(r.expect_u32("v")?),
         "r" => Term::Ref(digest_of(r.expect("r")?)?),
         "m" => Term::Member(r.expect_u32("m")?),
         "n" => Term::Nominal(digest_of(r.expect("n")?)?),
-        "c" => {
-            let mut c = r.enter("c")?;
-            let ty = term(&mut c)?;
-            Term::Con { ty: Box::new(ty), index: c.expect_u32("i")? }
-        }
+        "c" => return frame(Shape::Con, r.enter("c")?),
         "l" => {
             let mut l = r.enter("l")?;
             let binder = binder(&mut l)?;
-            let domain = if l.peek_tag()? == "dom" { Some(Box::new(term(&mut l.enter("dom")?)?)) } else { None };
-            Term::Lam { binder, domain, body: Box::new(term(&mut l)?) }
+            let has_dom = l.peek_tag()? == "dom";
+            return frame(Shape::Lam { binder, has_dom }, l);
         }
-        "a" => {
-            let mut a = r.enter("a")?;
-            let h = term(&mut a)?;
-            let mut args = Vec::new();
-            while !a.is_empty() {
-                args.push(term(&mut a)?);
-            }
-            Term::App(Box::new(h), args)
-        }
+        "a" => return frame(Shape::App, r.enter("a")?),
         "p" => {
             let mut p = r.enter("p")?;
             let binder = binder(&mut p)?;
-            let domain = Box::new(term(&mut p)?);
-            Term::Pi { binder, domain, codomain: Box::new(term(&mut p)?) }
+            return frame(Shape::Pi { binder }, p);
         }
         "e" => {
             let mut e = r.enter("e")?;
             let binder = binder(&mut e)?;
-            let ty = if e.peek_tag()? == "ty" { Some(Box::new(term(&mut e.enter("ty")?)?)) } else { None };
-            let value = Box::new(term(&mut e)?);
-            Term::Let { binder, ty, value, body: Box::new(term(&mut e)?) }
+            let has_ty = e.peek_tag()? == "ty";
+            return frame(Shape::Let { binder, has_ty }, e);
         }
-        "x" => {
-            let mut x = r.enter("x")?;
-            let scrutinee = Box::new(term(&mut x)?);
-            let data = if !x.is_empty() && x.peek_tag()? == "data" {
-                Some(Box::new(term(&mut x.enter("data")?)?))
-            } else {
-                None
-            };
-            let motive = if !x.is_empty() && x.peek_tag()? == "mot" {
-                Some(Box::new(term(&mut x.enter("mot")?)?))
-            } else {
-                None
-            };
-            let mut cases = Vec::new();
-            while !x.is_empty() {
-                let mut c = x.enter("case")?;
-                let constructor = c.expect_u32("i")?;
-                let mut bs = c.enter("bs")?;
-                let mut binders = Vec::new();
-                while !bs.is_empty() {
-                    binders.push(binder(&mut bs)?);
-                }
-                cases.push(Case { constructor, binders, body: term(&mut c)? });
-            }
-            Term::Match { scrutinee, data, motive, cases }
-        }
+        "x" => return frame(Shape::Match { stage: 0, data: None, motive: None, cases: Vec::new() }, r.enter("x")?),
         "t" => Term::Type(r.expect_u32("t")?),
         "P" => {
             r.expect("P")?;
@@ -462,7 +508,7 @@ fn term_step(r: &mut Reader) -> Result<Term, DecodeError> {
         "?" => {
             let mut h = r.enter("?")?;
             h.expect_u32("h")?;
-            Term::Hole(Box::new(term(&mut h)?))
+            return frame(Shape::Hole, h);
         }
         "!" => {
             let mut u = r.enter("!")?;
@@ -476,63 +522,180 @@ fn term_step(r: &mut Reader) -> Result<Term, DecodeError> {
             let mut u = r.enter("U")?;
             let a = u.expect_str("aspect")?;
             let a = Aspect::parse(a).ok_or_else(|| DecodeError::Unknown { what: "aspect", found: a.into() })?;
-            Term::Unsafe(a, Box::new(term(&mut u)?))
+            return frame(Shape::Unsafe(a), u);
         }
         _ => {
             let (tag, p) = r.next()?;
-            return lit(tag, p)?.map(Term::Lit).ok_or_else(|| DecodeError::Unknown { what: "term", found: tag.into() });
+            return lit(tag, p)?.map(|l| Started::Done(Term::Lit(l))).ok_or_else(|| DecodeError::Unknown { what: "term", found: tag.into() });
         }
-    })
+    }))
+}
+
+impl<'a> Frame<'a> {
+    fn accept(&mut self, out: Out) {
+        match (&mut self.kind, out) {
+            (Shape::Match { stage, data, motive, cases }, out) => match (*stage, out) {
+                (0, Out::Term(t)) => {
+                    self.kids.push(t);
+                    *stage = 1;
+                }
+                (1, Out::Term(t)) => {
+                    *data = Some(t);
+                    *stage = 2;
+                }
+                (2, Out::Term(t)) => {
+                    *motive = Some(t);
+                    *stage = 3;
+                }
+                (_, Out::Case(c)) => cases.push(c),
+                (_, Out::Term(t)) => self.kids.push(t),
+            },
+            (_, Out::Term(t)) => self.kids.push(t),
+            (_, Out::Case(_)) => {}
+        }
+    }
+
+    /// The next subterm to read, or the finished term.
+    fn next(&mut self) -> Result<Next<'a>, DecodeError> {
+        let n = self.kids.len();
+        let child = |r: &mut Reader<'a>| -> Result<Next<'a>, DecodeError> { Ok(Next::Child(start(r)?)) };
+        let wrapped = |r: &mut Reader<'a>, tag: &str| -> Result<Next<'a>, DecodeError> {
+            let mut w = r.enter(tag)?;
+            Ok(Next::Child(start(&mut w)?))
+        };
+        let mut kids = std::mem::take(&mut self.kids);
+        let done = |t: Term| Ok(Next::Finished(Out::Term(t)));
+        let res = match &mut self.kind {
+            Shape::Con if n == 0 => child(&mut self.r),
+            Shape::Con => done(Term::Con { ty: Box::new(kids.pop().unwrap_or_default()), index: self.r.expect_u32("i")? }),
+            Shape::Lam { has_dom: true, .. } if n == 0 => wrapped(&mut self.r, "dom"),
+            Shape::Lam { has_dom, .. } if n < 1 + *has_dom as usize => child(&mut self.r),
+            Shape::Lam { binder, has_dom } => {
+                let body = kids.pop().unwrap_or_default();
+                let domain = if *has_dom { kids.pop().map(Box::new) } else { None };
+                done(Term::Lam { binder: binder.clone(), domain, body: Box::new(body) })
+            }
+            Shape::App if n == 0 || !self.r.is_empty() => child(&mut self.r),
+            Shape::App => {
+                let h = kids.remove(0);
+                done(Term::App(Box::new(h), std::mem::take(&mut kids)))
+            }
+            Shape::Pi { .. } if n < 2 => child(&mut self.r),
+            Shape::Pi { binder } => {
+                let codomain = kids.pop().unwrap_or_default();
+                let domain = kids.pop().unwrap_or_default();
+                done(Term::Pi { binder: binder.clone(), domain: Box::new(domain), codomain: Box::new(codomain) })
+            }
+            Shape::Let { has_ty: true, .. } if n == 0 => wrapped(&mut self.r, "ty"),
+            Shape::Let { has_ty, .. } if n < 2 + *has_ty as usize => child(&mut self.r),
+            Shape::Let { binder, has_ty } => {
+                let body = kids.pop().unwrap_or_default();
+                let value = kids.pop().unwrap_or_default();
+                let ty = if *has_ty { kids.pop().map(Box::new) } else { None };
+                done(Term::Let { binder: binder.clone(), ty, value: Box::new(value), body: Box::new(body) })
+            }
+            Shape::Match { stage, data, motive, cases } => loop {
+                match *stage {
+                    0 => break child(&mut self.r),
+                    1 if !self.r.is_empty() && self.r.peek_tag()? == "data" => break wrapped(&mut self.r, "data"),
+                    1 => *stage = 2,
+                    2 if !self.r.is_empty() && self.r.peek_tag()? == "mot" => break wrapped(&mut self.r, "mot"),
+                    2 => *stage = 3,
+                    _ if !self.r.is_empty() => {
+                        let mut c = self.r.enter("case")?;
+                        let constructor = c.expect_u32("i")?;
+                        let mut bs = c.enter("bs")?;
+                        let mut binders = Vec::new();
+                        while !bs.is_empty() {
+                            binders.push(binder(&mut bs)?);
+                        }
+                        break Ok(Next::Child(Started::Frame(Frame { kind: Shape::Case { constructor, binders }, r: c, kids: Vec::new() })));
+                    }
+                    _ => {
+                        let scrutinee = kids.pop().unwrap_or_default();
+                        break done(Term::Match {
+                            scrutinee: Box::new(scrutinee),
+                            data: data.take().map(Box::new),
+                            motive: motive.take().map(Box::new),
+                            cases: std::mem::take(cases),
+                        });
+                    }
+                }
+            },
+            Shape::Case { .. } if n == 0 => child(&mut self.r),
+            Shape::Case { constructor, binders } => Ok(Next::Finished(Out::Case(Case {
+                constructor: *constructor,
+                binders: std::mem::take(binders),
+                body: kids.pop().unwrap_or_default(),
+            }))),
+            Shape::Hole if n == 0 => child(&mut self.r),
+            Shape::Hole => done(Term::Hole(Box::new(kids.pop().unwrap_or_default()))),
+            Shape::Unsafe(_) if n == 0 => child(&mut self.r),
+            Shape::Unsafe(a) => done(Term::Unsafe(*a, Box::new(kids.pop().unwrap_or_default()))),
+        };
+        self.kids = kids;
+        res
+    }
 }
 
 /// Visits every display name of a definition (binder names and constructor
 /// names) in canonical stream order.
 pub fn for_each_name(def: &mut Definition, f: &mut impl FnMut(&mut String)) {
+    /// One term, pre-order, with an explicit stack: any depth (SP-015).
     fn term(t: &mut Term, f: &mut impl FnMut(&mut String)) {
-        sophia_hash::deep::grow(|| term_step(t, f))
-    }
-    fn term_step(t: &mut Term, f: &mut impl FnMut(&mut String)) {
-        match t {
-            Term::Con { ty, .. } => term(ty, f),
-            Term::Lam { binder, domain, body } => {
-                f(&mut binder.name);
-                if let Some(d) = domain {
-                    term(d, f);
-                }
-                term(body, f);
-            }
-            Term::App(h, args) => {
-                term(h, f);
-                args.iter_mut().for_each(|a| term(a, f));
-            }
-            Term::Pi { binder, domain, codomain } => {
-                f(&mut binder.name);
-                term(domain, f);
-                term(codomain, f);
-            }
-            Term::Let { binder, ty, value, body } => {
-                f(&mut binder.name);
-                if let Some(t) = ty {
-                    term(t, f);
-                }
-                term(value, f);
-                term(body, f);
-            }
-            Term::Match { scrutinee, data, motive, cases } => {
-                term(scrutinee, f);
-                if let Some(d) = data {
-                    term(d, f);
-                }
-                if let Some(m) = motive {
-                    term(m, f);
-                }
-                for c in cases {
+        enum W<'t> {
+            T(&'t mut Term),
+            C(&'t mut Case),
+        }
+        let mut stack = vec![W::T(t)];
+        while let Some(w) = stack.pop() {
+            let t = match w {
+                W::T(t) => t,
+                W::C(c) => {
                     c.binders.iter_mut().for_each(|b| f(&mut b.name));
-                    term(&mut c.body, f);
+                    stack.push(W::T(&mut c.body));
+                    continue;
                 }
+            };
+            // Children pushed in reverse, so they are visited in order.
+            match t {
+                Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => stack.push(W::T(ty)),
+                Term::Lam { binder, domain, body } => {
+                    f(&mut binder.name);
+                    stack.push(W::T(body));
+                    if let Some(d) = domain {
+                        stack.push(W::T(d));
+                    }
+                }
+                Term::App(h, args) => {
+                    stack.extend(args.iter_mut().rev().map(W::T));
+                    stack.push(W::T(h));
+                }
+                Term::Pi { binder, domain, codomain } => {
+                    f(&mut binder.name);
+                    stack.push(W::T(codomain));
+                    stack.push(W::T(domain));
+                }
+                Term::Let { binder, ty, value, body } => {
+                    f(&mut binder.name);
+                    stack.push(W::T(body));
+                    stack.push(W::T(value));
+                    if let Some(t) = ty {
+                        stack.push(W::T(t));
+                    }
+                }
+                Term::Match { scrutinee, data, motive, cases } => {
+                    stack.extend(cases.iter_mut().rev().map(W::C));
+                    if let Some(m) = motive {
+                        stack.push(W::T(m));
+                    }
+                    if let Some(d) = data {
+                        stack.push(W::T(d));
+                    }
+                    stack.push(W::T(scrutinee));
+                }
+                _ => {}
             }
-            Term::Hole(t) | Term::Unsafe(_, t) => term(t, f),
-            _ => {}
         }
     }
     if let Some(t) = &mut def.ty {

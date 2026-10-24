@@ -50,6 +50,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | `sophia-interface` | `examples/edit_timing.rs` | [[edit_timing]] | B-15's steps on `Interface` directly, to separate Sophia's share |
 | `sophia-interface` | `examples/listing_timing.rs` | [[listing_timing]] | `children` and `all` on a large store (Moonkale's Explorer calls) |
 | `sophia-interface` | `tests/wasm_read.rs` | [[sophia_interface]] | the read path on wasm32 under Node, from a store's bytes (SPEC-009 §4) |
+| `sophia-interface` | `tests/wasm_deep.rs` | [[sophia_interface]] | the read path at depth 100 000 in wasm (Node, Firefox) |
 | `sophia-interface` | `tests/wasm_fixture.rs`, `tests/fixtures/web.sophia` | [[sophia_interface]] | the fixture store, and `from_bytes` natively |
 | `experiments/b15-edit-loop` | `run.sh` | [[run]] | B-15: Moonkale's `edit_loop` on synthetic stores of 10³–10⁵ definitions |
 | `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
