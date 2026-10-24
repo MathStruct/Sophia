@@ -24,3 +24,5 @@ A binder before `->` or `-->` is recovered from the parsed left side (`to_binder
 **`let` with braces** (2026-10-21): `let x = v {` body `}` is read when the brace is on the `let`'s line (no newline token between the value and the brace), as `match s {` … `}` already was; otherwise `let x = v [in]` body `end`. The random round trip (`tests/round_trip.rs`, 20 000 cases in both profiles) also checks that Rust text contains no `end` line.
 
 **Diagnostics name tokens as written** (2026-10-21): ``expected `end` (found `)`)``, not the token's Debug form (`Sym(")")`). `Tok`'s `Display` is in [[lexer]].
+
+**Any depth (2026-10-24, SP-015).** `expr` and `atom` (every recursive cycle passes through one of them) call `deep::grow`; the limit is a node budget (`Limits::max_nodes`, counted in `atom`), not nesting. `tests/deep.rs` parses 100 000-deep texts on a 256 KiB stack.

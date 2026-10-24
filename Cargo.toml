@@ -41,6 +41,7 @@ thiserror = "2"
 proptest = "1.12"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 tempfile = "3"
+stacker = "0.1.25"
 
 sophia-hash = { path = "crates/sophia-hash" }
 sophialang-core = { path = "crates/sophialang-core" }

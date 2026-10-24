@@ -6,7 +6,7 @@
 >
 > Theory: [[Theory of the v0 Store]] §4 (names and printing as a lens).
 
-`parse_text(env, ns, text, limits)` returns the items and any warnings, or the errors with byte ranges. It stores nothing. It runs on a thread with a 64 MiB stack, so the depth limit (128) bounds recursion whatever the caller's stack.
+`parse_text(env, ns, text, limits)` returns the items and any warnings, or the errors with byte ranges. It stores nothing. Since 2026-10-24 it runs on the caller's thread: parsing and elaborating go through `sophia_hash::deep::grow` at every level, so any depth works without a big-stack thread (which wasm would not have). A panic still comes back as an error.
 
 `print(env, ns, profile, items)` returns text.
 
@@ -24,4 +24,4 @@ For every editable profile (`julia`, `rust`), printing, then parsing, then norma
 - **Printing names that parse back.** The printer resolves every name it is about to print with the parser's own resolution ([[resolve]]), and falls back to `#<hex>` or `##<hex>` if the name would mean something else (a local shadows it, or a nearer namespace has the same name).
 - **`Type {` versus `Type{1}`.** In the Rust profile, `data Nat: Type {` opens a block. A universe level is read only when the brace touches `Type`.
 - **Implicit binders with usage ω** have no surface form: `{x}` means usage 0. Such binders do not occur in practice, and the random generator avoids them.
-- **The stack.** A depth limit of 128 overflowed a debug test thread's 2 MiB stack (about 9 frames per level), hence the parser thread.
+- **The stack.** A depth limit of 128 overflowed a debug test thread's 2 MiB stack (about 9 frames per level), hence, until 2026-10-24, a parser thread with 64 MiB. Replaced by `deep::grow` and no depth limit (SP-015).

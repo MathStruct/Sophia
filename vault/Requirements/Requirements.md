@@ -197,7 +197,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-138 | S-ADR-0012 accepted: the query algebra stays a separate IR sharing identity, types and evidence infrastructure with sophialang. | R5 §1 | now | accepted |
 | SR-139 | Next order: finish Mathlib and Reactant; reconstruction before compaction; Moonkale's end-to-end edit benchmark; cross-session artifacts; compact edges; only then other compilers or the agent server. | R5 §4 | now | adopted ([[Semantic Boundary Experiments]]) |
 | SR-140 | WebAssembly as a compilation target, "for way later". Daniel (2026-10-22): **both**. (a) sophialang code compiled to WASM (a backend beside the planned ones; WASM's validation and sandbox make the artifact checkable and portable, an input-addressed artifact in the sense of SPEC-006 §3); (b) Sophia's own crates built for wasm32 (a store or the query engine in a browser). (b) conflicts with SR-39 / S-ADR-0005 (the wasm client never opens the store) and needs its own decision before it is built. | D (2026-10-22) | later | both wanted; not planned before SR-139's order is done |
-| SR-145 | No limit on expressiveness: terms of any depth are stored, decoded, printed and parsed; depth may cost memory, never a refusal or a crash. Deep regions are the UI's to fold. | D (2026-10-24, revision of SP-015, relayed by the Moonkale agent) | next | planned ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]) |
+| SR-145 | No limit on expressiveness: terms of any depth are stored, decoded, printed and parsed; depth may cost memory, never a refusal or a crash. Deep regions are the UI's to fold. | D (2026-10-24, revision of SP-015, relayed by the Moonkale agent) | next | step 1a done 2026-10-24: any depth on native targets; wasm and printing speed open ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]) |
 
 ## From Moonkale
 
@@ -228,7 +228,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 | SR-46 | How e-classes and e-nodes map to nodes and edges; whether they are persisted or derived; whether an equivalence can point at a content id. | M (North Star §4) | later | sketched (SPEC-001 §10) |
 | SR-47 | Proofs as annotations: the payload, the checker's identity and version, and how they go stale. | M (Code Graph Schema §6, §7; WP-19) | later | specified (SPEC-001 §8) |
 | SR-48 | Holes and unresolved references: are they allowed in the store, and are they hashed? | M (Code Graph Schema §6 `Unresolved`; North Star §6) | v0 | specified (SPEC-001 §4.4) |
-| SR-50 | Security: the `sql` dialect is read-only by enforcement (an authorizer, no `ATTACH`, a row cap, a step budget); the adapter classifies query risk (`Source::classify`); the parser is bounded in size, depth and count. | M (Security.md, the rules at its end; review of 2026-10-17) | v0 | specified (SPEC-005.2, §11) |
+| SR-50 | Security: the `sql` dialect is read-only by enforcement (an authorizer, no `ATTACH`, a row cap, a step budget); the adapter classifies query risk (`Source::classify`); the parser is bounded in size and count (not depth, since SR-145). | M (Security.md, the rules at its end; review of 2026-10-17) | v0 | specified (SPEC-005.2, §11) |
 | SR-49 | Acceptance for WP-68: a handful of Sophia definitions stored, named and drawn in Moonkale. | M (Work Packages, WP-68) | v0 | specified (SPEC-004 §9) |
 
 ## Changes

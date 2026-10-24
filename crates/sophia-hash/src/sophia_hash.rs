@@ -9,6 +9,7 @@
 
 pub mod canonical;
 pub mod component;
+pub mod deep;
 mod digest;
 pub mod merkle;
 

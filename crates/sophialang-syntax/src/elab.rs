@@ -121,8 +121,8 @@ impl Elab<'_> {
             SBody::Rule { vars, weight, head, premises } => {
                 let weight = match weight {
                     None => None,
-                    Some(w) => match self.expr(w)? {
-                        Term::Lit(l) => Some(l),
+                    Some(w) => match &self.expr(w)? {
+                        Term::Lit(l) => Some(l.clone()),
                         _ => return Err(Diagnostic::error(w.span, "a rule weight must be a literal")),
                     },
                 };
@@ -193,7 +193,12 @@ impl Elab<'_> {
         Ok((Binder { name: b.name.clone(), usage: b.usage, implicit: b.implicit }, ty))
     }
 
+    /// One level per call, through `deep::grow` (SP-015): any depth.
     pub fn expr(&mut self, e: &SExpr) -> R<Term> {
+        sophia_hash::deep::grow(|| self.expr_step(e))
+    }
+
+    fn expr_step(&mut self, e: &SExpr) -> R<Term> {
         Ok(match &e.kind {
             SKind::Path(p) => {
                 if p.len() == 1 {

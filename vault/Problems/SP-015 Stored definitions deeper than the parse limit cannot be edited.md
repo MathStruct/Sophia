@@ -1,6 +1,6 @@
 #open-problem
 
-> **Status: open. Revised by Daniel on 2026-10-24 (~10:15, relayed by the Moonkale agent): no limit on expressiveness, so no store-time depth limit that refuses records. This replaces that morning's approval of options 2 and 3 below.** Found 2026-10-21. Found while checking the Rust-profile fix against `sophia gen` stores. Related: [[SPEC-005 Rendering Profiles]] §5 (rule 4: text in an editable profile parses back), [[lexer]] (`Limits`), SR-50.
+> **Status: open; step 1a done (2026-10-24): every pass is depth-safe on native targets, the parse depth limit is gone. Revised by Daniel on 2026-10-24 (~10:15, relayed by the Moonkale agent): no limit on expressiveness, so no store-time depth limit that refuses records. This replaces that morning's approval of options 2 and 3 below.** Found 2026-10-21. Found while checking the Rust-profile fix against `sophia gen` stores. Related: [[SPEC-005 Rendering Profiles]] §5 (rule 4: text in an editable profile parses back), [[lexer]] (`Limits`), SR-50.
 
 **Problem.** The parser refuses text nested deeper than `Limits::max_depth` (128, Moonkale WP-66's limit, SR-50), counted as nested `expr` calls: every `let` value and body, lambda body, argument and parenthesis adds one. Nothing bounds the depth of a term that enters the store by another path (`normalise_batch`, `sophia gen`, a future ingest). Such a definition prints, but its text does not parse back, so Moonkale can show it and not save it, even unchanged.
 
@@ -35,3 +35,14 @@ Daniel leans to 4, which holds only if 1 holds on Sophia's side.
 2. **Then option 3, narrowed.** After 1, every editable profile's text parses back at any depth, so "not editable" remains only where a profile cannot express something (`python` is display-only, `core` is a debug view). Proposed as a fact computed on demand (print, parse, compare the id), not a check on every write.
 3. **Option 2 separately, later.** It reads better and removes the commonest depth, but it changes ids, so it is a migration with its own proposal and Daniel's decision; it is not needed for safety after 1.
 4. **Generator:** add a realistic-depth shape for benchmarks, keep the deep shape as a stress test.
+
+## Done (2026-10-24): step 1a
+
+- `sophia_hash::deep::grow` ([[deep]]): `stacker::maybe_grow` on native targets; a marked placeholder on wasm32, to be replaced.
+- Through it, at every level: encode, decode, `for_each_name`, `Term::walk` / `map` / `Clone` / `PartialEq` / `Hash` / `Debug`, the parser (`expr`, `atom`), the elaborator, the printer (`term_level`, `occurs`), `SExpr`'s `Clone` / `PartialEq` / `Debug` / `Drop`. `Term`'s `Drop` is iterative.
+- The parser's depth limit (128) is replaced by a node budget (`Limits::max_nodes`, 2²⁰); `parse_text` no longer starts a 64 MiB thread.
+- **Tests** (`crates/sophialang-syntax/tests/deep.rs`): sum, lambda and let chains 100 000 deep, on a 256 KiB thread: encode, decode, clone, eq, hash, Debug, walk, map; and print and parse back to the same id (sum in the julia profile, lambda in rust). 2.0 s release, 5.3 s debug. The old round-trip test that expected 300 nested parentheses to be refused now expects them to parse.
+- **The measurement this problem started from:** B-15's `gen1000`, first 300 definitions printed and saved unchanged: 300 of 300 keep their id (22 failed before). All 1 000 print exactly as before in both profiles.
+- **Moonkale's side:** `moonkale-content-id` at `09ce6d9c` has no depth limit either (heap continuations, budgets on size and work), reported by the Moonkale agent.
+
+**Still open:** printing nested `let`s is superlinear (5.0 s for 16 000 levels; each level copies its children's text), step 1b; the wasm placeholder; option 3 (narrowed) for display-only profiles.

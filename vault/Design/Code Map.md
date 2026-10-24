@@ -11,6 +11,8 @@ Every source file in the repository has a markdown sibling of the same name desc
 | Crate | File | Note | Role |
 | --- | --- | --- | --- |
 | `sophia-hash` | `sophia_hash.rs` | [[sophia_hash]] | identity: framing, digests, components; language-agnostic |
+| `sophia-hash` | `deep.rs` | [[deep]] | recursion at any depth: `stacker` on native targets, a replaceable placeholder on wasm (SP-015) |
+| `sophialang-syntax` | `tests/deep.rs` | [[deep]] | every pass at depth 100 000 on a 256 KiB stack |
 | | `canonical.rs` | [[canonical]] | the tag-length-value framing shared with Moonkale |
 | | `component.rs` | [[component]] | SCCs and the canonical order of recursive groups |
 | | `merkle.rs` | [[merkle]] | component, member and nominal digests; `Record` |

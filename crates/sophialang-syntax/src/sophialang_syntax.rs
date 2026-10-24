@@ -40,23 +40,13 @@ pub fn split_path(path: &str) -> Vec<&str> {
 /// returns the items and any warnings (such as unresolved names); on
 /// failure, the errors. Nothing is stored either way.
 ///
-/// Parsing is recursive, so it runs on a thread with a large stack: the
-/// depth limit, not the caller's stack size, bounds it (SR-50).
+/// Parsing and elaborating are recursive and run at any depth through
+/// `deep::grow` (SP-015), on the caller's thread: no parser thread, which
+/// wasm would not have. A panic is reported as an error, not propagated.
 pub fn parse_text(env: &dyn Env, ns: &str, text: &str, limits: Limits) -> Result<(Vec<Item>, Vec<Diagnostic>), Vec<Diagnostic>> {
-    std::thread::scope(|s| {
-        std::thread::Builder::new()
-            .name("sophialang-parse".into())
-            .stack_size(PARSE_STACK)
-            .spawn_scoped(s, || {
-                let items = parser::parse(text, limits).map_err(|d| vec![d])?;
-                elab::elaborate(env, ns, &items).map_err(|d| vec![d])
-            })
-            .expect("spawn parser thread")
-            .join()
-            .unwrap_or_else(|_| Err(vec![Diagnostic::error(Span::default(), "the parser panicked")]))
-    })
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let items = parser::parse(text, limits).map_err(|d| vec![d])?;
+        elab::elaborate(env, ns, &items).map_err(|d| vec![d])
+    }))
+    .unwrap_or_else(|_| Err(vec![Diagnostic::error(Span::default(), "the parser panicked")]))
 }
-
-/// Stack for the parser thread: enough for `Limits::default().max_depth`
-/// in debug builds, with a wide margin.
-const PARSE_STACK: usize = 64 * 1024 * 1024;

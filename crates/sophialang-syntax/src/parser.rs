@@ -13,7 +13,7 @@ pub fn parse(src: &str, limits: Limits) -> Result<Vec<SItem>, Diagnostic> {
         return Err(Diagnostic::error(Span::new(0, 0), format!("text exceeds {} bytes", limits.max_bytes)));
     }
     let toks = lex(src)?;
-    let mut p = Parser { toks, at: 0, parens: 0, depth: 0, limits };
+    let mut p = Parser { toks, at: 0, parens: 0, nodes: 0, limits };
     let mut items = Vec::new();
     p.skip_nl();
     while !p.is(&Tok::Eof) {
@@ -31,7 +31,8 @@ struct Parser {
     at: usize,
     /// Inside parentheses or brackets, newlines are insignificant.
     parens: usize,
-    depth: usize,
+    /// Expression nodes read so far, against `limits.max_nodes`.
+    nodes: usize,
     limits: Limits,
 }
 
@@ -294,14 +295,10 @@ impl Parser {
 
     // ---- expressions ----
 
+    /// Any depth: one `deep::grow` per level (SP-015). The bound is the
+    /// node budget in `atom`, not nesting.
     fn expr(&mut self) -> R<SExpr> {
-        self.depth += 1;
-        if self.depth > self.limits.max_depth {
-            return self.err(format!("nesting deeper than {}", self.limits.max_depth));
-        }
-        let r = self.arrow();
-        self.depth -= 1;
-        r
+        sophia_hash::deep::grow(|| self.arrow())
     }
 
     fn arrow(&mut self) -> R<SExpr> {
@@ -405,6 +402,14 @@ impl Parser {
     }
 
     fn atom(&mut self) -> R<SExpr> {
+        self.nodes += 1;
+        if self.nodes > self.limits.max_nodes {
+            return self.err(format!("more than {} expression nodes", self.limits.max_nodes));
+        }
+        sophia_hash::deep::grow(|| self.atom_step())
+    }
+
+    fn atom_step(&mut self) -> R<SExpr> {
         let t = self.tok().clone();
         let sp = self.span();
         let mk = |kind, span| Ok(SExpr { kind, span });
@@ -487,7 +492,9 @@ impl Parser {
                     return mk(SKind::Annot(Box::new(e), Box::new(ty)), sp.to(end));
                 }
                 let end = self.close_paren(")")?;
-                Ok(SExpr { kind: e.kind, span: sp.to(end) })
+                let mut e = e;
+                e.span = sp.to(end);
+                Ok(e)
             }
             Tok::Sym("{") => {
                 self.open_paren("{")?;

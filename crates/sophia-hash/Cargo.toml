@@ -14,5 +14,10 @@ path = "src/sophia_hash.rs"
 blake3.workspace = true
 thiserror.workspace = true
 
+# Stack growth for deep recursion (SP-015). Not on wasm32, where it cannot
+# protect the engine's call stack: there `deep::grow` is a placeholder.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+stacker.workspace = true
+
 [dev-dependencies]
 proptest.workspace = true

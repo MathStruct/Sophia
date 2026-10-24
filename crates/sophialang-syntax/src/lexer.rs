@@ -56,17 +56,19 @@ const SYMS: [&str; 30] = [
     ",", ";", ":", "=", "+", "-", "*", "/", "<", ">",
 ];
 
-/// Limits for a parse (SR-50: bounded parsers).
+/// Resource limits for a parse (SR-50: bounded parsers). Size, never
+/// nesting: depth costs memory, not a refusal (SP-015, SR-145).
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_bytes: usize,
-    pub max_depth: usize,
+    /// Expression nodes (atoms) in one text.
+    pub max_nodes: usize,
     pub max_definitions: usize,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Limits { max_bytes: 512 * 1024, max_depth: 128, max_definitions: 4096 }
+        Limits { max_bytes: 512 * 1024, max_nodes: 1 << 20, max_definitions: 4096 }
     }
 }
 

@@ -14,6 +14,6 @@ Tokens are:
 
 `#` followed by anything other than 64 hex digits starts a comment, as does `//`.
 
-`Limits` default to 512 KiB, depth 128 and 4096 definitions per text (Moonkale WP-66's limits, SR-50).
+`Limits` default to 512 KiB, 2²⁰ expression nodes and 4096 definitions per text (SR-50). They bound size, never nesting (2026-10-24, SP-015 / SR-145): the depth limit of 128 is gone, and depth costs memory through `deep::grow`.
 
 `Tok` implements `Display` for diagnostics: a token as written, in backquotes (`` `)` ``, `` `@prim` ``, `` `##023be898216c…` `` shortened), a string or character literal quoted, and "end of line" or "end of text".

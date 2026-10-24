@@ -122,7 +122,12 @@ impl Encoder<'_> {
         }
     }
 
+    /// One level per call, through `deep::grow` (SP-015): any depth.
     fn term(&mut self, t: &Term) {
+        sophia_hash::deep::grow(|| self.term_step(t))
+    }
+
+    fn term_step(&mut self, t: &Term) {
         match t {
             Term::Var(i) => self.w.u32("v", *i),
             Term::Ref(d) => self.w.field("r", d.as_bytes()),
@@ -377,7 +382,12 @@ fn lit(tag: &str, p: &[u8]) -> Result<Option<Lit>, DecodeError> {
     }))
 }
 
+/// One level per call, through `deep::grow` (SP-015): any depth.
 fn term(r: &mut Reader) -> Result<Term, DecodeError> {
+    sophia_hash::deep::grow(|| term_step(r))
+}
+
+fn term_step(r: &mut Reader) -> Result<Term, DecodeError> {
     let tag = r.peek_tag()?;
     Ok(match tag {
         "v" => Term::Var(r.expect_u32("v")?),
@@ -479,6 +489,9 @@ fn term(r: &mut Reader) -> Result<Term, DecodeError> {
 /// names) in canonical stream order.
 pub fn for_each_name(def: &mut Definition, f: &mut impl FnMut(&mut String)) {
     fn term(t: &mut Term, f: &mut impl FnMut(&mut String)) {
+        sophia_hash::deep::grow(|| term_step(t, f))
+    }
+    fn term_step(t: &mut Term, f: &mut impl FnMut(&mut String)) {
         match t {
             Term::Con { ty, .. } => term(ty, f),
             Term::Lam { binder, domain, body } => {

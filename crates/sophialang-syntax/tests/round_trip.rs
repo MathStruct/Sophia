@@ -167,7 +167,10 @@ fn errors_and_warnings_have_ranges() {
     assert_eq!(warnings.len(), 1);
     assert!(warnings[0].message.contains("math.sqrt"));
     let long = "const c::Int64 = ".to_string() + &"(".repeat(300) + "1" + &")".repeat(300);
-    assert!(parse_text(&env, "", &long, Limits::default()).is_err(), "depth is bounded");
+    assert!(parse_text(&env, "", &long, Limits::default()).is_ok(), "depth is not limited (SP-015)");
+    let many = Limits { max_nodes: 100, ..Limits::default() };
+    let e = parse_text(&env, "", &format!("const c::Int64 = {}", vec!["1"; 200].join(" + ")), many).unwrap_err();
+    assert!(e[0].message.contains("expression nodes"), "size is: {:?}", e[0]);
     let big = "x".repeat(600 * 1024);
     assert!(parse_text(&env, "", &big, Limits::default()).is_err(), "size is bounded");
 }
@@ -232,39 +235,48 @@ fn arb_term() -> impl Strategy<Value = Term> {
 }
 
 /// Replaces variables that would be free with a literal, so terms are closed.
-fn close(t: Term, depth: u32) -> Term {
-    let under = |t: Term, k: u32| close(t, depth + k);
+fn close(mut t: Term, depth: u32) -> Term {
+    close_in(&mut t, depth);
+    t
+}
+
+fn close_in(t: &mut Term, depth: u32) {
     match t {
-        Term::Var(i) if i >= depth => Term::Lit(Lit::Int64(i as i64)),
-        Term::Lam { binder, domain, body } => {
-            Term::Lam { binder, domain: domain.map(|d| Box::new(close(*d, depth))), body: Box::new(under(*body, 1)) }
+        Term::Var(i) if *i >= depth => *t = Term::Lit(Lit::Int64(*i as i64)),
+        Term::Lam { domain, body, .. } => {
+            if let Some(d) = domain {
+                close_in(d, depth);
+            }
+            close_in(body, depth + 1);
         }
-        Term::Pi { binder, domain, codomain } => {
-            Term::Pi { binder, domain: Box::new(close(*domain, depth)), codomain: Box::new(under(*codomain, 1)) }
+        Term::Pi { domain, codomain, .. } => {
+            close_in(domain, depth);
+            close_in(codomain, depth + 1);
         }
-        Term::Let { binder, ty, value, body } => Term::Let {
-            binder,
-            ty: ty.map(|t| Box::new(close(*t, depth))),
-            value: Box::new(close(*value, depth)),
-            body: Box::new(under(*body, 1)),
-        },
-        Term::Match { scrutinee, data, motive, cases } => Term::Match {
-            scrutinee: Box::new(close(*scrutinee, depth)),
-            data: data.map(|d| Box::new(close(*d, depth))),
-            motive,
-            cases: cases
-                .into_iter()
-                .map(|c| {
-                    let k = c.binders.len() as u32;
-                    Case { body: under(c.body, k), ..c }
-                })
-                .collect(),
-        },
-        Term::App(h, args) => Term::App(Box::new(close(*h, depth)), args.into_iter().map(|a| close(a, depth)).collect()),
-        Term::Con { ty, index } => Term::Con { ty: Box::new(close(*ty, depth)), index },
-        Term::Hole(t) => Term::Hole(Box::new(close(*t, depth))),
-        Term::Unsafe(a, t) => Term::Unsafe(a, Box::new(close(*t, depth))),
-        t => t,
+        Term::Let { ty, value, body, .. } => {
+            if let Some(t) = ty {
+                close_in(t, depth);
+            }
+            close_in(value, depth);
+            close_in(body, depth + 1);
+        }
+        Term::Match { scrutinee, data, cases, .. } => {
+            close_in(scrutinee, depth);
+            if let Some(d) = data {
+                close_in(d, depth);
+            }
+            for c in cases {
+                close_in(&mut c.body, depth + c.binders.len() as u32);
+            }
+        }
+        Term::App(h, args) => {
+            close_in(h, depth);
+            for a in args {
+                close_in(a, depth);
+            }
+        }
+        Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => close_in(ty, depth),
+        _ => {}
     }
 }
 

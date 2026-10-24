@@ -49,10 +49,37 @@ pub enum SKind {
     Usage(Usage, Box<SExpr>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// `Clone`, `PartialEq`, `Debug` and `Drop` by hand: each goes through
+/// `deep::grow` once per level, so a syntax tree of any depth can be
+/// copied, compared, printed and dropped (SP-015).
 pub struct SExpr {
     pub kind: SKind,
     pub span: Span,
+}
+
+impl Clone for SExpr {
+    fn clone(&self) -> SExpr {
+        sophia_hash::deep::grow(|| SExpr { kind: self.kind.clone(), span: self.span })
+    }
+}
+
+impl PartialEq for SExpr {
+    fn eq(&self, other: &SExpr) -> bool {
+        sophia_hash::deep::grow(|| self.span == other.span && self.kind == other.kind)
+    }
+}
+
+impl std::fmt::Debug for SExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        sophia_hash::deep::grow(|| f.debug_struct("SExpr").field("kind", &self.kind).field("span", &self.span).finish())
+    }
+}
+
+impl Drop for SExpr {
+    fn drop(&mut self) {
+        let kind = std::mem::replace(&mut self.kind, SKind::Prop);
+        sophia_hash::deep::grow(move || drop(kind));
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

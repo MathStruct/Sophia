@@ -3,6 +3,8 @@
 //! a hash literal), so text from an editable profile parses back to the same
 //! content (SPEC-005 §5). See `print.md`.
 
+use std::collections::HashMap;
+
 use sophia_hash::Digest;
 use sophialang_core::{Binder, Body, Definition, Kind, Lit, Term, Usage};
 
@@ -27,9 +29,137 @@ pub struct Printer<'a> {
     ns: &'a str,
     p: &'a Profile,
     group: &'a [ToPrint<'a>],
-    scope: Vec<String>,
+    scope: Scope,
     indent: usize,
+    /// Whether each binder is used, from one pass over the item (see
+    /// [`binder_uses`]): keyed by the binding node's address and the
+    /// binder's slot. Saves an `occurs` walk per binder, which was
+    /// quadratic in depth.
+    uses: HashMap<(usize, u32), bool>,
 }
+
+/// The names in scope, innermost last, with a count per name and, per base
+/// name, the smallest suffix that might be free (`x_3`): all smaller ones
+/// are taken. Lookups and fresh names cost O(1) amortised instead of a scan
+/// of the scope, which made deep printing cubic (SP-015). Same results as
+/// the scan.
+#[derive(Default)]
+struct Scope {
+    names: Vec<String>,
+    count: HashMap<String, usize>,
+    hint: std::cell::RefCell<HashMap<String, usize>>,
+}
+
+impl Scope {
+    fn contains(&self, n: &str) -> bool {
+        self.count.get(n).is_some_and(|c| *c > 0)
+    }
+    fn len(&self) -> usize {
+        self.names.len()
+    }
+    fn push(&mut self, n: String) {
+        *self.count.entry(n.clone()).or_default() += 1;
+        self.names.push(n);
+    }
+    fn pop(&mut self) {
+        let Some(n) = self.names.pop() else { return };
+        if let Some(c) = self.count.get_mut(&n) {
+            *c -= 1;
+        }
+        // `base_k` is free again: the smallest free suffix may now be k.
+        if let Some((base, k)) = n.rsplit_once('_') {
+            if let Ok(k) = k.parse::<usize>() {
+                let mut h = self.hint.borrow_mut();
+                if let Some(old) = h.get_mut(base) {
+                    *old = (*old).min(k);
+                }
+            }
+        }
+    }
+    fn truncate(&mut self, len: usize) {
+        while self.names.len() > len {
+            self.pop();
+        }
+    }
+    fn clear(&mut self) {
+        self.truncate(0);
+    }
+}
+
+impl std::ops::Index<usize> for Scope {
+    type Output = String;
+    fn index(&self, i: usize) -> &String {
+        &self.names[i]
+    }
+}
+
+/// For every binder in `t`, whether its body uses it: one pass, any depth.
+/// Lam, Pi and Let bind slot 0 at their own address; a match case binds
+/// slot k at its body's address.
+fn binder_uses(t: &Term, stack: &mut Vec<bool>, out: &mut HashMap<(usize, u32), bool>) {
+    sophia_hash::deep::grow(|| {
+        let at = |x: &Term| x as *const Term as usize;
+        let under = |b: &Term, stack: &mut Vec<bool>, out: &mut HashMap<(usize, u32), bool>, key: usize| {
+            stack.push(false);
+            binder_uses(b, stack, out);
+            let used = stack.pop().unwrap_or(true);
+            out.insert((key, 0), used);
+        };
+        match t {
+            Term::Var(i) => {
+                let n = stack.len();
+                if (*i as usize) < n {
+                    stack[n - 1 - *i as usize] = true;
+                }
+            }
+            Term::Con { ty, .. } | Term::Hole(ty) | Term::Unsafe(_, ty) => binder_uses(ty, stack, out),
+            Term::Lam { domain, body, .. } => {
+                if let Some(d) = domain {
+                    binder_uses(d, stack, out);
+                }
+                under(body, stack, out, at(t));
+            }
+            Term::App(h, args) => {
+                binder_uses(h, stack, out);
+                for a in args {
+                    binder_uses(a, stack, out);
+                }
+            }
+            Term::Pi { domain, codomain, .. } => {
+                binder_uses(domain, stack, out);
+                under(codomain, stack, out, at(t));
+            }
+            Term::Let { ty, value, body, .. } => {
+                if let Some(x) = ty {
+                    binder_uses(x, stack, out);
+                }
+                binder_uses(value, stack, out);
+                under(body, stack, out, at(t));
+            }
+            Term::Match { scrutinee, data, motive, cases } => {
+                binder_uses(scrutinee, stack, out);
+                for x in [data, motive].into_iter().flatten() {
+                    binder_uses(x, stack, out);
+                }
+                for c in cases {
+                    let k = c.binders.len();
+                    stack.extend(std::iter::repeat_n(false, k));
+                    binder_uses(&c.body, stack, out);
+                    for j in (0..k).rev() {
+                        let used = stack.pop().unwrap_or(true);
+                        out.insert((at(&c.body), j as u32), used);
+                    }
+                }
+            }
+            _ => {}
+        }
+    })
+}
+
+/// Indentation stops growing after this many columns: nested blocks keep
+/// their line breaks, but a text nested n levels deep stays O(n) in size
+/// instead of O(n²) (SP-015). The parser ignores indentation.
+const MAX_INDENT: usize = 64 * 4;
 
 /// Prints definitions as one text.
 pub fn print(env: &dyn Env, ns: &str, profile: &Profile, items: &[ToPrint]) -> String {
@@ -41,7 +171,11 @@ pub fn print(env: &dyn Env, ns: &str, profile: &Profile, items: &[ToPrint]) -> S
         if k > 0 {
             out.push('\n');
         }
-        let mut pr = Printer { env, ns, p: profile, group: items, scope: Vec::new(), indent: 0 };
+        let mut uses = HashMap::new();
+        for t in it.def.terms() {
+            binder_uses(t, &mut Vec::new(), &mut uses);
+        }
+        let mut pr = Printer { env, ns, p: profile, group: items, scope: Scope::default(), indent: 0, uses };
         out.push_str(&pr.item(it));
         out.push('\n');
     }
@@ -56,8 +190,12 @@ fn valid_ident(s: &str) -> bool {
     matches!(cs.next(), Some(c) if is_ident_start(c)) && cs.all(is_ident_char) && !KEYWORDS.contains(&s)
 }
 
-/// Whether `Var(depth)` occurs free in `t`.
+/// Whether `Var(depth)` occurs free in `t`, at any depth (SP-015).
 fn occurs(t: &Term, depth: u32) -> bool {
+    sophia_hash::deep::grow(|| occurs_step(t, depth))
+}
+
+fn occurs_step(t: &Term, depth: u32) -> bool {
     match t {
         Term::Var(i) => *i == depth,
         Term::Con { ty, .. } => occurs(ty, depth),
@@ -80,7 +218,16 @@ fn occurs(t: &Term, depth: u32) -> bool {
 
 impl Printer<'_> {
     fn nl(&self) -> String {
-        format!("\n{}", " ".repeat(self.indent))
+        format!("\n{}", " ".repeat(self.indent.min(MAX_INDENT)))
+    }
+
+    /// Whether the binder in `slot` of the node at `at` is used, from the
+    /// precomputed table, else by walking.
+    fn used(&self, at: &Term, slot: u32, walk: impl FnOnce() -> bool) -> bool {
+        match self.uses.get(&(at as *const Term as usize, slot)) {
+            Some(u) => *u,
+            None => walk(),
+        }
     }
 
     // ---- names ----
@@ -94,20 +241,24 @@ impl Printer<'_> {
             "x".to_string()
         };
         let taken = |n: &str| {
-            self.scope.iter().any(|s| s == n)
+            self.scope.contains(n)
                 || self.group.iter().any(|g| g.name == n)
                 || crate::resolve::builtin_named(n).is_some()
         };
         if !taken(&base) {
             return base;
         }
-        (1..).map(|i| format!("{base}_{i}")).find(|n| !taken(n)).unwrap()
+        // The smallest free suffix, searched from the hint (all below it are taken).
+        let start = self.scope.hint.borrow().get(&base).copied().unwrap_or(1);
+        let i = (start..).find(|i| !taken(&format!("{base}_{i}"))).unwrap();
+        self.scope.hint.borrow_mut().insert(base.clone(), i);
+        format!("{base}_{i}")
     }
 
     /// What the parser would make of a non-local path.
     fn resolves(&self, spelling: &str) -> Option<Found> {
         let segs = crate::split_path(spelling);
-        if self.scope.iter().any(|s| s == segs[0]) {
+        if self.scope.contains(segs[0]) {
             return None;
         }
         if segs.len() == 1 && self.group.iter().any(|g| g.name == segs[0]) {
@@ -118,7 +269,7 @@ impl Printer<'_> {
 
     fn group_name_for(&self, id: &Digest) -> Option<String> {
         let g = self.group.iter().find(|g| g.id.as_ref() == Some(id))?;
-        (!self.scope.iter().any(|s| s == g.name)).then(|| g.name.to_string())
+        (!self.scope.contains(g.name)).then(|| g.name.to_string())
     }
 
     fn ref_name(&self, d: &Digest) -> String {
@@ -158,7 +309,7 @@ impl Printer<'_> {
 
     fn member_name(&self, k: u32) -> String {
         match self.group.iter().find(|g| g.index == k && g.id.is_some()) {
-            Some(g) if !self.scope.iter().any(|s| s == g.name) => g.name.to_string(),
+            Some(g) if !self.scope.contains(g.name) => g.name.to_string(),
             _ => format!("@member({k})"),
         }
     }
@@ -235,7 +386,12 @@ impl Printer<'_> {
         if level < min { format!("({s})") } else { s }
     }
 
+    /// One level per call, through `deep::grow` (SP-015): any depth.
     fn term_level(&mut self, t: &Term) -> (String, u8) {
+        sophia_hash::deep::grow(|| self.term_level_step(t))
+    }
+
+    fn term_level_step(&mut self, t: &Term) -> (String, u8) {
         match t {
             Term::Var(i) => {
                 let n = self.scope.len();
@@ -247,13 +403,13 @@ impl Printer<'_> {
             Term::Ref(d) => (self.ref_name(d), ATOM),
             Term::Member(k) => (self.member_name(*k), ATOM),
             Term::Draft(i) => match self.group.get(*i as usize) {
-                Some(g) if !self.scope.iter().any(|s| s == g.name) => (g.name.to_string(), ATOM),
+                Some(g) if !self.scope.contains(g.name) => (g.name.to_string(), ATOM),
                 _ => (format!("@member({i})"), ATOM),
             },
             Term::Nominal(n) => (self.nominal_name(n), ATOM),
             Term::Con { ty, index } => (self.con(ty, *index), ATOM),
             Term::Lam { binder, domain, body } => {
-                let name = self.fresh(&binder.name, occurs(body, 0));
+                let name = self.fresh(&binder.name, self.used(t, 0, || occurs(body, 0)));
                 let head = match domain {
                     None if binder.usage == Usage::Many && !binder.implicit => name.clone(),
                     None if binder.implicit => format!("{{{}{name}}}", Self::binder_prefix(binder)),
@@ -273,7 +429,7 @@ impl Printer<'_> {
                 (format!("{head} -> {b}"), ARROW)
             }
             Term::Pi { binder, domain, codomain } => {
-                let used = occurs(codomain, 0);
+                let used = self.used(t, 0, || occurs(codomain, 0));
                 let plain = !used && binder.usage == Usage::Many && !binder.implicit;
                 let d = self.term(domain, if plain { 1 } else { ARROW });
                 let (head, name) = if plain {
@@ -309,9 +465,10 @@ impl Printer<'_> {
                 (format!("{hs}({})", a.join(", ")), ATOM)
             }
             Term::Let { binder, ty, value, body } => {
+                let node = t;
                 let v = self.term(value, ARROW);
                 let t = ty.as_ref().map(|t| self.term(t, 1));
-                let name = self.fresh(&binder.name, occurs(body, 0));
+                let name = self.fresh(&binder.name, self.used(node, 0, || occurs(body, 0)));
                 let inner = match t {
                     Some(t) => format!("{}{name}{}{t}", Self::binder_prefix(binder), self.p.ann()),
                     None => format!("{}{name}", Self::binder_prefix(binder)),
@@ -359,7 +516,7 @@ impl Printer<'_> {
                     let mut bs = Vec::new();
                     for (k, b) in c.binders.iter().enumerate() {
                         let depth_from_body = (c.binders.len() - 1 - k) as u32;
-                        let name = self.fresh(&b.name, occurs(&c.body, depth_from_body));
+                        let name = self.fresh(&b.name, self.used(&c.body, k as u32, || occurs(&c.body, depth_from_body)));
                         self.scope.push(name.clone());
                         bs.push(name);
                     }
@@ -478,7 +635,7 @@ impl Printer<'_> {
                         let (Term::Pi { binder, domain, codomain }, Term::Lam { binder: lb, body: lbody, .. }) = (ty, b) else {
                             unreachable!()
                         };
-                        let used = occurs(codomain, 0) || occurs(lbody, 0);
+                        let used = self.used(ty, 0, || occurs(codomain, 0)) || self.used(b, 0, || occurs(lbody, 0));
                         let pname = self.fresh(&lb.name, used);
                         let is_any = matches!(domain.as_ref(), Term::Nominal(id) if builtin_name(id) == Some("Any"));
                         let p = if is_any && !binder.implicit && binder.usage == Usage::Many {
