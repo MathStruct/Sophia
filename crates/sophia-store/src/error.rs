@@ -22,4 +22,13 @@ pub enum StoreError {
     /// kind must follow from content (SP-012), so this is a frontend bug.
     #[error("record {id} is stored with kind {stored:?}, not {new:?}")]
     KindConflict { id: String, stored: String, new: String },
+    /// `replace_files`: a name is owned by a file outside the batch (its
+    /// path in `owner`; empty when no file owns it). Retry with that file
+    /// in the batch (SPEC-009 §7).
+    #[error("name {name:?} is claimed by {}", if owner.is_empty() { "something that is not a file of this batch".to_string() } else { format!("file {owner:?}") })]
+    NameClaimed { name: String, owner: String },
+    /// `replace_files`: the folder was built with another normaliser; it
+    /// must be rebuilt (SPEC-009 §2).
+    #[error("the folder store was built with normaliser {stored:?}, not {new:?}: rebuild it")]
+    NormaliserChanged { stored: String, new: String },
 }

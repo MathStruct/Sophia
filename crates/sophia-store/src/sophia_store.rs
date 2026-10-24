@@ -7,6 +7,7 @@ pub mod backend;
 pub mod codec;
 pub mod query;
 mod error;
+pub mod folder;
 pub mod logic;
 pub mod types;
 
@@ -25,3 +26,4 @@ pub use backend::{Backend, ReadTx, WriteTx};
 pub use error::StoreError;
 pub use logic::{AddReport, Store, UpdateReport, validate_path};
 pub use types::*;
+pub use folder::{FileGeneric, FileIngest, FileManifest, FileReport, TextSource};

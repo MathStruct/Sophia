@@ -287,7 +287,51 @@ fn diagnostics_name_tokens_as_written<B: Backend + Sync>(i: Interface<B>) {
     assert!(msg.contains("(found `)`)") && !msg.contains("Sym("), "{msg}");
 }
 
-both!(all_draws_structure, group_members_cannot_be_overwritten_silently, listing_skips_sub_namespaces, foreign_records_print,
+/// SPEC-009: a folder store prints files' text, tells where it came from,
+/// and refuses every edit through the interface.
+fn folder_store_is_read_only_and_prints_files<B: Backend + Sync>(i: Interface<B>) {
+    use sophia_hash::merkle::{component_digest, member_digest};
+    let text = "struct P\n    x::Int\nend\n";
+    let component = component_digest("julia", "moonkale-wp66@7", b"struct-x");
+    let r = sophia_hash::Record {
+        id: member_digest(&component, 0),
+        lang: "julia".into(),
+        normaliser: "moonkale-wp66@7".into(),
+        kind: "struct_definition".into(),
+        component,
+        index: 0,
+        component_size: 1,
+        bytes: b"struct-x".to_vec(),
+        display: b"P".to_vec(),
+        status: sophia_hash::Status::Complete,
+        refs: vec![],
+        nominal_refs: vec![],
+    };
+    let f = sophia_store::FileIngest {
+        path: "src/P.jl".into(),
+        text: Some(text.into()),
+        normaliser: "moonkale-wp66@7".into(),
+        records: vec![r.clone()],
+        spans: vec![(0, 0, text.len() as u32 - 1)],
+        names: vec![("jl.Pkg.P".into(), 0)],
+        ..Default::default()
+    };
+    i.store().set_derived().unwrap();
+    i.store().replace_files(&[f]).unwrap();
+    let key = Key::name("jl.Pkg.P");
+    let (t, v) = i.fetch_text(&key).unwrap();
+    assert!(t.contains("from src/P.jl") && t.contains("struct P\n    x::Int\nend"), "{t}");
+    let ts = i.text_source(&key).unwrap().unwrap();
+    assert_eq!(ts.path, "src/P.jl");
+    assert_eq!(ts.source, sophia_store::folder::source_record("src/P.jl", text).id, "the caller's stale check");
+    assert!(matches!(i.write_text(&key, v, &t), Err(EditError::Refused(_))));
+    assert!(matches!(i.create_dir(&i.root(), "x"), Err(EditError::Refused(_))));
+    assert!(matches!(i.delete(&key), Err(EditError::Refused(_))));
+    let (st, sv) = i.fetch_text(&Key::settings()).unwrap();
+    assert!(matches!(i.write_text(&Key::settings(), sv, &st), Err(EditError::Refused(_))));
+}
+
+both!(all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
     diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {

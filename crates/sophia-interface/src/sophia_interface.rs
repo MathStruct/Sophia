@@ -594,6 +594,24 @@ impl<B: Backend + Sync> Interface<B> {
         }
     }
 
+    /// Where the text of a definition came from in a folder store: the
+    /// file, its source id and the byte range (SPEC-009 §7). The caller
+    /// compares `source` with `sophia_store::folder::source_record(path,
+    /// current text).id` to tell whether the store is stale for that file.
+    /// `None` for anything not contributed by a file.
+    pub fn text_source(&self, key: &Key) -> Result<Option<sophia_store::TextSource>> {
+        let (id, name) = match key {
+            Key::Derived(s) if s.starts_with("name:") => {
+                let path = &s[5..];
+                let Some(n) = self.store.resolve(path)? else { return Ok(None) };
+                (n.target.digest(), Some(last_segment(path).to_string()))
+            }
+            Key::Content(d) => (*d, None),
+            _ => return Ok(None),
+        };
+        self.store.text_source(&id, name.as_deref())
+    }
+
     fn print_target(&self, target: Target, path: &str) -> Result<String> {
         let ns = parent_ns(path);
         let env = StoreEnv { store: &self.store };
@@ -671,6 +689,18 @@ impl<B: Backend + Sync> Interface<B> {
                 s.push_str(&header);
                 s.push_str(&String::from_utf8_lossy(&m.bytes));
                 continue;
+            }
+            // A folder store's file manifest is the authority (SPEC-009).
+            if let Some(ts) = self.store.text_source(&m.id, (m.id == *id).then_some(name))? {
+                if let Some(src) = self.store.record(&ts.source)? {
+                    if let Some(t) = src.bytes.get(ts.start as usize..ts.end as usize) {
+                        s.push_str(&header);
+                        s.push_str(&format!("# read-only: from {} bytes {}..{}\n", ts.path, ts.start, ts.end));
+                        s.push_str(&String::from_utf8_lossy(t));
+                        s.push('\n');
+                        continue;
+                    }
+                }
             }
             let spans: Vec<sophia_store::SourceSpan> = self
                 .store

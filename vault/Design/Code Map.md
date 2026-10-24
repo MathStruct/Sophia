@@ -24,6 +24,8 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `normalise.rs` | [[normalise]] | batches of drafts → records |
 | | `samples.rs` | [[samples]] | the 16-definition sample program |
 | `sophia-store` | `sophia_store.rs` | [[sophia_store]] | the store over interchangeable backends |
+| `sophia-store` | `folder.rs` | [[folder]] | folder stores (SPEC-009): `replace_files`, file manifests, the derived mode, `text_source` |
+| `sophia-store` | `tests/folder.rs` | [[folder]] | `replace_files` on four backends |
 | | `backend.rs` | [[backend]] | the backend traits |
 | | `logic.rs` | [[logic]] | the store's rules |
 | | `types.rs` | [[types]] | names, log, nominal entities, lineages, annotations, facts |

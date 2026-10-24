@@ -83,3 +83,10 @@ Moonkale's coarse graph query called `all(2 000 000)` on a copy of B-15's 100 00
 - **A quadratic edge check:** `all` de-duplicated edges with `Vec::contains`. With 739 273 edges it did not finish in several minutes. Now a `HashSet` (`Prop` and `EdgeView` derive `Eq` and `Hash`).
 
 `all(2 000 000)` on that store now returns 199 256 nodes and 739 273 edges on a 2 MiB thread: 2.6 s in a release build, 14.9 s in a debug build. Still recursive and unbounded: printing (`fetch_text`) and decoding a deep definition for display. Such texts are also beyond the parse limit ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]).
+
+## Folder stores (2026-10-24, SPEC-009)
+
+- In a store marked derived (`Store::set_derived`), `write_text`, `create_text`, `create_dir`, `rename`, `delete` and settings writes return `EditError::Refused`: the files are the truth.
+- `fetch_text` prints a folder store's definitions from the file manifest's span (header `# read-only: from <path> bytes a..b`), before falling back to `source-span` facts.
+- `text_source(key)` returns the file, source id and span a definition's text came from; the caller compares the source id with `sophia_store::folder::source_record(path, current text).id` to tell whether the store is stale for that file.
+- Tested in `tests/acceptance.rs` (`folder_store_is_read_only_and_prints_files`, four backends).

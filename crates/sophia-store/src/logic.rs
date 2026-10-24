@@ -126,13 +126,13 @@ impl<B: Backend> Store<B> {
         self.backend.read(f)
     }
 
-    fn log(&self, tx: &mut dyn WriteTx, op: LogOp, subject: String, old: Option<Digest>, new: Option<Digest>) -> Result<u64> {
+    pub(crate) fn log(&self, tx: &mut dyn WriteTx, op: LogOp, subject: String, old: Option<Digest>, new: Option<Digest>) -> Result<u64> {
         let seq = tx.last_seq()? + 1;
         tx.append_log(&LogEntry { seq, op, subject, old, new, actor: self.actor.clone(), at: now() })?;
         Ok(seq)
     }
 
-    fn put_new(&self, tx: &mut dyn WriteTx, records: &[Record]) -> Result<usize> {
+    pub(crate) fn put_new(&self, tx: &mut dyn WriteTx, records: &[Record]) -> Result<usize> {
         let mut new = 0;
         for r in records {
             if !tx.has_record(&r.id)? {

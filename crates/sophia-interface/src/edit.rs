@@ -212,7 +212,18 @@ impl<B: Backend + Sync> Interface<B> {
     /// the name's namespace and must define that name; other names of its
     /// recursive group may be updated too, and new names may be added. For
     /// the settings node: the reader's profile is replaced.
+    /// In a folder store (SPEC-009 §3) the files are the truth: every edit
+    /// through the interface is refused; the producer writes with
+    /// `Store::replace_files`.
+    fn refuse_if_derived(&self) -> R<()> {
+        if self.store.is_derived()? {
+            return Err(EditError::Refused("this is a folder store: the files are the truth, edit them instead".into()));
+        }
+        Ok(())
+    }
+
     pub fn write_text(&self, key: &Key, expected: u64, text: &str) -> R<Written> {
+        self.refuse_if_derived()?;
         match key {
             Key::Derived(s) if s == "settings" => self.write_settings(expected, text),
             Key::Derived(s) if s.starts_with("name:") => {
@@ -283,6 +294,7 @@ impl<B: Backend + Sync> Interface<B> {
     /// relative path of the new node (`a/b` puts the text in sub-namespace `a`).
     /// Returns the key of `name` if the text defines it.
     pub fn create_text(&self, parent: &Key, name: &str, text: &str) -> R<(Key, Written)> {
+        self.refuse_if_derived()?;
         let Key::Derived(s) = parent else { return Err(EditError::Refused("not a namespace".into())) };
         let Some(base) = s.strip_prefix("ns:") else { return Err(EditError::Refused("not a namespace".into())) };
         let rel = path_from_moonkale(name);
@@ -305,6 +317,7 @@ impl<B: Backend + Sync> Interface<B> {
 
     /// Creates an empty namespace.
     pub fn create_dir(&self, parent: &Key, name: &str) -> R<Key> {
+        self.refuse_if_derived()?;
         let Key::Derived(s) = parent else { return Err(EditError::Refused("not a namespace".into())) };
         let Some(base) = s.strip_prefix("ns:") else { return Err(EditError::Refused("not a namespace".into())) };
         let full = abs(base, &path_from_moonkale(name));
@@ -315,6 +328,7 @@ impl<B: Backend + Sync> Interface<B> {
 
     /// Moves a name to `to`, Moonkale's path relative to the source root.
     pub fn rename(&self, key: &Key, to: &str) -> R<Key> {
+        self.refuse_if_derived()?;
         let Key::Derived(s) = key else { return Err(EditError::Refused("only names can be renamed".into())) };
         let Some(from) = s.strip_prefix("name:") else { return Err(EditError::Refused("only names can be renamed".into())) };
         let to = path_from_moonkale(to);
@@ -324,6 +338,7 @@ impl<B: Backend + Sync> Interface<B> {
 
     /// Removes a name; the definition stays.
     pub fn delete(&self, key: &Key) -> R<()> {
+        self.refuse_if_derived()?;
         let Key::Derived(s) = key else { return Err(EditError::Refused("only names can be deleted".into())) };
         if let Some(p) = s.strip_prefix("name:") {
             self.store.remove(p, None)?;
