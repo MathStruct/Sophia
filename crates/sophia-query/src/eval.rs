@@ -143,7 +143,8 @@ pub struct Exec<'a> {
     limits: Limits,
     memo: HashMap<(Base, usize, Val), Rc<Vec<Tuple>>>,
     full: HashMap<Base, Rc<Vec<Tuple>>>,
-    started: Instant,
+    /// When the run started, if a deadline is to be enforced; see [`clock`].
+    started: Option<Instant>,
     cancel: Option<&'a AtomicBool>,
     pub stats: Stats,
 }
@@ -162,6 +163,20 @@ fn text(v: &Val) -> Option<&str> {
     }
 }
 
+/// The start of a run, for the deadline. `wasm32-unknown-unknown` has no
+/// clock in `std` (`Instant::now` panics), so there the deadline is not
+/// enforced and the step and row budgets bound the work alone. A browser
+/// clock (`performance.now()`) can replace this placeholder (SPEC-009 §4).
+#[cfg(not(target_arch = "wasm32"))]
+fn clock() -> Option<Instant> {
+    Some(Instant::now())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn clock() -> Option<Instant> {
+    None
+}
+
 impl<'a> Exec<'a> {
     pub fn new(tx: &'a dyn ReadTx, params: &'a [Val], limits: Limits) -> Self {
         Exec {
@@ -170,7 +185,7 @@ impl<'a> Exec<'a> {
             limits,
             memo: HashMap::new(),
             full: HashMap::new(),
-            started: Instant::now(),
+            started: clock(),
             cancel: None,
             stats: Stats::default(),
         }
@@ -391,7 +406,7 @@ impl<'a> Exec<'a> {
             if self.cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
                 return Err(Error::Limit("cancelled".into()));
             }
-            if self.limits.deadline.is_some_and(|d| self.started.elapsed() > d) {
+            if self.limits.deadline.is_some_and(|d| self.started.is_some_and(|s| s.elapsed() > d)) {
                 return Err(Error::Limit(format!("over the deadline of {:?}", self.limits.deadline.unwrap())));
             }
         }

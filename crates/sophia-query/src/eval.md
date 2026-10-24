@@ -10,3 +10,5 @@
 - `Limits` is the resource budget: join steps, rows, derived tuples, **estimated bytes**, a wall-clock **deadline**, and a cancel flag (`Exec::with_cancel`). The byte estimate counts the tuples the executor keeps (lists, sets, indexes, base memo and scans, select rows); it is not an allocator count. The derived-tuple cap is a logical limit. The step budget alone is not one: a closure of 10⁵ definitions grew past 14 GB before reaching 50M steps. Each round's new tuples are deduplicated against everything known as they are produced, so duplicates never pile up. Without counts, the select stops one row after the row cap and marks the result truncated.
 - `Stats` count lookups, scans, derived tuples and rounds (reported by the CLI and the benchmarks).
 - `count` with no grouping columns over no solutions gives one row of zeros, as SQL does.
+
+**No clock on wasm (2026-10-24).** `wasm32-unknown-unknown` has no clock in `std` (`Instant::now` panics), so there the query deadline is not enforced (`clock()` returns `None`); the step and row budgets still bound a query. A browser clock can replace that placeholder.

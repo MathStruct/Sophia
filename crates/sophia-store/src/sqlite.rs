@@ -121,6 +121,32 @@ impl Sqlite {
         Self::init(Connection::open_in_memory().map_err(be)?, None)
     }
 
+    /// Opens a store from the bytes of its file, **read-only**, in memory
+    /// (SPEC-009 §4: Moonkale's web client, which has the file's bytes but
+    /// no file system). Any write fails. The schema is not touched.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        // wasm: `:memory:` does not open under sqlite-wasm-rs; a named
+        // database in its default in-memory VFS does.
+        #[cfg(target_arch = "wasm32")]
+        let mut conn = Connection::open("sophia-from-bytes.db").map_err(be)?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut conn = Connection::open_in_memory().map_err(be)?;
+        // Sophia's files are in WAL mode (header bytes 18 and 19 are 2), and
+        // a WAL database makes SQLite open `-wal` and `-shm` files even to
+        // read. In memory there are none: read the copy as a rollback-journal
+        // database (1, 1). A complete file needs nothing from a WAL.
+        let mut copy = bytes.to_vec();
+        if copy.len() > 19 && copy[18] == 2 && copy[19] == 2 {
+            copy[18] = 1;
+            copy[19] = 1;
+        }
+        conn.deserialize_read_exact(rusqlite::MAIN_DB, copy.as_slice(), copy.len(), true).map_err(be)?;
+        // Sorting and grouping may need temporary storage; there is no file
+        // system for it in the browser.
+        conn.execute_batch("PRAGMA temp_store = MEMORY;").map_err(be)?;
+        Ok(Sqlite { conn: Mutex::new(conn), path: None })
+    }
+
     fn init(conn: Connection, path: Option<std::path::PathBuf>) -> Result<Self> {
         conn.execute_batch(SCHEMA).map_err(be)?;
         Ok(Sqlite { conn: Mutex::new(conn), path })

@@ -133,6 +133,13 @@ impl<B: Backend + Sync> Interface<B> {
         Ok(Interface { store, reader: reader.into() })
     }
 
+    /// Opens without writing anything: no built-in profiles are added
+    /// (missing ones read as Julia's). For a read-only backend, such as
+    /// `Sqlite::from_bytes` in the web client (SPEC-009 §4).
+    pub fn open_read_only(backend: B, reader: impl Into<String>) -> Self {
+        Interface { store: Store::new(backend).with_actor("sophia-interface"), reader: reader.into() }
+    }
+
     pub fn store(&self) -> &Store<B> {
         &self.store
     }

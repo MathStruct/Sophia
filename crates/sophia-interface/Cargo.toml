@@ -28,3 +28,6 @@ blake3.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"

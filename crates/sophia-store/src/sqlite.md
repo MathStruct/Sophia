@@ -27,3 +27,8 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
 - `rusqlite` does not read `u64` columns, so they are read as `i64` and cast. Sequence numbers stay far below 2⁶³.
 
 **`query_compiled`** (2026-10-20): runs SQL that `sophia-query` generated from a checked query. The guard is the same as for `query_readonly` (only `SELECT`, no writes, a step budget), except that it may read the base tables `t_*`, so their indexes apply. The views would hide them behind `lower(hex(…))`. It is never given text from users or agents. SQLite also overrides the access paths `kind_of`, `refs_of`, `all_kinds` and `all_refs` with direct index reads.
+
+**`Sqlite::from_bytes(bytes)`** (2026-10-24, SPEC-009 §4): a store opened read-only from the bytes of its file, in memory, for Moonkale's web client. Three things were needed to make it work under wasm, found by running `tests/wasm_read.rs`:
+- a WAL-mode file (Sophia's are) makes SQLite open `-wal` and `-shm` files even to read, which fails in memory with "unable to open database file"; the copy's header bytes 18 and 19 are set from 2 (WAL) to 1 (rollback journal), which is safe for a complete file;
+- on wasm, `Connection::open_in_memory` does not open under `sqlite-wasm-rs`; a named database in its default in-memory VFS does;
+- `PRAGMA temp_store = MEMORY`, since there is no file system for temporary tables.

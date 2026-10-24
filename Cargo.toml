@@ -33,7 +33,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 blake3 = "1.8"
-rusqlite = { version = "0.40", features = ["bundled", "hooks"] }
+rusqlite = { version = "0.40", features = ["bundled", "hooks", "serialize"] }
 redb = "4.4"
 duckdb = { version = "1.10506", features = ["bundled"] }
 heed = "0.22"

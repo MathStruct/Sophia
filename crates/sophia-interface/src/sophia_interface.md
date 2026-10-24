@@ -90,3 +90,13 @@ Moonkale's coarse graph query called `all(2 000 000)` on a copy of B-15's 100 00
 - `fetch_text` prints a folder store's definitions from the file manifest's span (header `# read-only: from <path> bytes a..b`), before falling back to `source-span` facts.
 - `text_source(key)` returns the file, source id and span a definition's text came from; the caller compares the source id with `sophia_store::folder::source_record(path, current text).id` to tell whether the store is stale for that file.
 - Tested in `tests/acceptance.rs` (`folder_store_is_read_only_and_prints_files`, four backends).
+
+## The web client's read path (2026-10-24, SPEC-009 §4)
+
+`Interface::open_read_only(backend, reader)` opens without writing (no built-in profile rows; missing ones read as Julia's). With `Sqlite::from_bytes` it is what Moonkale's web client would use. `tests/wasm_read.rs` runs on `wasm32-unknown-unknown` under Node, against `tests/fixtures/web.sophia` (108 KB, written by the ignored native test in `tests/wasm_fixture.rs`): it browses (`children`, `neighbours`, `all`), prints a sophialang definition and a folder-store file's text, gets `text_source`, runs a recursive `query`, and checks that writes are refused. **4 of 4 pass.** Not run in a browser yet (the runner needs geckodriver or chromedriver, not installed).
+
+```sh
+cargo install wasm-bindgen-cli --version 0.2.129 --locked --root $SOPHIA_CORPORA/tools   # must match the wasm-bindgen crate
+PATH=$SOPHIA_CORPORA/tools/bin:$PATH CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
+  cargo test -p sophia-interface --no-default-features --features sqlite --target wasm32-unknown-unknown --test wasm_read
+```
