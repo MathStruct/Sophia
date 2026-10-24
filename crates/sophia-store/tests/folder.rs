@@ -162,6 +162,71 @@ fn shared_methods_are_counted<B: Backend>(s: Store<B>) {
     assert_eq!(target(&s, "jl.P.g"), None);
 }
 
+/// What a folder store says about `jl.P.g` and the names of `jl.P`: the
+/// state a history replay must agree on with a store built fresh (P-231).
+fn state<B: Backend>(s: &Store<B>) -> (Option<Digest>, Vec<Digest>, Vec<(String, Option<Digest>)>) {
+    let content = match s.resolve("jl.P.g").unwrap().map(|e| e.target) {
+        Some(Target::Content(id)) => Some(id),
+        _ => None,
+    };
+    let names = ["jl.P.a", "jl.P.b"].iter().map(|n| (n.to_string(), target(s, n))).collect();
+    (content, methods(s), names)
+}
+
+type Tree = std::collections::BTreeMap<String, FileIngest>;
+
+/// Replays `commits` (each a batch of files) into `s` and, after each, checks
+/// it against a store built fresh from `tree`, the files so far.
+fn replay<B: Backend>(s: &Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir), tree: &mut Tree, commits: &[Vec<FileIngest>]) {
+    for (i, c) in commits.iter().enumerate() {
+        s.replace_files(c).unwrap();
+        for f in c {
+            if f.text.is_some() {
+                tree.insert(f.path.clone(), f.clone());
+            } else {
+                tree.remove(&f.path);
+            }
+        }
+        let (t, _d) = fresh();
+        t.replace_files(&tree.values().cloned().collect::<Vec<_>>()).unwrap();
+        assert_eq!(state(s), state(&t), "after commit {i}");
+    }
+}
+
+/// Two methods with one normalised id in one file are one member: a
+/// refresh of the file subtracts it once, not twice.
+fn repeated_methods_survive_a_refresh<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    let twice = || file("a.jl", &[("g:1", "g(x) = 0"), ("g:2", "g(x) = 0")]);
+    let mut grown = twice();
+    grown.records.push(rec("2", "const_statement"));
+    grown.names.push(("jl.P.a".into(), 2));
+    replay(&s, &fresh, &mut Tree::new(), &[vec![twice()], vec![grown], vec![twice()]]);
+    assert_eq!(methods(&s).len(), 1);
+}
+
+/// A generic function's name that becomes a definition's loses its
+/// methods; when the definition goes, the methods files still contribute
+/// come back, from files in the batch and outside it.
+fn names_changing_kind_keep_memberships_right<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    let a = |with_const: bool| {
+        let mut defs = vec![("g:1", "g(x) = 0")];
+        if with_const {
+            defs.push(("g", "1"));
+        }
+        file("a.jl", &defs)
+    };
+    let b = file("b.jl", &[("g:2", "g(x, y) = 0")]);
+    let tree = &mut Tree::new();
+    replay(&s, &fresh, tree, &[vec![a(false), b.clone()]]);
+    let Some(Target::Nominal(old)) = s.resolve("jl.P.g").unwrap().map(|e| e.target) else { panic!("a generic function") };
+    replay(&s, &fresh, tree, &[vec![a(true), b.clone()]]);
+    assert!(s.methods(&old).unwrap().is_empty(), "no orphan memberships");
+    replay(&s, &fresh, tree, &[vec![a(false)]]);
+    assert_eq!(methods(&s).len(), 2, "a.jl's and b.jl's methods are back");
+    // The definition comes back, and goes in a file the batch refreshes.
+    replay(&s, &fresh, tree, &[vec![a(true), b.clone()], vec![a(false), b.clone()], vec![a(true), b.clone()], vec![a(false)]]);
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -253,6 +318,16 @@ macro_rules! suite {
             fn facts_follow_their_files() {
                 let (s, _d) = store();
                 super::facts_follow_their_files(s);
+            }
+            #[test]
+            fn repeated_methods_survive_a_refresh() {
+                let (s, _d) = store();
+                super::repeated_methods_survive_a_refresh(s, store);
+            }
+            #[test]
+            fn names_changing_kind_keep_memberships_right() {
+                let (s, _d) = store();
+                super::names_changing_kind_keep_memberships_right(s, store);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

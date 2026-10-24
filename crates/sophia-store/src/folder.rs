@@ -109,6 +109,18 @@ pub struct FileIngest {
     pub facts: Vec<Fact>,
 }
 
+impl FileIngest {
+    /// Each generic function's members, once each, as the manifest will
+    /// store them.
+    fn contributions(&self) -> BTreeMap<(String, String), BTreeSet<Digest>> {
+        let mut c: BTreeMap<(String, String), BTreeSet<Digest>> = BTreeMap::new();
+        for g in &self.generics {
+            c.entry((g.path.clone(), g.lang.clone())).or_default().extend(g.members.iter().map(|i| self.records[*i].id));
+        }
+        c
+    }
+}
+
 /// What a file contributed, as stored: the authority for "replace what came
 /// from file F".
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -126,6 +138,15 @@ pub struct FileManifest {
 }
 
 impl FileManifest {
+    /// Each generic function's members, once each (P-231).
+    pub fn contributions(&self) -> BTreeMap<(String, String), BTreeSet<Digest>> {
+        let mut c: BTreeMap<(String, String), BTreeSet<Digest>> = BTreeMap::new();
+        for (g, lang, ms) in &self.generics {
+            c.entry((g.clone(), lang.clone())).or_default().extend(ms.iter().copied());
+        }
+        c
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         let mut w = Writer::new();
         w.str("path", &self.path);
@@ -424,7 +445,11 @@ impl<B: Backend> Store<B> {
                     self.put_new(tx, &[source_record(&f.path, t)])?;
                 }
             }
-            // Content names: removed, moved, added.
+            // Content names: removed, moved, added. A generic function's
+            // methods are not counted while its name is a definition's, so a
+            // name changing kind has its memberships rebuilt (P-231).
+            let mut freed: BTreeSet<String> = BTreeSet::new();
+            let mut retired: HashMap<String, NominalId> = HashMap::new();
             for m in old.values() {
                 for (n, _) in &m.names {
                     if !new_names.contains_key(n) && tx.meta(&owner_key(n))?.is_some_and(|o| o == m.path.as_bytes()) {
@@ -434,6 +459,7 @@ impl<B: Backend> Store<B> {
                             report.names_removed += 1;
                         }
                         tx.remove_meta(&owner_key(n))?;
+                        freed.insert(n.clone());
                     }
                 }
             }
@@ -442,6 +468,7 @@ impl<B: Backend> Store<B> {
                     Some(e) if e.target == Target::Content(*id) => {}
                     Some(e) if matches!(e.target, Target::Nominal(_)) => {
                         // A generic function's name becomes a definition's.
+                        retired.insert(n.clone(), e.target.digest());
                         self.log(tx, LogOp::RemoveName, n.clone(), Some(e.target.digest()), None)?;
                         tx.remove_name(n)?;
                         add_name(self, tx, n, *id)?;
@@ -467,24 +494,61 @@ impl<B: Backend> Store<B> {
                 }
                 tx.set_meta(&owner_key(n), path.as_bytes())?;
             }
-            // Generic functions: memberships counted per file.
+            // Generic functions: memberships counted per file, each member
+            // once per file and generic however many definitions share its id.
             let mut deltas: BTreeMap<(String, String), BTreeMap<Digest, i64>> = BTreeMap::new();
             for m in old.values() {
-                for (g, lang, ms) in &m.generics {
-                    let e = deltas.entry((g.clone(), lang.clone())).or_default();
+                for ((g, lang), ms) in m.contributions() {
+                    if freed.contains(&g) {
+                        continue; // not counted while the name was a definition's
+                    }
+                    let e = deltas.entry((g, lang)).or_default();
                     for x in ms {
-                        *e.entry(*x).or_default() -= 1;
+                        *e.entry(x).or_default() -= 1;
                     }
                 }
             }
             for f in files {
-                for g in &f.generics {
-                    let e = deltas.entry((g.path.clone(), g.lang.clone())).or_default();
-                    let ms: BTreeSet<Digest> = g.members.iter().map(|i| f.records[*i].id).collect();
+                for ((g, lang), ms) in f.contributions() {
+                    let e = deltas.entry((g, lang)).or_default();
                     for x in ms {
                         *e.entry(x).or_default() += 1;
                     }
                 }
+            }
+            if !freed.is_empty() {
+                // Files outside the batch that contribute to a freed name.
+                for (k, id) in tx.meta_prefix("file/")? {
+                    if batch_paths.contains(&k["file/".len()..]) {
+                        continue;
+                    }
+                    let id = Digest::from_slice(&id).ok_or_else(|| StoreError::Codec("file key".into()))?;
+                    let r = tx.record(&id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
+                    for ((g, lang), ms) in FileManifest::decode(&r.bytes)?.contributions() {
+                        if freed.contains(&g) {
+                            let e = deltas.entry((g, lang)).or_default();
+                            for x in ms {
+                                *e.entry(x).or_default() += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            for (g, nominal) in &retired {
+                // Its methods leave with the generic function.
+                let mut n = tx.nominal(nominal)?.ok_or_else(|| StoreError::NotFound(nominal.to_hex()))?;
+                for mut e in tx.relation(nominal)? {
+                    let seq = self.log(tx, LogOp::RemoveMethod, nominal.to_hex(), Some(e.member), None)?;
+                    e.removed_seq = Some(seq);
+                    tx.put_relation(&e)?;
+                    n.version = seq;
+                    report.members_removed += 1;
+                }
+                for (k, _) in tx.meta_prefix(&format!("member/{}/", nominal.to_hex()))? {
+                    tx.remove_meta(&k)?;
+                }
+                tx.put_nominal(&n)?;
+                deltas.retain(|(x, _), _| x != g);
             }
             for ((g, lang), ms) in deltas {
                 let nominal = match tx.name(&g)? {
