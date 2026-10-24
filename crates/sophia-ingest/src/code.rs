@@ -26,7 +26,7 @@ pub enum CodeError {
 /// both tools name definitions by one rule (`moonkale-content-id`'s
 /// `binding`, `julia_scopes`, `julia_extends`).
 pub use moonkale_content_id::Definition as Def;
-pub use moonkale_content_id::{JuliaScopes, julia_extends, julia_scopes};
+pub use moonkale_content_id::{JuliaScopes, julia_extends, julia_scopes, locate, modules_around};
 
 pub(crate) fn text<'a>(n: Syntax, src: &'a str) -> &'a str {
     &src[n.start_byte()..n.end_byte()]
@@ -53,21 +53,6 @@ fn name_node<'t>(lang: &str, n: Syntax<'t>) -> Option<Syntax<'t>> {
     }
 }
 
-/// The `module … end` names around a node, within its file. A copy of
-/// `moonkale-content-id`'s own, which the crate does not export yet.
-pub fn modules_around(mut n: Syntax, src: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    while let Some(p) = n.parent() {
-        if p.kind() == "module_definition" {
-            if let Some(x) = p.child_by_field_name("name").or_else(|| p.named_child(0)) {
-                out.push(text(x, src).to_string());
-            }
-        }
-        n = p;
-    }
-    out.reverse();
-    out
-}
 
 
 /// Every definition the normal form covers, in source order (nested ones,
