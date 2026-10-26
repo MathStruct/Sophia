@@ -53,6 +53,8 @@ Everything the canonicaliser does is a *decision*, and every decision is a commi
 
 Step 4 is where the theoretical ugliness lives — canonical labelling of a graph is not known to be polynomial in general. In practice SCCs in real code are tiny (2–5 mutually recursive functions) and refinement separates them immediately, so a brute-force tie-break is affordable. This is a place where an adversarial input could be expensive; SCC size should be capped with a hard error.
 
+**What the code does (2026-10-25):** not colour refinement. `canonical_order` takes the least serialisation over all roots and merges members related by an automorphism; bisimilar members that no automorphism relates stay apart ([[component]], [[RQ-001 Recursive Groups up to Bisimilarity]]).
+
 ## Three hashes per definition, not one
 
 Collapsing everything into one identifier throws away distinctions the system needs:

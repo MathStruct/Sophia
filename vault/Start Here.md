@@ -12,12 +12,13 @@ The vault is the whole repository. Its notes sit in four places:
 | `vault/Specifications/` | **specifications**, numbered `SPEC-nnn`, drafts until Daniel accepts them | `SPEC-001 Sophia Store v0.md` |
 | `vault/Decisions/` | **decisions**, numbered `S-ADR-nnnn` (the `S-` keeps them apart from Moonkale's ADRs) | `S-ADR-0002 Hash the core term, not the text.md` |
 | `vault/Problems/` | **problems**, numbered `SP-nnn`, indexed in the Problem Log | `SP-002 Propagating an update to dependants.md` |
+| `vault/Research Questions/` | **research questions**, numbered `RQ-nnn`: self-contained open questions from implementation and theory, each workable without the rest of the vault | `RQ-001 Recursive Groups up to Bisimilarity.md` |
 | `vault/Plans/` | **milestones, benchmark plan and results** | `Milestones.md` |
 | `vault/Theory/` | **theory** specific to Sophia's decisions (general mathematics stays in the CT-ML wiki) | `Type Taxonomy.md` |
 | `vault/Research/` | **research notes**: questions answered, comparisons, analyses | `Compression and Canonical Form.md` |
 | `vault/Storage and Materialization/` | **what is kept and what is recomputed**: object categories, inventory, policy, garbage collection | `Current Inventory.md` |
 | `vault/Languages/` | **one folder per language**: parsing, normalisation, resolution, semantics, interoperability with sophialang, support levels | `Languages/Julia/Julia Name Resolution.md` |
-| `vault/templates/` | templates for ADRs, problems and specifications | |
+| `vault/templates/` | templates for ADRs, problems, research questions and specifications | |
 | `vault/Design/` | **design notes** from the first version of the vault: ideas, not requirements (see *Reading of the Earlier Vault*): what Sophia is supposed to be, made precise | `vault/Design/Hashing and Identity.md` |
 | `vault/State of the Art/` | **surveys** of prior art, one area per note | `State of the Art - Equality Saturation and E-Graphs.md` |
 | `vault/Background/` | **background cards** on engineering topics: LLVM, MLIR, Julia internals, hashing, Unison | `vault/Background/Hashing/Merkle DAG.md` |
@@ -46,7 +47,7 @@ Formulas are written in **Typst** (the site renders Typst first and falls back t
 
 ## Adding to it
 
-**Requirements come from Daniel.** An agent records what Daniel said, with the date and place, in [[Requirements]]. An agent's own proposals are marked as such until Daniel confirms them. A specification cites the requirements it meets. A decision is `proposed` until Daniel accepts it. Problems go in the [[Problem Log]]. [[Status]] is kept current.
+**Requirements come from Daniel.** An agent records what Daniel said, with the date and place, in [[Requirements]]. An agent's own proposals are marked as such until Daniel confirms them. A specification cites the requirements it meets. A decision is `proposed` until Daniel accepts it. Problems go in the [[Problem Log]]. A self-contained open question, one whose answer nobody here knows, goes in [[Research Questions]] (`RQ-nnn`). [[Status]] is kept current.
 
 
 A new design decision gets a note in `vault/Design/` and a line in [[Map of Content]]. A new source file gets a `.md` sibling of the same name saying what it is meant to do. A new *general* concept — something true of programming languages or databases in general, not of Sophia — goes into the CT-ML wiki first, and the Sophia note links to it.

@@ -303,6 +303,18 @@ mod tests {
     }
 
     #[test]
+    fn bisimilar_members_that_are_not_automorphic_stay_apart() {
+        // a = s(b, c), b = s(a, a), c = s(a, a) unfolds to the same infinite
+        // tree as h = s(h, h), but swapping b and c changes a's bytes, so no
+        // automorphism relates them: the quotient is by automorphism, not by
+        // bisimilarity (RQ-001).
+        let three = order_of(&["s", "s", "s"], &[vec![1, 2], vec![0, 0], vec![0, 0]]);
+        let alone = order_of(&["s"], &[vec![0, 0]]);
+        assert_eq!((three.classes, alone.classes), (3, 1));
+        assert_ne!(three.serialisation, alone.serialisation);
+    }
+
+    #[test]
     fn budget_is_enforced() {
         let mut tiny = Budget { remaining: 3 };
         let r = canonical_order(2, |m| vec![1 - m], |_, _| vec![0; 8], &mut tiny);

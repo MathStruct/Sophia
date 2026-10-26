@@ -31,5 +31,7 @@ All candidates share one byte `Budget`, so a large recursive group fails with an
 
 ## Difficulties
 
+- The quotient is by automorphism, not by bisimilarity: members that unfold identically without a symmetry relating them keep separate classes (`bisimilar_members_that_are_not_automorphic_stay_apart`). Whether ids should respect bisimilarity is [[RQ-001 Recursive Groups up to Bisimilarity]]. [[Hashing and Identity]] and [[Cycle Hashing]] describe a colour-refinement algorithm that is not the one implemented.
+
 - The cost is quadratic in the component's size (n roots × n members). Real recursive groups are small (the synthetic corpus uses pairs), but a generated or macro-expanded group of thousands would hit the budget. The error is typed, and the definition cannot be stored. → a later problem note if it happens on real code.
 - Unison orders cycles differently (by members' hashes with the cycle removed). Sophia follows Moonkale for consistency. Unison's own hashes are kept as an attribute when Unison code is ingested.

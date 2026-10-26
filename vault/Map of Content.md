@@ -14,7 +14,8 @@ The current work. **Sophia** is the content-addressed store for code in every la
 - **Storage and materialisation** (what is kept, what is recomputed): [[Storage and Materialization]] · [[Object Categories]] · [[Current Inventory]] · [[Object Lifecycle]] · [[Materialization Policy]] · [[Garbage Collection]] · [[Compression]] · [[AD as a Materialization Case]] · [[Storage Measurements]]
 - **Languages** (support levels L1–L6, one folder each): [[Languages]] · Julia: [[Julia Overview]], [[Julia Parsing and Normalization]], [[Julia Name Resolution]], [[Julia Multiple Dispatch and World Age]], [[Julia Macros and Generated Functions]], [[Julia Types]], [[Julia AD and Compiler Backends]], [[Julia Conformance]], [[Julia SophiaLang Interoperability]] · [[SophiaLang Overview]] · [[Sophia Query Overview]] · [[Metamath Overview]] · [[Rust Overview]] · [[Python Overview]] · [[Lisp Overview]] · [[Lean Overview]]
 - **Plans and measurements:** [[Milestones]] · [[Semantic Boundary Experiments]] · [[Real Code Corpora]] · [[Benchmark Plan]] · [[Benchmark Results]]
-- **Problems:** [[Problem Log]] (SP-001 to SP-014)
+- **Problems:** [[Problem Log]] (SP-001 to SP-015)
+- **Research questions** ([[Research Questions]]): [[RQ-001 Recursive Groups up to Bisimilarity]] · [[RQ-002 When Incremental Collection Equals a Fresh Build]] · [[RQ-003 Core Terms or Surface Syntax for Language Models]]
 - [[Reading of the Earlier Vault]]: where the notes below may have misread Daniel. Read the sections below as ideas, not requirements.
 
 ## 0. The idea

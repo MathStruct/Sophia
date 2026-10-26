@@ -45,7 +45,7 @@ That supports:
 2. **Training on the core directly**, with a tree vocabulary from mined abstractions ([[Compression and Canonical Form]] §3.5), so the model writes core terms and reuses abstractions.
 3. **Cross-language translation**, verified: a model proposes a translation, and the store checks it by tests or by an equivalence proof before it is accepted.
 
-The open question (SR-73) is whether a model writing core terms is more reliable than one writing a familiar surface that a parser checks. That is an experiment to run, not an assumption.
+The open question (SR-73) is whether a model writing core terms is more reliable than one writing a familiar surface that a parser checks. That is an experiment to run, not an assumption: [[RQ-003 Core Terms or Surface Syntax for Language Models]].
 
 ## Related
 

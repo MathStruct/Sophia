@@ -17,6 +17,8 @@ Each member then receives $h_i = H(h_"scc" ‖ i)$ for its canonical index `i`.
 
 Step 4 is where the theory is uncomfortable: canonical labelling of a general graph is not known to be in P, and is closely related to graph isomorphism. In practice this does not bite, because SCCs in real code are tiny (2–5 definitions) and colour refinement separates them immediately. It is still an adversarial input away from being expensive, so implementations should cap SCC size with a hard error rather than degrading quietly.
 
+**What the code does (2026-10-25):** not colour refinement. `canonical_order` takes the least serialisation over all roots and merges members related by an automorphism; bisimilar members that no automorphism relates stay apart ([[component]], [[RQ-001 Recursive Groups up to Bisimilarity]]).
+
 ## Related
 
 - [[Merkle DAG]]

@@ -63,8 +63,10 @@ in `vault/Design/Code Map.md`.
 `vault/Requirements/Requirements.md` (SR-nn). External reviews he forwards are triaged in a
 `vault/Research/Review … (external).md` note: each point, whether it was right, what was done.
 Your own proposals are marked as proposals; decisions (`S-ADR-nnnn`) stay `proposed` until he
-accepts them. Problems go in `vault/Problems/` (SP-nnn) and the Problem Log. Keep
-`vault/Status.md` current.
+accepts them. Problems go in `vault/Problems/` (SP-nnn) and the Problem Log. Self-contained open
+questions that come up while implementing or discussing the theory go in
+`vault/Research Questions/` (RQ-nnn, from the template), stated so they can be worked on alone.
+Keep `vault/Status.md` current.
 
 **Vault notes.** A tag line, a summary in a blockquote, then `> Sources:` (papers, then `code:`).
 Wikilinks resolve by note name, so note names are unique across folders (language pages carry

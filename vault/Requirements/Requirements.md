@@ -199,6 +199,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-140 | WebAssembly as a compilation target, "for way later". Daniel (2026-10-22): **both**. (a) sophialang code compiled to WASM (a backend beside the planned ones; WASM's validation and sandbox make the artifact checkable and portable, an input-addressed artifact in the sense of SPEC-006 §3); (b) Sophia's own crates built for wasm32 (a store or the query engine in a browser). (b) conflicts with SR-39 / S-ADR-0005 (the wasm client never opens the store) and needs its own decision before it is built. | D (2026-10-22) | later | both wanted; not planned before SR-139's order is done |
 | SR-145 | No limit on expressiveness: terms of any depth are stored, decoded, printed and parsed; depth may cost memory, never a refusal or a crash. Deep regions are the UI's to fold. | D (2026-10-24, revision of SP-015, relayed by the Moonkale agent) | next | done 2026-10-24: no depth limit, no recursion on the call stack, native and wasm ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]) |
 | SR-146 | The source of truth is a setting, and it decides what history is kept. **Files are the truth:** the store is derived from them, history is in the files and their diffs (git), and what no current file reaches is removed from the store, old versions included. **The store is the truth:** files are an export, and every version is appended to the graph, which is the version history; nothing is removed. | D (2026-10-24, answer to [[Folder Store Garbage]]) | next | done 2026-10-24: collection in `replace_files` and `Store::collect_folder` in derived mode only ([[folder]]) |
+| SR-147 | A research questions section, as in Lenticulum.jl's vault: self-contained research questions that arise during implementation and discussion of the theory are recorded there. | D 2026-10-25 | now | done 2026-10-25 ([[Research Questions]], RQ-001 to RQ-003) |
 
 ## From Moonkale
 
@@ -234,6 +235,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-25: SR-147 added: a research questions section (Daniel).
 - 2026-10-24: SR-146 added: the source-of-truth setting decides between collecting (files) and appending history (store) (Daniel, answer to the garbage measurement).
 - 2026-10-24: SR-145 added: no limit on expressiveness (Daniel's revision of SP-015, ~10:15).
 - 2026-10-24: SR-141 to SR-143 accepted with SPEC-009 (Daniel); SP-015's proposal and the v0.1.0 tag approved (SP-015 revised the same day, SR-145).
