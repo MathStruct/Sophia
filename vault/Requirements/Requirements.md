@@ -200,6 +200,8 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-145 | No limit on expressiveness: terms of any depth are stored, decoded, printed and parsed; depth may cost memory, never a refusal or a crash. Deep regions are the UI's to fold. | D (2026-10-24, revision of SP-015, relayed by the Moonkale agent) | next | done 2026-10-24: no depth limit, no recursion on the call stack, native and wasm ([[SP-015 Stored definitions deeper than the parse limit cannot be edited]]) |
 | SR-146 | The source of truth is a setting, and it decides what history is kept. **Files are the truth:** the store is derived from them, history is in the files and their diffs (git), and what no current file reaches is removed from the store, old versions included. **The store is the truth:** files are an export, and every version is appended to the graph, which is the version history; nothing is removed. | D (2026-10-24, answer to [[Folder Store Garbage]]) | next | done 2026-10-24: collection in `replace_files` and `Store::collect_folder` in derived mode only ([[folder]]) |
 | SR-147 | A research questions section, as in Lenticulum.jl's vault: self-contained research questions that arise during implementation and discussion of the theory are recorded there. | D 2026-10-25 | now | done 2026-10-25 ([[Research Questions]], RQ-001 to RQ-003) |
+| SR-148 | Where the truth lives (Moonkale ADR-0030, Daniel's words): "If there are legacy data where working on a folder is expected, then the folder should be the source of truth, except if the user explicitly moves the source of truth into Sophia. In all other cases assume Sophia store to be the source of truth, even if there are files generated from the store." For Sophia: moving a folder's truth into the store and back, and files generated from a store-truth project, with outside edits to them taken back as proposals. | D 2026-10-26 (Moonkale ADR-0030, `874d0c2b`) | next | specified, accepted 2026-10-26 ([[SPEC-010 Store-Truth Folders and Generated Files]]) |
+| SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | open: needs its own spec |
 
 ## From Moonkale
 
@@ -235,6 +237,8 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-26: SR-149 added: sharing store-truth folders by a text export (Daniel's answer to SPEC-010 Q5, relayed by the Moonkale agent).
+- 2026-10-26: SR-148 added: where the truth lives (Daniel's decision in Moonkale ADR-0030).
 - 2026-10-25: SR-147 added: a research questions section (Daniel).
 - 2026-10-24: SR-146 added: the source-of-truth setting decides between collecting (files) and appending history (store) (Daniel, answer to the garbage measurement).
 - 2026-10-24: SR-145 added: no limit on expressiveness (Daniel's revision of SP-015, ~10:15).
