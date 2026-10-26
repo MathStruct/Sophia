@@ -35,4 +35,9 @@ pub enum StoreError {
     /// is collected; elsewhere the store keeps its history (SR-146).
     #[error("not a derived folder store: the store is the source of truth and keeps its history")]
     NotDerived,
+    /// `replace_files`: a record of the file that no name, span or generic
+    /// membership reaches, directly or through references. Its manifest would
+    /// not reach it, so collection could never remove it (RQ-002).
+    #[error("file {path:?}: record {id} is not reached from a name, span or generic membership")]
+    UnreachedRecord { path: String, id: String },
 }

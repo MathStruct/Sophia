@@ -4,7 +4,7 @@
 //! replaces everything a set of files contributed in one transaction. See
 //! `folder.md`.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use sophia_hash::canonical::{Reader, Writer};
 use sophia_hash::merkle::{component_digest, member_digest};
@@ -344,6 +344,23 @@ impl<B: Backend> Store<B> {
                 if *i >= n || a > b || *b > len {
                     return Err(StoreError::NotFound(format!("{}: span {a}..{b} of record {i}", f.path)));
                 }
+            }
+            // Every record must be reached from what the manifest references
+            // (names, members, spans), else collection never sees it (RQ-002).
+            let mut reached: HashSet<Digest> = HashSet::new();
+            let mut stack: Vec<Digest> = f.names.iter().map(|(_, i)| f.records[*i].id).collect();
+            stack.extend(f.generics.iter().flat_map(|g| g.members.iter().map(|i| f.records[*i].id)));
+            stack.extend(f.spans.iter().map(|(i, _, _)| f.records[*i].id));
+            let by_id: HashMap<Digest, &Record> = f.records.iter().map(|r| (r.id, r)).collect();
+            while let Some(d) = stack.pop() {
+                if reached.insert(d) {
+                    if let Some(r) = by_id.get(&d) {
+                        stack.extend(r.refs.iter().copied());
+                    }
+                }
+            }
+            if let Some(r) = f.records.iter().find(|r| !reached.contains(&r.id)) {
+                return Err(StoreError::UnreachedRecord { path: f.path.clone(), id: r.id.to_hex() });
             }
         }
         // Claims within the batch: a name belongs to one file.

@@ -351,6 +351,22 @@ fn a_file_listing_a_generic_twice_is_one_contributor<B: Backend>(s: Store<B>) {
     assert_eq!(methods(&s).len(), 1);
 }
 
+/// A record no name, span or generic membership reaches, directly or through
+/// references, is refused: the manifest would not reach it, so collection
+/// could never remove it and the store would drift from a fresh build (RQ-002).
+fn unreached_records_are_refused<B: Backend>(s: Store<B>) {
+    let mut a = file("a.jl", &[("a", "1")]);
+    a.records.push(rec("hidden", "const_statement"));
+    assert!(matches!(s.replace_files(&[a]), Err(StoreError::UnreachedRecord { .. })));
+    assert!(s.file_manifest("a.jl").unwrap().is_none(), "nothing written");
+    // Reached through a reference from a named record: accepted.
+    let mut b = file("b.jl", &[("b", "2")]);
+    let helper = rec("helper", "const_statement");
+    b.records[0].refs.push(helper.id);
+    b.records.push(helper);
+    s.replace_files(&[b]).unwrap();
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -472,6 +488,11 @@ macro_rules! suite {
             fn a_file_listing_a_generic_twice_is_one_contributor() {
                 let (s, _d) = store();
                 super::a_file_listing_a_generic_twice_is_one_contributor(s);
+            }
+            #[test]
+            fn unreached_records_are_refused() {
+                let (s, _d) = store();
+                super::unreached_records_are_refused(s);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {
