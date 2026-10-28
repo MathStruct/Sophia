@@ -93,6 +93,12 @@ Moonkale's coarse graph query called `all(2 000 000)` on a copy of B-15's 100 00
 - `text_source(key)` returns the file, source id and span a definition's text came from; the caller compares the source id with `sophia_store::folder::source_record(path, current text).id` to tell whether the store is stale for that file.
 - Tested in `tests/acceptance.rs` (`folder_store_is_read_only_and_prints_files`, four backends).
 
+## Store-truth folders and generated files (2026-10-28, SPEC-010)
+
+- **Laid-out names:** see [[edit]]. Tested by `store_truth_folder_routes_laid_out_names_through_files`, four backends.
+- **`export(namespace)`:** the sophialang definitions named directly in a namespace, as one file in name order, printed in the reader's profile for that namespace. Each name has a span. A recursive group prints once, at its first name, and its names share that span. Two names of one record (identical content) each print under their own name: the first version shared spans by component and printed `ancestor_sig` under `parent_sig`, and the test caught it. Laid-out names and foreign records are left out, because their files are Moonkale's. The token is a hash over each exported name and its text token, and Moonkale keeps it in `generated.json` with the file's source id. Tested by `a_namespace_exports_as_one_file`: every span is the name's `fetch_text`, the export is deterministic, saving a span's text back writes nothing, and an edit changes the token.
+- **Not built yet:** `propose_text` for an outside edit of a generated sophialang file (SPEC-010 §5, "after §2 to §4").
+
 ## The web client's read path (2026-10-24, SPEC-009 §4)
 
 `Interface::open_read_only(backend, reader)` opens without writing (no built-in profile rows; missing ones read as Julia's). With `Sqlite::from_bytes` it is what Moonkale's web client would use. `tests/wasm_read.rs` runs on `wasm32-unknown-unknown` under Node, against `tests/fixtures/web.sophia` (108 KB, written by the ignored native test in `tests/wasm_fixture.rs`): it browses (`children`, `neighbours`, `all`), prints a sophialang definition and a folder-store file's text, gets `text_source`, runs a recursive `query`, and checks that writes are refused. **4 of 4 pass.** Not run in a browser yet (the runner needs geckodriver or chromedriver, not installed).

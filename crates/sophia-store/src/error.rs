@@ -40,4 +40,20 @@ pub enum StoreError {
     /// not reach it, so collection could never remove it (RQ-002).
     #[error("file {path:?}: record {id} is not reached from a name, span or generic membership")]
     UnreachedRecord { path: String, id: String },
+    /// A store-truth call on a derived store, whose files are the truth
+    /// (SPEC-010): `replace_files_checked`, `propose_files`, `give_truth`.
+    #[error("a derived folder store: the files are the truth")]
+    Derived,
+    /// `replace_files_checked`: files changed since their tokens were read,
+    /// as (path, expected, found); nothing was written (SPEC-010 §2).
+    #[error("files changed since they were read: {}", conflicts.iter().map(|(p, _, _)| p.as_str()).collect::<Vec<_>>().join(", "))]
+    FileConflict { conflicts: Vec<(String, u64, u64)> },
+    /// An interface edit of a name that a file lays out, in a store-truth
+    /// folder: edit the file (`path`, current `token`) instead (SPEC-010 §2).
+    #[error("the name is laid out in file {path:?}: edit it through the file")]
+    LaidOut { path: String, token: u64 },
+    /// `give_truth`: a file's stored text is not what was exported, or a
+    /// file was not exported (SPEC-010 §3).
+    #[error("file {path:?} was not exported as stored")]
+    ExportMismatch { path: String },
 }

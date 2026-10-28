@@ -1,6 +1,6 @@
 #design #definition
 
-> **Draft, a proposal by Claude (Sophia), 2026-10-26. Accepted by Daniel on 2026-10-26, with questions 1 to 4 answered as the Moonkale agent recommended and question 5 answered with (b).** It specifies what Sophia provides for Moonkale's ADR-0030 (SR-148): moving a folder's source of truth from its files into the store and back, and files generated from a store whose graph is the truth, with outside edits to them taken back as proposals. The split of work follows the Moonkale agent's proposal of 2026-10-26: Moonkale normalises foreign code and hands Sophia finished records, as in SPEC-009. Not implemented.
+> **Draft, a proposal by Claude (Sophia), 2026-10-26. Accepted by Daniel on 2026-10-26, with questions 1 to 4 answered as the Moonkale agent recommended and question 5 answered with (b).** **Implemented 2026-10-28 (§2, §3, §4 export, §5 `propose_files`)** on all four backends ([[folder]], [[edit]], [[sophia_interface]]). Not built yet: `propose_text` for sophialang files, and the text export of SR-149. Three amendments from implementing it are listed in §6. It specifies what Sophia provides for Moonkale's ADR-0030 (SR-148): moving a folder's source of truth from its files into the store and back, and files generated from a store whose graph is the truth, with outside edits to them taken back as proposals. The split of work follows the Moonkale agent's proposal of 2026-10-26: Moonkale normalises foreign code and hands Sophia finished records, as in SPEC-009.
 >
 > Sources: Moonkale `markdown/decisions/ADR-0030 Where the truth lives.md` (master `874d0c2b`), ADR-0028 (the `truth` field), ADR-0029; [[SPEC-009 Moonkale Folder Store]] (the folder store, `replace_files`, the derived mode, §9 collection); [[SPEC-004 Moonkale Interface]] §3b (edit tokens, SR-77); [[SPEC-005 Rendering Profiles]]. code: `crates/sophia-store/src/folder.rs`, `crates/sophia-interface/src/edit.rs` (`refuse_if_derived`), `sophia_interface.rs` (`text_token`).
 
@@ -70,6 +70,14 @@ Moonkale shows the proposal. **Accept** is `replace_files_checked` with the same
 
 For sophialang files, Moonkale does not normalise. `Interface::propose_text(path, text, token)` parses with Sophia's parser and returns the same `Proposal`. Proposal: this comes after §2 to §4.
 
+## 6. Amendments from the implementation (2026-10-28)
+
+1. **`propose_files` takes the write lock.** It runs the replacement in a write transaction that is always rolled back, rather than in a read transaction. That makes its report and errors exactly what an accept would give at that moment, without a second implementation of the diff. It writes nothing; the test checks the records, the state and the log position.
+2. **Exported sophialang files are not stored back as file manifests.** §4 said Moonkale would store an exported file with `replace_files_checked`. That would lay out the sophialang names it contains, and question 1's answer would then refuse their interface edits. Instead, `Interface::export(namespace)` returns its own token, a hash over the exported names' text tokens, which Moonkale keeps as the marker. An outside edit of such a file goes through `propose_text`, which is not built yet.
+3. **`export` prints in the reader's profile** for the namespace, the one `fetch_text` uses. It takes no profile argument: the profile is the reader's setting.
+
+A file's token also covers the version of each generic function the file contributes to. So another file adding a method to a shared generic function makes this file's token stale: a conservative conflict.
+
 ## Acceptance
 
 1. `replace_files_checked`, `file_token`, `take_truth`, `give_truth` and `propose_files` on all four backends, with tests:
@@ -78,7 +86,7 @@ For sophialang files, Moonkale does not normalise. `Interface::propose_text(path
    - `take_truth` then `give_truth` leaves a fresh build's records (as SR-146's tests do);
    - an interface edit of a laid-out name is refused (if open question 1 is accepted).
 2. Moonkale's history replay switched into store-truth mode halfway: no differences against a store built fresh and switched, and the replay's later commits appended as history.
-3. `Interface::export` round-trips: exporting, then storing the export back, changes no name.
+3. `Interface::export` round-trips: exporting, then storing the export back, changes no name. (Amended by §6.2: the export is not stored back as a manifest; the round trip goes through `propose_text`, not built yet.)
 4. A tag after 1 to 3, as for `v0.1.x`.
 
 ## Questions for Daniel, answered 2026-10-26

@@ -222,12 +222,24 @@ impl<B: Backend + Sync> Interface<B> {
         Ok(())
     }
 
+    /// In a store-truth folder (SPEC-010 §2) a name that a file lays out is
+    /// edited through the file: Moonkale splices the edit into the file's
+    /// text and writes it with `replace_files_checked`. The error names the
+    /// file and its current token.
+    fn refuse_if_laid_out(&self, name: &str) -> R<()> {
+        match self.store.laid_out(name)? {
+            Some((path, token)) => Err(EditError::Store(StoreError::LaidOut { path, token })),
+            None => Ok(()),
+        }
+    }
+
     pub fn write_text(&self, key: &Key, expected: u64, text: &str) -> R<Written> {
         self.refuse_if_derived()?;
         match key {
             Key::Derived(s) if s == "settings" => self.write_settings(expected, text),
             Key::Derived(s) if s.starts_with("name:") => {
                 let path = s[5..].to_string();
+                self.refuse_if_laid_out(&path)?;
                 let ns = parent_ns(&path).to_string();
                 if self.is_query(&path)? {
                     return self.write_query(&path, expected, text);
@@ -331,6 +343,7 @@ impl<B: Backend + Sync> Interface<B> {
         self.refuse_if_derived()?;
         let Key::Derived(s) = key else { return Err(EditError::Refused("only names can be renamed".into())) };
         let Some(from) = s.strip_prefix("name:") else { return Err(EditError::Refused("only names can be renamed".into())) };
+        self.refuse_if_laid_out(from)?;
         let to = path_from_moonkale(to);
         self.store.rename(from, &to, None)?;
         Ok(Key::name(&to))
@@ -341,6 +354,7 @@ impl<B: Backend + Sync> Interface<B> {
         self.refuse_if_derived()?;
         let Key::Derived(s) = key else { return Err(EditError::Refused("only names can be deleted".into())) };
         if let Some(p) = s.strip_prefix("name:") {
+            self.refuse_if_laid_out(p)?;
             self.store.remove(p, None)?;
             return Ok(());
         }

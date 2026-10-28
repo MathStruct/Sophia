@@ -10,7 +10,7 @@
 mod edit;
 pub mod profiles;
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use sophia_hash::{Digest, Record};
 use sophia_store::{Backend, NameEntry, ReadTx, Store, StoreError, Target};
@@ -46,6 +46,18 @@ pub enum Prop {
     Text(String),
     Int(i64),
     Bool(bool),
+}
+
+/// A generated file of sophialang definitions (SPEC-010 §4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportedFile {
+    pub namespace: String,
+    pub text: String,
+    /// (name, start, end) in `text`; the names of one recursive group
+    /// share its span.
+    pub spans: Vec<(String, u32, u32)>,
+    /// Changes when any exported name's text token does.
+    pub token: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -601,6 +613,53 @@ impl<B: Backend + Sync> Interface<B> {
             }
             _ => Err(StoreError::NotFound(format!("{key:?} has no text"))),
         }
+    }
+
+    /// Prints the sophialang definitions named directly in `namespace` as
+    /// one generated file (SPEC-010 §4), in name order, in the reader's
+    /// profile. A recursive group prints once, at its first name. Names a
+    /// file lays out and foreign records are left out: their files are
+    /// Moonkale's. The token changes when any exported name's text token
+    /// does; Moonkale keeps it with the file's source id as the marker.
+    pub fn export(&self, namespace: &str) -> Result<ExportedFile> {
+        let mut names: Vec<NameEntry> =
+            self.store.read(|tx| tx.names_under(namespace, usize::MAX))?.into_iter().filter(|n| parent_ns(&n.path) == namespace).collect();
+        names.sort_by(|a, b| a.path.cmp(&b.path));
+        let mut text = String::new();
+        let mut spans = Vec::new();
+        let mut printed: HashMap<Digest, (u32, u32)> = HashMap::new();
+        let mut h = blake3::Hasher::new();
+        h.update(b"sophia-export-token-v1");
+        for n in names {
+            let lang = match n.target {
+                // Only a recursive group prints once; two names of one record
+                // (identical content) each print under their own name.
+                Target::Content(d) => self.store.record(&d)?.map(|r| (r.lang, (r.component_size > 1).then_some(r.component))),
+                Target::Nominal(id) => self.store.nominal(&id)?.map(|x| (x.lang, None)),
+            };
+            let Some((lang, component)) = lang else { continue };
+            if lang != sophialang_core::normalise::LANG || self.store.laid_out(&n.path)?.is_some() {
+                continue;
+            }
+            h.update(n.path.as_bytes());
+            h.update(&self.text_token(&n.path)?.to_le_bytes());
+            if let Some(span) = component.and_then(|c| printed.get(&c).copied()) {
+                spans.push((n.path.clone(), span.0, span.1));
+                continue;
+            }
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            let start = text.len() as u32;
+            text.push_str(&self.print_target(n.target, &n.path)?);
+            let span = (start, text.len() as u32);
+            if let Some(c) = component {
+                printed.insert(c, span);
+            }
+            spans.push((n.path, span.0, span.1));
+        }
+        let token = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
+        Ok(ExportedFile { namespace: namespace.to_string(), text, spans, token })
     }
 
     /// Where the text of a definition came from in a folder store: the

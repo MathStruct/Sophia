@@ -367,6 +367,122 @@ fn unreached_records_are_refused<B: Backend>(s: Store<B>) {
     s.replace_files(&[b]).unwrap();
 }
 
+fn last_seq<B: Backend>(s: &Store<B>) -> u64 {
+    s.read(|tx| tx.last_seq()).unwrap()
+}
+
+/// SPEC-010 §2: in a store-truth folder a file is written with the token
+/// read when it was last printed; a stale token writes nothing.
+fn checked_replacement_refuses_stale_tokens<B: Backend>(s: Store<B>) {
+    assert_eq!(s.file_token("a.jl").unwrap(), 0, "no such file");
+    s.replace_files_checked(&[(file("a.jl", &[("a", "1"), ("g:1", "g(x) = 0")]), 0)]).unwrap();
+    let t1 = s.file_token("a.jl").unwrap();
+    assert_ne!(t1, 0);
+    assert_eq!(s.laid_out("jl.P.a").unwrap(), Some(("a.jl".to_string(), t1)));
+    assert_eq!(s.laid_out("jl.P.nothing").unwrap(), None);
+    // Another writer replaces the file: the first writer's token is stale.
+    s.replace_files_checked(&[(file("a.jl", &[("a", "2"), ("g:1", "g(x) = 0")]), t1)]).unwrap();
+    let t2 = s.file_token("a.jl").unwrap();
+    assert_ne!(t1, t2);
+    let before = (all_records(&s), state(&s), last_seq(&s));
+    let r = s.replace_files_checked(&[(file("a.jl", &[("a", "3")]), t1), (file("b.jl", &[("b", "4")]), 0)]);
+    match r {
+        Err(StoreError::FileConflict { conflicts }) => assert_eq!(conflicts, vec![("a.jl".to_string(), t1, t2)]),
+        other => panic!("expected a conflict: {other:?}"),
+    }
+    assert_eq!((all_records(&s), state(&s), last_seq(&s)), before, "nothing written");
+    // A name of the file moving changes its token, as an edit does.
+    s.replace_files_checked(&[(file("a.jl", &[("a", "2")]), t2), (file("b.jl", &[("b", "4")]), 0)]).unwrap();
+    let t3 = s.file_token("a.jl").unwrap();
+    s.replace_files_checked(&[(file("a.jl", &[]), t3), (file("b.jl", &[("b", "4"), ("a", "2")]), s.file_token("b.jl").unwrap())]).unwrap();
+    assert_eq!(s.laid_out("jl.P.a").unwrap().map(|(p, _)| p), Some("b.jl".to_string()));
+    // A derived store's files are the truth: nothing to check against.
+    s.set_derived().unwrap();
+    assert!(matches!(s.replace_files_checked(&[(file("c.jl", &[("c", "5")]), 0)]), Err(StoreError::Derived)));
+    assert!(matches!(s.propose_files(&[(file("c.jl", &[("c", "5")]), 0)]), Err(StoreError::Derived)));
+}
+
+/// SPEC-010 §5: a proposal writes nothing, says what would change, and
+/// accepting it equals a plain replacement.
+fn a_proposal_writes_nothing_and_accepting_it_equals_replacing<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    let (t, _d) = fresh();
+    let first = vec![file("a.jl", &[("a", "1"), ("b", "2"), ("g:1", "g(x) = 0")]), file("b.jl", &[("c", "3")])];
+    s.replace_files(&first).unwrap();
+    t.replace_files(&first).unwrap();
+    let edit = file("a.jl", &[("a", "10"), ("d", "4"), ("g:2", "g(x) = 1")]);
+    let token = s.file_token("a.jl").unwrap();
+    let before = (all_records(&s), state(&s), last_seq(&s), s.file_manifest("a.jl").unwrap());
+    let p = s.propose_files(&[(edit.clone(), token)]).unwrap();
+    assert_eq!((all_records(&s), state(&s), last_seq(&s), s.file_manifest("a.jl").unwrap()), before, "nothing written");
+    assert!(p.conflicts.is_empty() && p.error.is_none());
+    let f = &p.files[0];
+    let id = |b: &str| rec(b, "const_statement").id;
+    let m = |b: &str| rec(b, "function_definition").id;
+    assert!(f.text_changed);
+    assert_eq!(f.names_added, vec![("jl.P.d".to_string(), id("4"))]);
+    assert_eq!(f.names_removed, vec![("jl.P.b".to_string(), id("2"))]);
+    assert_eq!(f.names_retargeted, vec![("jl.P.a".to_string(), id("1"), id("10"))]);
+    assert_eq!(f.members_added, vec![("jl.P.g".to_string(), m("g(x) = 1"))]);
+    assert_eq!(f.members_removed, vec![("jl.P.g".to_string(), m("g(x) = 0"))]);
+    let report = p.report.clone().expect("would succeed");
+    // Accept: the same as replacing.
+    assert_eq!(s.replace_files_checked(&[(edit.clone(), token)]).unwrap(), report);
+    t.replace_files(&[edit]).unwrap();
+    assert_eq!((all_records(&s), state(&s)), (all_records(&t), state(&t)));
+    // Conflicts and errors are reported, not thrown.
+    let p = s.propose_files(&[(file("a.jl", &[("a", "11")]), token)]).unwrap();
+    assert_eq!(p.conflicts.len(), 1);
+    let p = s.propose_files(&[(file("c.jl", &[("c", "3")]), 0)]).unwrap();
+    assert!(matches!(p.error, Some(StoreError::NameClaimed { .. })), "{:?}", p.error);
+    let mut hidden = file("c.jl", &[("e", "5")]);
+    hidden.records.push(rec("hidden", "const_statement"));
+    assert!(matches!(s.propose_files(&[(hidden, 0)]).unwrap().error, Some(StoreError::UnreachedRecord { .. })));
+}
+
+/// SPEC-010 §3: the truth moves into the store in place, the store keeps
+/// every later version, and giving the truth back leaves a fresh build.
+fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
+    s.set_derived().unwrap();
+    assert!(matches!(s.give_truth(&[]), Err(StoreError::Derived)));
+    let mut tree = Tree::new();
+    let commits = history();
+    let apply = |tree: &mut Tree, c: &[FileIngest]| {
+        for f in c {
+            if f.text.is_some() { tree.insert(f.path.clone(), f.clone()); } else { tree.remove(&f.path); }
+        }
+    };
+    s.replace_files(&commits[0]).unwrap();
+    apply(&mut tree, &commits[0]);
+    // Into the store, with the files as they are now.
+    s.take_truth(&commits[1]).unwrap();
+    apply(&mut tree, &commits[1]);
+    assert!(!s.is_derived().unwrap());
+    assert!(s.meta(sophia_store::folder::TRUTH_SINCE_KEY).unwrap().is_some());
+    assert!(matches!(s.take_truth(&[]), Err(StoreError::NotDerived)));
+    // Store-truth edits keep every version.
+    let mut seen = std::collections::BTreeSet::new();
+    for c in &commits[2..4] {
+        let checked: Vec<(FileIngest, u64)> = c.iter().map(|f| (f.clone(), s.file_token(&f.path).unwrap())).collect();
+        assert_eq!(s.replace_files_checked(&checked).unwrap().records_removed, 0);
+        seen.extend(c.iter().flat_map(|f| f.records.iter().map(|r| r.id)));
+        apply(&mut tree, c);
+    }
+    let kept: std::collections::BTreeSet<Digest> = all_records(&s).into_iter().collect();
+    assert!(seen.is_subset(&kept), "every version stays");
+    // Back to the files: every current file, with the text written.
+    let exported: Vec<(String, Digest)> = tree.values().map(|f| (f.path.clone(), source_record(&f.path, f.text.as_ref().unwrap()).id)).collect();
+    assert!(matches!(s.give_truth(&exported[1..]), Err(StoreError::ExportMismatch { .. })), "a file not exported");
+    let mut wrong = exported.clone();
+    wrong[0].1 = source_record(&wrong[0].0, "edited elsewhere").id;
+    assert!(matches!(s.give_truth(&wrong), Err(StoreError::ExportMismatch { .. })), "a text not as stored");
+    assert!(s.give_truth(&exported).unwrap() > 0);
+    assert!(s.is_derived().unwrap());
+    let (t, _d) = fresh();
+    t.set_derived().unwrap();
+    t.replace_files(&tree.values().cloned().collect::<Vec<_>>()).unwrap();
+    assert_eq!((all_records(&s), state(&s)), (all_records(&t), state(&t)));
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -493,6 +609,21 @@ macro_rules! suite {
             fn unreached_records_are_refused() {
                 let (s, _d) = store();
                 super::unreached_records_are_refused(s);
+            }
+            #[test]
+            fn checked_replacement_refuses_stale_tokens() {
+                let (s, _d) = store();
+                super::checked_replacement_refuses_stale_tokens(s);
+            }
+            #[test]
+            fn a_proposal_writes_nothing_and_accepting_it_equals_replacing() {
+                let (s, _d) = store();
+                super::a_proposal_writes_nothing_and_accepting_it_equals_replacing(s, store);
+            }
+            #[test]
+            fn the_truth_moves_into_the_store_and_back() {
+                let (s, _d) = store();
+                super::the_truth_moves_into_the_store_and_back(s, store);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

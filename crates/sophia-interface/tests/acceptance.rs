@@ -331,7 +331,82 @@ fn folder_store_is_read_only_and_prints_files<B: Backend + Sync>(i: Interface<B>
     assert!(matches!(i.write_text(&Key::settings(), sv, &st), Err(EditError::Refused(_))));
 }
 
-both!(all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
+/// SPEC-010 §2: in a store-truth folder, a name a file lays out is edited
+/// through the file; the error names the file and its current token.
+/// sophialang names stay editable.
+fn store_truth_folder_routes_laid_out_names_through_files<B: Backend + Sync>(i: Interface<B>) {
+    use sophia_hash::merkle::{component_digest, member_digest};
+    let text = "struct P\n    x::Int\nend\n";
+    let component = component_digest("julia", "moonkale-wp66@7", b"struct-x");
+    let r = sophia_hash::Record {
+        id: member_digest(&component, 0),
+        lang: "julia".into(),
+        normaliser: "moonkale-wp66@7".into(),
+        kind: "struct_definition".into(),
+        component,
+        index: 0,
+        component_size: 1,
+        bytes: b"struct-x".to_vec(),
+        display: b"P".to_vec(),
+        status: sophia_hash::Status::Complete,
+        refs: vec![],
+        nominal_refs: vec![],
+    };
+    let f = sophia_store::FileIngest {
+        path: "src/P.jl".into(),
+        text: Some(text.into()),
+        normaliser: "moonkale-wp66@7".into(),
+        records: vec![r],
+        spans: vec![(0, 0, text.len() as u32 - 1)],
+        names: vec![("jl.Pkg.P".into(), 0)],
+        ..Default::default()
+    };
+    i.store().replace_files_checked(&[(f, 0)]).unwrap();
+    let token = i.store().file_token("src/P.jl").unwrap();
+    let key = Key::name("jl.Pkg.P");
+    let laid_out = |r: std::result::Result<(), EditError>| match r {
+        Err(EditError::Store(sophia_store::StoreError::LaidOut { path, token: t })) => assert_eq!((path.as_str(), t), ("src/P.jl", token)),
+        other => panic!("expected LaidOut: {other:?}"),
+    };
+    let (t, v) = i.fetch_text(&key).unwrap();
+    laid_out(i.write_text(&key, v, &t).map(|_| ()));
+    laid_out(i.rename(&key, "jl/Pkg/Q").map(|_| ()));
+    laid_out(i.delete(&key));
+    assert!(i.store().resolve("jl.Pkg.P").unwrap().is_some(), "nothing changed");
+    // sophialang names: editable as before.
+    let (t, v) = i.fetch_text(&Key::name("sample.double")).unwrap();
+    i.write_text(&Key::name("sample.double"), v, &t.replace("x + x", "2 * x")).unwrap();
+}
+
+/// SPEC-010 §4: a namespace exports as one file, in name order, each name's
+/// span holding its printed text; the token follows the names' tokens, and
+/// saving a span's text back changes nothing.
+fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
+    let e = i.export("sample").unwrap();
+    assert_eq!(e.namespace, "sample");
+    let names: Vec<&str> = e.spans.iter().map(|(n, _, _)| n.as_str()).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    assert_eq!(names, sorted, "name order");
+    assert!(names.contains(&"sample.double") && names.contains(&"sample.add"));
+    for (n, a, b) in &e.spans {
+        let printed = i.fetch_text(&Key::name(n)).unwrap().0;
+        assert_eq!(&e.text[*a as usize..*b as usize], printed, "{n}");
+    }
+    assert_eq!(i.export("sample").unwrap(), e, "deterministic");
+    // Saving the exported text back writes nothing.
+    let seq = i.store().last_seq().unwrap();
+    let (n, a, b) = e.spans.iter().find(|(n, _, _)| n == "sample.double").unwrap();
+    let (_, v) = i.fetch_text(&Key::name(n)).unwrap();
+    i.write_text(&Key::name(n), v, &e.text[*a as usize..*b as usize]).unwrap();
+    assert_eq!(i.store().last_seq().unwrap(), seq);
+    // An edit changes the token.
+    let (t, v) = i.fetch_text(&Key::name("sample.double")).unwrap();
+    i.write_text(&Key::name("sample.double"), v, &t.replace("x + x", "2 * x")).unwrap();
+    assert_ne!(i.export("sample").unwrap().token, e.token);
+}
+
+both!(store_truth_folder_routes_laid_out_names_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
     diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {

@@ -16,6 +16,7 @@
 
 ## The rest
 
+- **Store-truth folders (2026-10-28, SPEC-010 §2):** `write_text`, `rename` and `delete` on a name that a file lays out (`Store::laid_out`) return `EditError::Store(StoreError::LaidOut { path, token })`. Moonkale edits it through the file. In a store without files no name is laid out, so nothing changes there.
 - **`create_text`, `create_dir`, `rename`, `delete`:** as SPEC-004 §3. An empty namespace is a meta row `ns/<path>`.
 - **The settings node:** writing it replaces the reader's personal profile `reader-<id>` (`based_on` plus overrides), points the reader's default at it, and bumps the reader's settings version. It is one logged transaction, so Moonkale sees `reprint_all`.
 - **`load_sample`:** the 16 sample definitions, the two relations as nominal entities with their members, and the built-ins.
