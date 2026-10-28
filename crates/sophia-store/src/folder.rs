@@ -283,6 +283,10 @@ pub struct Proposal {
     /// The error `replace_files` would raise (`NameClaimed`,
     /// `UnreachedRecord`, `NormaliserChanged`, …), reported, not thrown.
     pub error: Option<StoreError>,
+    /// Generic functions an accept would create or remove: their names
+    /// follow from every file's contributions, not from one file's diff.
+    pub generics_added: Vec<String>,
+    pub generics_removed: Vec<String>,
 }
 
 /// Where a definition's text is: the file, its source record and the span.
@@ -709,8 +713,7 @@ impl<B: Backend> Store<B> {
     /// edited through the file in a store-truth folder (SPEC-010 §2).
     pub fn laid_out(&self, name: &str) -> Result<Option<(String, u64)>> {
         self.read(|tx| {
-            let Some(owner) = tx.meta(&owner_key(name))? else { return Ok(None) };
-            let path = String::from_utf8_lossy(&owner).into_owned();
+            let Some(path) = laid_out_in(tx, name)? else { return Ok(None) };
             let token = file_token_in(tx, &path)?;
             Ok(Some((path, token)))
         })
@@ -757,11 +760,30 @@ impl<B: Backend> Store<B> {
                     return Err(StoreError::Derived);
                 }
                 let mut p = Proposal { conflicts: conflicts_in(tx, files)?, ..Proposal::default() };
+                let mut generics: BTreeSet<String> = BTreeSet::new();
                 for f in &ingests {
-                    p.files.push(file_proposal(tx, f)?);
+                    let (fp, old) = file_proposal(tx, f)?;
+                    generics.extend(old.generics.into_iter().map(|(g, _, _)| g));
+                    generics.extend(f.generics.iter().map(|g| g.path.clone()));
+                    p.files.push(fp);
+                }
+                let mut before = BTreeSet::new();
+                for g in &generics {
+                    if is_generic(tx, g)? {
+                        before.insert(g.as_str());
+                    }
                 }
                 match self.replace_in(tx, &ingests, &batch_paths) {
-                    Ok(r) => p.report = Some(r),
+                    Ok(r) => {
+                        p.report = Some(r);
+                        for g in &generics {
+                            match (before.contains(g.as_str()), is_generic(tx, g)?) {
+                                (false, true) => p.generics_added.push(g.clone()),
+                                (true, false) => p.generics_removed.push(g.clone()),
+                                _ => {}
+                            }
+                        }
+                    }
                     Err(StoreError::Backend(e)) => return Err(StoreError::Backend(e)),
                     Err(e) => p.error = Some(e),
                 }
@@ -819,6 +841,12 @@ impl<B: Backend> Store<B> {
             }
             if let Some(p) = given.keys().find(|p| !current.iter().any(|(k, _)| &k["file/".len()..] == **p)) {
                 return Err(StoreError::ExportMismatch { path: p.to_string() });
+            }
+            // Every name must be in a file: a fresh build of them has no other.
+            for n in tx.names_under("", usize::MAX)? {
+                if laid_out_in(tx, &n.path)?.is_none() {
+                    return Err(StoreError::NotInFiles { name: n.path });
+                }
             }
             tx.set_meta(MODE_KEY, MODE_DERIVED)?;
             tx.remove_meta(TRUTH_SINCE_KEY)?;
@@ -983,6 +1011,31 @@ fn file_token_in<T: ReadTx + ?Sized>(tx: &T, path: &str) -> Result<u64> {
     Ok(if t == 0 { 1 } else { t })
 }
 
+/// The file that lays out `name`: its owner, or for a generic function
+/// the first file (by path) that contributes a method to it.
+pub fn laid_out_in<T: ReadTx + ?Sized>(tx: &T, name: &str) -> Result<Option<String>> {
+    if let Some(owner) = tx.meta(&owner_key(name))? {
+        return Ok(Some(String::from_utf8_lossy(&owner).into_owned()));
+    }
+    if !is_generic(tx, name)? {
+        return Ok(None);
+    }
+    for (k, id) in tx.meta_prefix("file/")? {
+        let id = Digest::from_slice(&id).ok_or_else(|| StoreError::Codec("file key".into()))?;
+        let r = tx.record(&id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
+        if FileManifest::decode(&r.bytes)?.generics.iter().any(|(g, _, _)| g == name) {
+            return Ok(Some(k["file/".len()..].to_string()));
+        }
+    }
+    Ok(None)
+}
+
+/// Whether `name` is a generic function that files contribute methods to.
+fn is_generic<T: ReadTx + ?Sized>(tx: &T, name: &str) -> Result<bool> {
+    let Some(NameEntry { target: Target::Nominal(g), .. }) = tx.name(name)? else { return Ok(false) };
+    Ok(tx.nominal(&g)?.is_some_and(|n| n.kind == "generic") && !tx.meta_prefix(&format!("member/{}/", g.to_hex()))?.is_empty())
+}
+
 /// The files whose token differs from the one given.
 fn conflicts_in(tx: &dyn WriteTx, files: &[(FileIngest, u64)]) -> Result<Vec<(String, u64, u64)>> {
     let mut out = Vec::new();
@@ -995,8 +1048,8 @@ fn conflicts_in(tx: &dyn WriteTx, files: &[(FileIngest, u64)]) -> Result<Vec<(St
     Ok(out)
 }
 
-/// One file's changes against its stored manifest.
-fn file_proposal(tx: &dyn WriteTx, f: &FileIngest) -> Result<FileProposal> {
+/// One file's changes against its stored manifest, and that manifest.
+fn file_proposal(tx: &dyn WriteTx, f: &FileIngest) -> Result<(FileProposal, FileManifest)> {
     let old = match tx.meta(&file_key(&f.path))? {
         Some(id) => {
             let id = Digest::from_slice(&id).ok_or_else(|| StoreError::Codec("file key".into()))?;
@@ -1051,7 +1104,7 @@ fn file_proposal(tx: &dyn WriteTx, f: &FileIngest) -> Result<FileProposal> {
         }
     }
     p.spans_moved = moved.into_iter().collect();
-    Ok(p)
+    Ok((p, old))
 }
 
 /// Whether a manifest record is some file's current manifest.

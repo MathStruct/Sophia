@@ -76,6 +76,8 @@ For sophialang files, Moonkale does not normalise. `Interface::propose_text(path
 2. **Exported sophialang files are not stored back as file manifests.** §4 said Moonkale would store an exported file with `replace_files_checked`. That would lay out the sophialang names it contains, and question 1's answer would then refuse their interface edits. Instead, `Interface::export(namespace)` returns its own token, a hash over the exported names' text tokens, which Moonkale keeps as the marker. An outside edit of such a file goes through `propose_text`, which is not built yet.
 3. **`export` prints in the reader's profile** for the namespace, the one `fetch_text` uses. It takes no profile argument: the profile is the reader's setting.
 
+4. **Codex's review (2026-10-28) changed four things.** (a) A generic function's name is laid out by its contributing files, so the interface refuses to edit it too. Every name an interface edit would update is checked, not only the edited one. (b) `give_truth` refuses while a name is in no file (`NotInFiles`): a sophialang definition written while the store was the truth must be removed first, because the files cannot hold it (§0). (c) `Proposal` lists the generic functions an accept would create or remove. (d) `ExportedFile` has `aliases`, for a second name of a recursive group's member, which the text cannot define again. The export token is read in the same transaction as the names it covers. See [[folder]], [[edit]], [[sophia_interface]].
+
 A file's token also covers the version of each generic function the file contributes to. So another file adding a method to a shared generic function makes this file's token stale: a conservative conflict.
 
 ## Acceptance

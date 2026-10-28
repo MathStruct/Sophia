@@ -378,11 +378,74 @@ fn store_truth_folder_routes_laid_out_names_through_files<B: Backend + Sync>(i: 
     i.write_text(&Key::name("sample.double"), v, &t.replace("x + x", "2 * x")).unwrap();
 }
 
+/// Codex review of SPEC-010 (2026-10-28): a generic function's name, and a
+/// recursive group's other names, are laid out too.
+fn generic_and_group_names_route_through_files<B: Backend + Sync>(i: Interface<B>) {
+    use sophia_hash::merkle::{component_digest, member_digest};
+    let laid_out = |r: std::result::Result<(), EditError>, file: &str| match r {
+        Err(EditError::Store(sophia_store::StoreError::LaidOut { path, .. })) => assert_eq!(path, file),
+        other => panic!("expected LaidOut: {other:?}"),
+    };
+    // A file contributing a method of `jl.Pkg.g`.
+    let text = "g(x) = 0\n";
+    let component = component_digest("julia", "moonkale-wp66@7", b"g-0");
+    let r = sophia_hash::Record {
+        id: member_digest(&component, 0),
+        lang: "julia".into(),
+        normaliser: "moonkale-wp66@7".into(),
+        kind: "function_definition".into(),
+        component,
+        index: 0,
+        component_size: 1,
+        bytes: b"g-0".to_vec(),
+        display: b"g".to_vec(),
+        status: sophia_hash::Status::Complete,
+        refs: vec![],
+        nominal_refs: vec![],
+    };
+    let f = sophia_store::FileIngest {
+        path: "src/g.jl".into(),
+        text: Some(text.into()),
+        normaliser: "moonkale-wp66@7".into(),
+        records: vec![r],
+        spans: vec![(0, 0, text.len() as u32 - 1)],
+        generics: vec![sophia_store::FileGeneric { path: "jl.Pkg.g".into(), lang: "julia".into(), members: vec![0] }],
+        ..Default::default()
+    };
+    i.store().replace_files_checked(&[(f, 0)]).unwrap();
+    laid_out(i.rename(&Key::name("jl.Pkg.g"), "jl/Pkg/h").map(|_| ()), "src/g.jl");
+    laid_out(i.delete(&Key::name("jl.Pkg.g")), "src/g.jl");
+    // `sample.odd` laid out by a file; an edit of `sample.even` that also
+    // changes `odd` is refused, though `even` itself is not laid out.
+    let odd = i.store().resolve("sample.odd").unwrap().unwrap().target.digest();
+    let odd_record = i.store().record(&odd).unwrap().unwrap();
+    i.store().remove("sample.odd", None).unwrap();
+    let f = sophia_store::FileIngest {
+        path: "src/odd.sl".into(),
+        text: Some("odd".into()),
+        normaliser: "moonkale-wp66@7".into(),
+        records: vec![odd_record],
+        spans: vec![(0, 0, 3)],
+        names: vec![("sample.odd".into(), 0)],
+        ..Default::default()
+    };
+    i.store().replace_files_checked(&[(f, 0)]).unwrap();
+    let (t, v) = i.fetch_text(&Key::name("sample.even")).unwrap();
+    assert!(t.contains("zero => false"), "{t}");
+    laid_out(i.write_text(&Key::name("sample.even"), v, &t.replace("zero => false", "zero => false == false")).map(|_| ()), "src/odd.sl");
+    assert_eq!(i.store().resolve("sample.odd").unwrap().unwrap().target.digest(), odd, "nothing changed");
+}
+
 /// SPEC-010 §4: a namespace exports as one file, in name order, each name's
 /// span holding its printed text; the token follows the names' tokens, and
 /// saving a span's text back changes nothing.
 fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
+    // A second name of a recursive group's member (Codex review): it cannot
+    // be defined again in the text, so it is listed as an alias.
+    let even = i.store().resolve("sample.even").unwrap().unwrap().target;
+    i.store().alias("sample.also_even", even, sophia_store::Visibility::Public).unwrap();
     let e = i.export("sample").unwrap();
+    assert_eq!(e.aliases, vec![("sample.even".to_string(), "sample.also_even".to_string())]);
     assert_eq!(e.namespace, "sample");
     let names: Vec<&str> = e.spans.iter().map(|(n, _, _)| n.as_str()).collect();
     let mut sorted = names.clone();
@@ -406,7 +469,7 @@ fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
     assert_ne!(i.export("sample").unwrap().token, e.token);
 }
 
-both!(store_truth_folder_routes_laid_out_names_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
+both!(store_truth_folder_routes_laid_out_names_through_files, generic_and_group_names_route_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
     diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {

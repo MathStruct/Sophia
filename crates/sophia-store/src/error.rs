@@ -56,4 +56,9 @@ pub enum StoreError {
     /// file was not exported (SPEC-010 §3).
     #[error("file {path:?} was not exported as stored")]
     ExportMismatch { path: String },
+    /// `give_truth`: a name that no current file holds (a definition
+    /// written through the interface while the store was the truth). A
+    /// fresh build of the files would not have it (SPEC-010 §3).
+    #[error("name {name:?} is in no file: export or remove it first")]
+    NotInFiles { name: String },
 }

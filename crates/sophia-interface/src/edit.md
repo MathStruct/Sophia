@@ -16,7 +16,7 @@
 
 ## The rest
 
-- **Store-truth folders (2026-10-28, SPEC-010 §2):** `write_text`, `rename` and `delete` on a name that a file lays out (`Store::laid_out`) return `EditError::Store(StoreError::LaidOut { path, token })`. Moonkale edits it through the file. In a store without files no name is laid out, so nothing changes there.
+- **Store-truth folders (2026-10-28, SPEC-010 §2):** `write_text`, `rename` and `delete` on a name that a file lays out (`Store::laid_out`) return `EditError::Store(StoreError::LaidOut { path, token })`. Moonkale edits it through the file. In a store without files no name is laid out, so nothing changes there. **Every name an edit would update is checked** (Codex review, 2026-10-28): the text of a recursive group may change the group's other names too, and one of those may be laid out though the edited name is not. `apply` refuses before writing anything. A generic function's name is laid out by its contributing files ([[folder]]). Tested by `generic_and_group_names_route_through_files`, which fails without the check.
 - **`create_text`, `create_dir`, `rename`, `delete`:** as SPEC-004 §3. An empty namespace is a meta row `ns/<path>`.
 - **The settings node:** writing it replaces the reader's personal profile `reader-<id>` (`based_on` plus overrides), points the reader's default at it, and bumps the reader's settings version. It is one logged transaction, so Moonkale sees `reprint_all`.
 - **`load_sample`:** the 16 sample definitions, the two relations as nominal entities with their members, and the built-ins.

@@ -483,6 +483,44 @@ fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl 
     assert_eq!((all_records(&s), state(&s)), (all_records(&t), state(&t)));
 }
 
+/// Codex review of SPEC-010 (2026-10-28): a generic function's name is laid
+/// out by the files that contribute its methods, though it has no owner row.
+fn generic_names_are_laid_out<B: Backend>(s: Store<B>) {
+    s.replace_files_checked(&[(file("b.jl", &[("g:1", "g(x) = 0")]), 0), (file("a.jl", &[("g:2", "g(x) = 1")]), 0)]).unwrap();
+    let token = s.file_token("a.jl").unwrap();
+    assert_eq!(s.laid_out("jl.P.g").unwrap(), Some(("a.jl".to_string(), token)), "the first contributing file");
+}
+
+/// Codex review of SPEC-010: the files get the truth back only when they
+/// hold every name; a name no file has would outlive its export.
+fn give_truth_refuses_names_no_file_has<B: Backend>(s: Store<B>) {
+    s.set_derived().unwrap();
+    let a = file("a.jl", &[("a", "1"), ("g:1", "g(x) = 0")]);
+    s.replace_files(std::slice::from_ref(&a)).unwrap();
+    s.take_truth(&[]).unwrap();
+    s.alias("jl.P.extra", Target::Content(rec("1", "const_statement").id), Visibility::Public).unwrap();
+    let exported = vec![("a.jl".to_string(), source_record("a.jl", a.text.as_ref().unwrap()).id)];
+    match s.give_truth(&exported) {
+        Err(StoreError::NotInFiles { name }) => assert_eq!(name, "jl.P.extra"),
+        other => panic!("expected NotInFiles: {other:?}"),
+    }
+    assert!(!s.is_derived().unwrap(), "nothing changed");
+    s.remove("jl.P.extra", None).unwrap();
+    assert!(s.give_truth(&exported).is_ok());
+}
+
+/// Codex review of SPEC-010: a proposal names the generic functions an
+/// accept would create or remove, which no single file's diff shows.
+fn proposals_name_generic_functions_created_and_removed<B: Backend>(s: Store<B>) {
+    s.replace_files(&[file("b.jl", &[("b", "1")])]).unwrap();
+    let a = file("a.jl", &[("g:1", "g(x) = 0")]);
+    let p = s.propose_files(&[(a.clone(), 0)]).unwrap();
+    assert_eq!((p.generics_added.clone(), p.generics_removed.clone()), (vec!["jl.P.g".to_string()], vec![]));
+    s.replace_files_checked(&[(a, 0)]).unwrap();
+    let p = s.propose_files(&[(deleted("a.jl"), s.file_token("a.jl").unwrap())]).unwrap();
+    assert_eq!((p.generics_added, p.generics_removed), (vec![], vec!["jl.P.g".to_string()]));
+}
+
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("a.jl", &[("a", "1")])]).unwrap();
     let mut f = file("a.jl", &[("a", "1")]);
@@ -624,6 +662,21 @@ macro_rules! suite {
             fn the_truth_moves_into_the_store_and_back() {
                 let (s, _d) = store();
                 super::the_truth_moves_into_the_store_and_back(s, store);
+            }
+            #[test]
+            fn generic_names_are_laid_out() {
+                let (s, _d) = store();
+                super::generic_names_are_laid_out(s);
+            }
+            #[test]
+            fn give_truth_refuses_names_no_file_has() {
+                let (s, _d) = store();
+                super::give_truth_refuses_names_no_file_has(s);
+            }
+            #[test]
+            fn proposals_name_generic_functions_created_and_removed() {
+                let (s, _d) = store();
+                super::proposals_name_generic_functions_created_and_removed(s);
             }
             #[test]
             fn a_new_normaliser_needs_a_rebuild() {

@@ -99,6 +99,9 @@ impl<B: Backend + Sync> Interface<B> {
             sophia_store::validate_path(&p)?;
             let is_edited = edited.is_some_and(|(e, _)| e == p);
             if let Some(existing) = self.store.resolve(&p)? {
+                // Every name the text would update, not only the edited one:
+                // a group's other names may be laid out (SPEC-010 §2).
+                self.refuse_if_laid_out(&p)?;
                 let ok = is_edited
                     || group.contains(&p)
                     || matches!((it, existing.target), (Item::Relation { .. }, Target::Nominal(_)));

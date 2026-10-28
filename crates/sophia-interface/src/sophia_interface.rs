@@ -58,6 +58,10 @@ pub struct ExportedFile {
     pub spans: Vec<(String, u32, u32)>,
     /// Changes when any exported name's text token does.
     pub token: u64,
+    /// (name, the exported name it is identical to): a second name of a
+    /// recursive group's member, which the text cannot define again
+    /// (sophialang has no alias syntax). Moonkale keeps it with the marker.
+    pub aliases: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -602,8 +606,11 @@ impl<B: Backend + Sync> Interface<B> {
             Key::Derived(s) if s == "settings" => self.settings_text(),
             Key::Derived(s) if s.starts_with("name:") => {
                 let path = &s[5..];
+                // The token first: an edit after it makes the token stale, so
+                // saving this text conflicts instead of overwriting the edit.
+                let token = self.text_token(path)?;
                 let n = self.store.resolve(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
-                Ok((self.print_target(n.target, path)?, self.text_token(path)?))
+                Ok((self.print_target(n.target, path)?, token))
             }
             Key::Content(d) => {
                 let path = self.store.read(|tx| Ok(tx.names_of(d)?.first().map(|n| n.path.clone())))?;
@@ -622,44 +629,77 @@ impl<B: Backend + Sync> Interface<B> {
     /// Moonkale's. The token changes when any exported name's text token
     /// does; Moonkale keeps it with the file's source id as the marker.
     pub fn export(&self, namespace: &str) -> Result<ExportedFile> {
-        let mut names: Vec<NameEntry> =
-            self.store.read(|tx| tx.names_under(namespace, usize::MAX))?.into_iter().filter(|n| parent_ns(&n.path) == namespace).collect();
-        names.sort_by(|a, b| a.path.cmp(&b.path));
+        // Printing reads outside the snapshot's transaction: export again
+        // until the snapshot is the same before and after printing, so the
+        // token belongs to the names and targets printed (Codex review).
+        for _ in 0..8 {
+            let (names, token) = self.export_snapshot(namespace)?;
+            let file = self.export_names(namespace, names, token)?;
+            if self.export_snapshot(namespace)?.1 == token {
+                return Ok(file);
+            }
+        }
+        Err(StoreError::Backend(format!("export of {namespace:?}: the namespace kept changing")))
+    }
+
+    /// The names `export` prints, with each one's recursive component (if
+    /// it has more than one member), and the export token, in one read.
+    fn export_snapshot(&self, namespace: &str) -> Result<(Vec<ExportName>, u64)> {
+        self.store.read(|tx| {
+            let mut names: Vec<NameEntry> =
+                tx.names_under(namespace, usize::MAX)?.into_iter().filter(|n| parent_ns(&n.path) == namespace).collect();
+            names.sort_by(|a, b| a.path.cmp(&b.path));
+            let mut out = Vec::new();
+            let mut h = blake3::Hasher::new();
+            h.update(b"sophia-export-token-v1");
+            for n in names {
+                let lang = match n.target {
+                    Target::Content(d) => tx.record(&d)?.map(|r| (r.lang, (r.component_size > 1).then_some(r.component))),
+                    Target::Nominal(id) => tx.nominal(&id)?.map(|x| (x.lang, None)),
+                };
+                let Some((lang, component)) = lang else { continue };
+                if lang != sophialang_core::normalise::LANG || sophia_store::folder::laid_out_in(tx, &n.path)?.is_some() {
+                    continue;
+                }
+                h.update(n.path.as_bytes());
+                h.update(&text_token_in(tx, &n.path)?.to_le_bytes());
+                out.push((n, component));
+            }
+            let token = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
+            Ok((out, token))
+        })
+    }
+
+    fn export_names(&self, namespace: &str, names: Vec<ExportName>, token: u64) -> Result<ExportedFile> {
         let mut text = String::new();
         let mut spans = Vec::new();
-        let mut printed: HashMap<Digest, (u32, u32)> = HashMap::new();
-        let mut h = blake3::Hasher::new();
-        h.update(b"sophia-export-token-v1");
-        for n in names {
-            let lang = match n.target {
-                // Only a recursive group prints once; two names of one record
-                // (identical content) each print under their own name.
-                Target::Content(d) => self.store.record(&d)?.map(|r| (r.lang, (r.component_size > 1).then_some(r.component))),
-                Target::Nominal(id) => self.store.nominal(&id)?.map(|x| (x.lang, None)),
-            };
-            let Some((lang, component)) = lang else { continue };
-            if lang != sophialang_core::normalise::LANG || self.store.laid_out(&n.path)?.is_some() {
-                continue;
-            }
-            h.update(n.path.as_bytes());
-            h.update(&self.text_token(&n.path)?.to_le_bytes());
-            if let Some(span) = component.and_then(|c| printed.get(&c).copied()) {
-                spans.push((n.path.clone(), span.0, span.1));
+        let mut aliases = Vec::new();
+        // A recursive group prints once: its span, and the name each member
+        // was printed under. Two names of one record outside a group (the
+        // same content) each print under their own name.
+        let mut printed: HashMap<Digest, PrintedGroup> = HashMap::new();
+        for (n, component) in names {
+            if let Some((span, named)) = component.and_then(|c| printed.get(&c)) {
+                match named.get(&n.target.digest()) {
+                    Some(p) if *p == n.path => spans.push((n.path.clone(), span.0, span.1)),
+                    Some(p) => aliases.push((n.path.clone(), p.clone())),
+                    None => {}
+                }
                 continue;
             }
             if !text.is_empty() {
                 text.push('\n');
             }
             let start = text.len() as u32;
-            text.push_str(&self.print_target(n.target, &n.path)?);
+            let (t, named) = self.print_target_named(n.target, &n.path)?;
+            text.push_str(&t);
             let span = (start, text.len() as u32);
             if let Some(c) = component {
-                printed.insert(c, span);
+                printed.insert(c, (span, named));
             }
             spans.push((n.path, span.0, span.1));
         }
-        let token = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
-        Ok(ExportedFile { namespace: namespace.to_string(), text, spans, token })
+        Ok(ExportedFile { namespace: namespace.to_string(), text, spans, token, aliases })
     }
 
     /// Where the text of a definition came from in a folder store: the
@@ -681,6 +721,13 @@ impl<B: Backend + Sync> Interface<B> {
     }
 
     fn print_target(&self, target: Target, path: &str) -> Result<String> {
+        Ok(self.print_target_named(target, path)?.0)
+    }
+
+    /// `print_target`, and for a sophialang group the name each member was
+    /// printed under: `path` for the target, and for the other members a
+    /// name in the same namespace when they have one (the smallest).
+    fn print_target_named(&self, target: Target, path: &str) -> Result<(String, HashMap<Digest, String>)> {
         let ns = parent_ns(path);
         let env = StoreEnv { store: &self.store };
         match target {
@@ -689,22 +736,28 @@ impl<B: Backend + Sync> Interface<B> {
                 if r.lang == sophia_query::canon::LANG {
                     // A stored query (SPEC-007 §8) prints in the query syntax.
                     let p = sophia_query::Prepared::from_record(&r).map_err(|e| StoreError::Codec(e.to_string()))?;
-                    return Ok(p.print(sophia_query::Profile::Julia));
+                    return Ok((p.print(sophia_query::Profile::Julia), HashMap::new()));
                 }
                 let members: Vec<Record> =
                     if r.component_size > 1 { self.store.read(|tx| tx.component(&r.component))? } else { vec![r.clone()] };
                 if r.lang != sophialang_core::normalise::LANG {
-                    return self.foreign_text(&members, &d, last_segment(path));
+                    return Ok((self.foreign_text(&members, &d, last_segment(path))?, HashMap::new()));
                 }
                 let profile = self.profile_for(ns, &r.lang)?;
                 let mut named = Vec::new();
+                let mut paths = HashMap::new();
                 for m in &members {
-                    let name = if m.id == d {
-                        last_segment(path).to_string()
+                    let full = if m.id == d {
+                        Some(path.to_string())
                     } else {
                         let names = self.store.read(|tx| tx.names_of(&m.id))?;
-                        names.first().map(|n| last_segment(&n.path).to_string()).unwrap_or_else(|| format!("_member{}", m.index))
+                        let local = names.iter().filter(|n| parent_ns(&n.path) == ns).map(|n| &n.path).min();
+                        local.or(names.first().map(|n| &n.path)).cloned()
                     };
+                    let name = full.as_deref().map(|p| last_segment(p).to_string()).unwrap_or_else(|| format!("_member{}", m.index));
+                    if let Some(p) = full {
+                        paths.insert(m.id, p);
+                    }
                     let def = definition_of(m).map_err(|e| StoreError::Codec(e.to_string()))?;
                     named.push((name, def, m.id, m.index));
                 }
@@ -712,7 +765,7 @@ impl<B: Backend + Sync> Interface<B> {
                     .iter()
                     .map(|(n, def, id, index)| ToPrint { name: n, def, id: Some(*id), index: *index, relation: false })
                     .collect();
-                Ok(sophialang_syntax::print(&env, ns, &profile, &items))
+                Ok((sophialang_syntax::print(&env, ns, &profile, &items), paths))
             }
             Target::Nominal(id) => {
                 let n = self.store.nominal(&id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
@@ -724,7 +777,7 @@ impl<B: Backend + Sync> Interface<B> {
                         if r.kind == "relation" {
                             let def = definition_of(&r).map_err(|e| StoreError::Codec(e.to_string()))?;
                             let items = [ToPrint { name: last_segment(path), def: &def, id: None, index: 0, relation: true }];
-                            return Ok(sophialang_syntax::print(&env, ns, &profile, &items));
+                            return Ok((sophialang_syntax::print(&env, ns, &profile, &items), HashMap::new()));
                         }
                     }
                 }
@@ -733,7 +786,7 @@ impl<B: Backend + Sync> Interface<B> {
                     let names = self.store.read(|tx| tx.names_of(&m))?;
                     s.push_str(&format!("#   member {}\n", names.first().map(|n| n.path.clone()).unwrap_or_else(|| m.short(12))));
                 }
-                Ok(s)
+                Ok((s, HashMap::new()))
             }
         }
     }
@@ -826,39 +879,7 @@ impl<B: Backend + Sync> Interface<B> {
     /// parser reads every editable profile, so text fetched in one profile
     /// means the same after a switch to another.
     pub fn text_token(&self, path: &str) -> Result<u64> {
-        self.store.read(|tx| {
-            let n = tx.name(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
-            let mut covered: Vec<(String, u64, Digest)> = vec![(n.path.clone(), n.seq, n.target.digest())];
-            let mut h = blake3::Hasher::new();
-            h.update(b"sophia-text-token-v1");
-            match n.target {
-                Target::Content(d) => {
-                    if let Some(r) = tx.record(&d)? {
-                        for m in tx.component(&r.component)? {
-                            for alias in tx.names_of(&m.id)? {
-                                covered.push((alias.path, alias.seq, alias.target.digest()));
-                            }
-                        }
-                    }
-                }
-                Target::Nominal(id) => {
-                    if let Some(nom) = tx.nominal(&id)? {
-                        h.update(&nom.version.to_le_bytes());
-                    }
-                }
-            }
-            covered.sort();
-            covered.dedup();
-            for (p, seq, t) in &covered {
-                h.update(p.as_bytes());
-                h.update(&[0]);
-                h.update(&seq.to_le_bytes());
-                h.update(t.as_bytes());
-            }
-            let b = h.finalize();
-            let v = u64::from_le_bytes(b.as_bytes()[..8].try_into().unwrap()) >> 1;
-            Ok(v.max(1))
-        })
+        self.store.read(|tx| text_token_in(tx, path))
     }
 
     // ---- settings ----
@@ -1012,4 +1033,46 @@ impl<B: Backend + Sync> Env for StoreEnv<'_, B> {
     fn names_of(&self, target: &Digest) -> Vec<String> {
         self.store.read(|tx| tx.names_of(target)).map(|v| v.into_iter().map(|n| n.path).collect()).unwrap_or_default()
     }
+}
+
+/// A name `export` prints, with its recursive component when it has more
+/// than one member.
+type ExportName = (NameEntry, Option<Digest>);
+/// A printed recursive group: its span, and the name each member was
+/// printed under.
+type PrintedGroup = ((u32, u32), HashMap<Digest, String>);
+
+/// `Interface::text_token`, inside a read.
+fn text_token_in<T: ReadTx + ?Sized>(tx: &T, path: &str) -> Result<u64> {
+    let n = tx.name(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
+    let mut covered: Vec<(String, u64, Digest)> = vec![(n.path.clone(), n.seq, n.target.digest())];
+    let mut h = blake3::Hasher::new();
+    h.update(b"sophia-text-token-v1");
+    match n.target {
+        Target::Content(d) => {
+            if let Some(r) = tx.record(&d)? {
+                for m in tx.component(&r.component)? {
+                    for alias in tx.names_of(&m.id)? {
+                        covered.push((alias.path, alias.seq, alias.target.digest()));
+                    }
+                }
+            }
+        }
+        Target::Nominal(id) => {
+            if let Some(nom) = tx.nominal(&id)? {
+                h.update(&nom.version.to_le_bytes());
+            }
+        }
+    }
+    covered.sort();
+    covered.dedup();
+    for (p, seq, t) in &covered {
+        h.update(p.as_bytes());
+        h.update(&[0]);
+        h.update(&seq.to_le_bytes());
+        h.update(t.as_bytes());
+    }
+    let b = h.finalize();
+    let v = u64::from_le_bytes(b.as_bytes()[..8].try_into().unwrap()) >> 1;
+    Ok(v.max(1))
 }
