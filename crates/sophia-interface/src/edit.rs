@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use sophia_hash::Digest;
-use sophia_store::{Backend, StoreError, Target, Visibility};
+use sophia_store::{Backend, LogOp, StoreError, Target, Visibility};
 use sophialang_core::{Body, Definition, Term};
 use sophialang_syntax::{Diagnostic, Item, Limits};
 
@@ -152,11 +152,15 @@ impl<B: Backend + Sync> Interface<B> {
         // Names: new ones are added, existing ones updated.
         let mut new_names = Vec::new();
         let mut updates = Vec::new();
+        let mut warnings = warnings;
         for (k, &i) in def_index.iter().enumerate() {
             let p = abs(ns, items[i].name());
             match self.store.resolve(&p)? {
                 None => new_names.push((p, k, Visibility::Public)),
-                Some(n) => updates.push((p, k, n.seq)),
+                Some(n) => {
+                    warnings.extend(self.moved_references(&p, &n, &records[k])?);
+                    updates.push((p, k, n.seq));
+                }
             }
         }
         self.store.add(&records, &new_names)?;
@@ -216,6 +220,42 @@ impl<B: Backend + Sync> Interface<B> {
         let ours: HashSet<Digest> = records.iter().map(|r| r.id).collect();
         stale.retain(|d| !ours.contains(d));
         Ok(Written { version, targets, warnings, stale_dependants: stale })
+    }
+
+    /// Names the text refers to that point at other content than when `path`
+    /// was last saved (Daniel's option C, 2026-10-29): the text names
+    /// `lib.g`, and `lib.g` was moved or replaced since, so the save takes
+    /// the new content. A warning, not a conflict: the text means what it
+    /// says now, and the token does not cover references (SPEC-004 §3).
+    /// Found in the log since `path`'s version: a name that pointed at one
+    /// of the old definition's references and now points at one of the
+    /// new definition's.
+    fn moved_references(&self, path: &str, old: &sophia_store::NameEntry, new: &sophia_hash::Record) -> R<Vec<Diagnostic>> {
+        let Target::Content(old_id) = old.target else { return Ok(Vec::new()) };
+        let Some(old_record) = self.store.record(&old_id)? else { return Ok(Vec::new()) };
+        let old_refs: HashSet<Digest> = old_record.refs.iter().copied().collect();
+        let new_refs: HashSet<Digest> = new.refs.iter().copied().collect();
+        if new_refs.is_subset(&old_refs) {
+            return Ok(Vec::new());
+        }
+        let mut moved = BTreeMap::new();
+        for e in self.store.read(|tx| tx.log_since(old.seq, usize::MAX))? {
+            if matches!(e.op, LogOp::MoveName | LogOp::RemoveName) && e.old.is_some_and(|d| old_refs.contains(&d)) && e.subject != path {
+                moved.insert(e.subject, ());
+            }
+        }
+        let mut out = Vec::new();
+        for name in moved.into_keys() {
+            if let Some(Target::Content(d)) = self.store.resolve(&name)?.map(|n| n.target) {
+                if new_refs.contains(&d) && !old_refs.contains(&d) {
+                    out.push(Diagnostic::warning(
+                        Default::default(),
+                        format!("`{name}` now refers to other content than when `{path}` was last saved; the save uses it"),
+                    ));
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Saves edited text (SPEC-004 §3). For a name: the text is parsed in

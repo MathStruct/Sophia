@@ -378,6 +378,25 @@ fn store_truth_folder_routes_laid_out_names_through_files<B: Backend + Sync>(i: 
     i.write_text(&Key::name("sample.double"), v, &t.replace("x + x", "2 * x")).unwrap();
 }
 
+/// Option C (Daniel, 2026-10-29): saving text whose reference now points
+/// at other content than at the last save warns, and does not conflict.
+fn a_moved_reference_warns_on_save<B: Backend + Sync>(i: Interface<B>) {
+    i.create_text(&Key::ns("sample"), "helper", "function helper(x::Int64)::Int64\n    x\nend\n").unwrap();
+    let (_, w) = i.create_text(&Key::ns("sample"), "user", "function user(x::Int64)::Int64\n    helper(x)\nend\n").unwrap();
+    assert!(w.warnings.is_empty(), "{:?}", w.warnings);
+    let (user_text, v) = i.fetch_text(&Key::name("sample.user")).unwrap();
+    // Someone else changes `helper`.
+    let (t, hv) = i.fetch_text(&Key::name("sample.helper")).unwrap();
+    i.write_text(&Key::name("sample.helper"), hv, &t.replace("    x\n", "    x + x\n")).unwrap();
+    // Saving `user`'s unchanged text takes the new `helper`, with a warning.
+    let w = i.write_text(&Key::name("sample.user"), v, &user_text).unwrap();
+    assert_eq!(w.warnings.len(), 1, "{:?}", w.warnings);
+    assert!(w.warnings[0].message.contains("`sample.helper`"), "{}", w.warnings[0].message);
+    // Saving again: nothing moved since.
+    let (t, v) = i.fetch_text(&Key::name("sample.user")).unwrap();
+    assert!(i.write_text(&Key::name("sample.user"), v, &t).unwrap().warnings.is_empty());
+}
+
 /// Codex review of SPEC-010 (2026-10-28): a generic function's name, and a
 /// recursive group's other names, are laid out too.
 fn generic_and_group_names_route_through_files<B: Backend + Sync>(i: Interface<B>) {
@@ -475,7 +494,7 @@ fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
     assert_ne!(i.export("sample").unwrap().token, e.token);
 }
 
-both!(store_truth_folder_routes_laid_out_names_through_files, generic_and_group_names_route_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
+both!(a_moved_reference_warns_on_save, store_truth_folder_routes_laid_out_names_through_files, generic_and_group_names_route_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
     diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
 
 trait OtherReader {

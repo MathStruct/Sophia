@@ -201,6 +201,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-146 | The source of truth is a setting, and it decides what history is kept. **Files are the truth:** the store is derived from them, history is in the files and their diffs (git), and what no current file reaches is removed from the store, old versions included. **The store is the truth:** files are an export, and every version is appended to the graph, which is the version history; nothing is removed. | D (2026-10-24, answer to [[Folder Store Garbage]]) | next | done 2026-10-24: collection in `replace_files` and `Store::collect_folder` in derived mode only ([[folder]]) |
 | SR-147 | A research questions section, as in Lenticulum.jl's vault: self-contained research questions that arise during implementation and discussion of the theory are recorded there. | D 2026-10-25 | now | done 2026-10-25 ([[Research Questions]], RQ-001 to RQ-003) |
 | SR-148 | Where the truth lives (Moonkale ADR-0030, Daniel's words): "If there are legacy data where working on a folder is expected, then the folder should be the source of truth, except if the user explicitly moves the source of truth into Sophia. In all other cases assume Sophia store to be the source of truth, even if there are files generated from the store." For Sophia: moving a folder's truth into the store and back, and files generated from a store-truth project, with outside edits to them taken back as proposals. | D 2026-10-26 (Moonkale ADR-0030, `874d0c2b`) | next | specified, accepted 2026-10-26 ([[SPEC-010 Store-Truth Folders and Generated Files]]) |
+| SR-150 | Saving text whose reference now points at other content than when the edited name was last saved warns, and does not conflict (option C of three: leave it silent, widen the edit token to cover references, or warn). The save uses what the name means now. | D 2026-10-29 | now | done: `Interface::write_text` warning, test `a_moved_reference_warns_on_save` |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | open: needs its own spec |
 
 ## From Moonkale
@@ -237,6 +238,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-29: SR-150 added: a moved reference warns on save (Daniel chose option C, after Codex's second review of SPEC-010).
 - 2026-10-26: SR-149 added: sharing store-truth folders by a text export (Daniel's answer to SPEC-010 Q5, relayed by the Moonkale agent).
 - 2026-10-26: SR-148 added: where the truth lives (Daniel's decision in Moonkale ADR-0030).
 - 2026-10-25: SR-147 added: a research questions section (Daniel).
