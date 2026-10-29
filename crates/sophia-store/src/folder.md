@@ -91,3 +91,10 @@ Tests, all four backends: `checked_replacement_refuses_stale_tokens`, `a_proposa
 6. **A proposal did not list generic functions created or removed**: true. These follow from all files' contributions, not one file's diff. `Proposal` now has `generics_added` and `generics_removed`, read before and after the rolled-back replacement (`proposals_name_generic_functions_created_and_removed`).
 
 Codex found no backend-specific difference in the rolled-back proposal.
+
+**Codex's review of the fixes (2026-10-29, `e84baa3`).** Read-only, medium effort. Five findings, traced but not executed; checked here:
+1. **A rule could add a method to a laid-out generic function**: true, see [[edit]].
+2. **Export's retry missed changes outside the exported names**: true, see [[sophia_interface]].
+3. **A proposal could miss a generic function brought back through another file**: not reachable. The case needs `g` to be a constant of `a.jl` while `b.jl` has a method of it. One batch cannot hold both (`validate_batch`), and a later batch with only `a.jl` is claimed by `b.jl`'s method. The test checks both refusals.
+4. **`give_truth` checked owner rows, not targets**: true. A file's name retargeted by a store call (`Store::update`) kept its owner row, so `give_truth` accepted it, and the store differed from a fresh build. `give_truth` now reads every manifest once and requires each content name to have its file's target (`ExportMismatch` for that file otherwise) and each generic function name to be contributed by some file (`NotInFiles` otherwise). The test fails before the fix.
+5. **`give_truth` scanned every manifest once per generic name**: true; unmeasured. The one manifest pass of (4) replaces it. `laid_out` still scans the manifests for a generic function's name, once per interface edit of such a name.

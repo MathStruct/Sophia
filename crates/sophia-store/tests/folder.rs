@@ -506,6 +506,13 @@ fn give_truth_refuses_names_no_file_has<B: Backend>(s: Store<B>) {
     }
     assert!(!s.is_derived().unwrap(), "nothing changed");
     s.remove("jl.P.extra", None).unwrap();
+    // A file's name moved by a store call: the files say otherwise (second
+    // Codex review).
+    let seq = s.resolve("jl.P.a").unwrap().unwrap().seq;
+    s.update("jl.P.a", &[rec("9", "const_statement")], 0, seq).unwrap();
+    assert!(matches!(s.give_truth(&exported), Err(StoreError::ExportMismatch { path }) if path == "a.jl"));
+    let seq = s.resolve("jl.P.a").unwrap().unwrap().seq;
+    s.update("jl.P.a", &[rec("1", "const_statement")], 0, seq).unwrap();
     assert!(s.give_truth(&exported).is_ok());
 }
 
@@ -519,6 +526,16 @@ fn proposals_name_generic_functions_created_and_removed<B: Backend>(s: Store<B>)
     s.replace_files_checked(&[(a, 0)]).unwrap();
     let p = s.propose_files(&[(deleted("a.jl"), s.file_token("a.jl").unwrap())]).unwrap();
     assert_eq!((p.generics_added, p.generics_removed), (vec![], vec!["jl.P.g".to_string()]));
+    // The second Codex review's case, `g` a constant of a.jl while b.jl
+    // still has a method of it, cannot arise: one batch cannot hold both,
+    // and a later batch with only a.jl is claimed by b.jl's method.
+    let t = |p: &str| s.file_token(p).unwrap();
+    let b = (file("b.jl", &[("b", "1"), ("g:1", "g(x) = 0")]), t("b.jl"));
+    s.replace_files_checked(&[(file("a.jl", &[("g:1", "g(x) = 0")]), t("a.jl")), b.clone()]).unwrap();
+    let b = (b.0, t("b.jl"));
+    let claimed = |r: std::result::Result<FileReport, StoreError>| assert!(matches!(r, Err(StoreError::NameClaimed { .. })), "{r:?}");
+    claimed(s.replace_files_checked(&[(file("a.jl", &[("g", "5")]), t("a.jl")), b]));
+    claimed(s.replace_files_checked(&[(file("a.jl", &[("g", "5")]), t("a.jl"))]));
 }
 
 fn a_new_normaliser_needs_a_rebuild<B: Backend>(s: Store<B>) {

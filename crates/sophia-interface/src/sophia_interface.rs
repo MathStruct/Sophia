@@ -629,13 +629,14 @@ impl<B: Backend + Sync> Interface<B> {
     /// Moonkale's. The token changes when any exported name's text token
     /// does; Moonkale keeps it with the file's source id as the marker.
     pub fn export(&self, namespace: &str) -> Result<ExportedFile> {
-        // Printing reads outside the snapshot's transaction: export again
-        // until the snapshot is the same before and after printing, so the
-        // token belongs to the names and targets printed (Codex review).
+        // Printing reads outside the snapshot's transaction, and the text
+        // depends on more than the exported names (the names of what they
+        // reference, the profile). Export again until nothing at all was
+        // written while printing: the log position is unchanged.
         for _ in 0..8 {
-            let (names, token) = self.export_snapshot(namespace)?;
+            let (names, token, seq) = self.export_snapshot(namespace)?;
             let file = self.export_names(namespace, names, token)?;
-            if self.export_snapshot(namespace)?.1 == token {
+            if self.store.last_seq()? == seq {
                 return Ok(file);
             }
         }
@@ -643,9 +644,11 @@ impl<B: Backend + Sync> Interface<B> {
     }
 
     /// The names `export` prints, with each one's recursive component (if
-    /// it has more than one member), and the export token, in one read.
-    fn export_snapshot(&self, namespace: &str) -> Result<(Vec<ExportName>, u64)> {
+    /// it has more than one member), the export token and the log
+    /// position, in one read.
+    fn export_snapshot(&self, namespace: &str) -> Result<(Vec<ExportName>, u64, u64)> {
         self.store.read(|tx| {
+            let seq = tx.last_seq()?;
             let mut names: Vec<NameEntry> =
                 tx.names_under(namespace, usize::MAX)?.into_iter().filter(|n| parent_ns(&n.path) == namespace).collect();
             names.sort_by(|a, b| a.path.cmp(&b.path));
@@ -666,7 +669,7 @@ impl<B: Backend + Sync> Interface<B> {
                 out.push((n, component));
             }
             let token = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
-            Ok((out, token))
+            Ok((out, token, seq))
         })
     }
 

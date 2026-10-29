@@ -830,22 +830,32 @@ impl<B: Backend> Store<B> {
             }
             let given: BTreeMap<&str, &Digest> = exported.iter().map(|(p, d)| (p.as_str(), d)).collect();
             let current = tx.meta_prefix("file/")?;
+            // What the files hold: content names with their file and target,
+            // and the generic functions they contribute to.
+            let mut content: HashMap<String, (String, Digest)> = HashMap::new();
+            let mut generics: BTreeSet<String> = BTreeSet::new();
             for (k, id) in &current {
                 let path = &k["file/".len()..];
                 let id = Digest::from_slice(id).ok_or_else(|| StoreError::Codec("file key".into()))?;
                 let r = tx.record(&id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
-                let source = FileManifest::decode(&r.bytes)?.source;
-                if source.is_none() || given.get(path).copied() != source.as_ref() {
+                let m = FileManifest::decode(&r.bytes)?;
+                if m.source.is_none() || given.get(path).copied() != m.source.as_ref() {
                     return Err(StoreError::ExportMismatch { path: path.to_string() });
                 }
+                content.extend(m.names.into_iter().map(|(n, d)| (n, (path.to_string(), d))));
+                generics.extend(m.generics.into_iter().map(|(g, _, _)| g));
             }
             if let Some(p) = given.keys().find(|p| !current.iter().any(|(k, _)| &k["file/".len()..] == **p)) {
                 return Err(StoreError::ExportMismatch { path: p.to_string() });
             }
-            // Every name must be in a file: a fresh build of them has no other.
+            // Every name must be as its file has it: a fresh build of the
+            // files has no other name, and no other target.
             for n in tx.names_under("", usize::MAX)? {
-                if laid_out_in(tx, &n.path)?.is_none() {
-                    return Err(StoreError::NotInFiles { name: n.path });
+                match (n.target, content.get(&n.path)) {
+                    (Target::Content(d), Some((_, f))) if d == *f => {}
+                    (Target::Content(_), Some((path, _))) => return Err(StoreError::ExportMismatch { path: path.clone() }),
+                    (Target::Nominal(_), None) if generics.contains(&n.path) => {}
+                    _ => return Err(StoreError::NotInFiles { name: n.path }),
                 }
             }
             tx.set_meta(MODE_KEY, MODE_DERIVED)?;

@@ -415,6 +415,12 @@ fn generic_and_group_names_route_through_files<B: Backend + Sync>(i: Interface<B
     i.store().replace_files_checked(&[(f, 0)]).unwrap();
     laid_out(i.rename(&Key::name("jl.Pkg.g"), "jl/Pkg/h").map(|_| ()), "src/g.jl");
     laid_out(i.delete(&Key::name("jl.Pkg.g")), "src/g.jl");
+    // A rule whose head is that generic function would add a method to it.
+    let (t, _) = i.fetch_text(&Key::name("sample.ancestor_base")).unwrap();
+    let rule = t.replace("ancestor_base", "into_g").replacen("ancestor(", "jl.Pkg.g(", 1);
+    let before = i.store().methods(&i.store().resolve("jl.Pkg.g").unwrap().unwrap().target.digest()).unwrap();
+    laid_out(i.create_text(&Key::ns("sample"), "into_g", &rule).map(|_| ()), "src/g.jl");
+    assert_eq!(i.store().methods(&i.store().resolve("jl.Pkg.g").unwrap().unwrap().target.digest()).unwrap(), before);
     // `sample.odd` laid out by a file; an edit of `sample.even` that also
     // changes `odd` is refused, though `even` itself is not laid out.
     let odd = i.store().resolve("sample.odd").unwrap().unwrap().target.digest();

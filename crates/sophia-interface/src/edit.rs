@@ -97,6 +97,13 @@ impl<B: Backend + Sync> Interface<B> {
         for it in &items {
             let p = abs(ns, it.name());
             sophia_store::validate_path(&p)?;
+            // A rule joins its head's relation: refused when that is a
+            // generic function a file lays out (SPEC-010 §2).
+            if let Some(rel) = head_relation(it.definition()) {
+                for n in self.store.read(|tx| tx.names_of(&rel))? {
+                    self.refuse_if_laid_out(&n.path)?;
+                }
+            }
             let is_edited = edited.is_some_and(|(e, _)| e == p);
             if let Some(existing) = self.store.resolve(&p)? {
                 // Every name the text would update, not only the edited one:

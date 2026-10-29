@@ -78,6 +78,8 @@ For sophialang files, Moonkale does not normalise. `Interface::propose_text(path
 
 4. **Codex's review (2026-10-28) changed four things.** (a) A generic function's name is laid out by its contributing files, so the interface refuses to edit it too. Every name an interface edit would update is checked, not only the edited one. (b) `give_truth` refuses while a name is in no file (`NotInFiles`): a sophialang definition written while the store was the truth must be removed first, because the files cannot hold it (§0). (c) `Proposal` lists the generic functions an accept would create or remove. (d) `ExportedFile` has `aliases`, for a second name of a recursive group's member, which the text cannot define again. The export token is read in the same transaction as the names it covers. See [[folder]], [[edit]], [[sophia_interface]].
 
+5. **A second Codex review (2026-10-29) changed three more things.** An interface rule whose head is a laid-out generic function is refused. `give_truth` requires every name to have its file's target, not only an owner (`ExportMismatch`). Export retries until no write happened while printing. See [[folder]], [[edit]], [[sophia_interface]].
+
 A file's token also covers the version of each generic function the file contributes to. So another file adding a method to a shared generic function makes this file's token stale: a conservative conflict.
 
 ## Acceptance
