@@ -82,6 +82,28 @@ For sophialang files, Moonkale does not normalise. `Interface::propose_text(path
 
 A file's token also covers the version of each generic function the file contributes to. So another file adding a method to a shared generic function makes this file's token stale: a conservative conflict.
 
+## 7. Annotations when the truth moves (proposal, 2026-10-30)
+
+**A proposal by Claude (Sophia), asked for by the Moonkale agent for its ADR-0031 (Moonkale master `fcb159ab`). Accepted by Daniel on 2026-10-30, with ADR-0031 (SR-151). Not built.**
+
+ADR-0031 puts a folder's annotations (SPEC-001 §8) where its truth is:
+- in Sophia for a store-truth folder;
+- in `.moonkale/annotations.jsonl` for a file-truth folder, loaded into the derived store on build.
+
+Moving the truth must move them too. The design mirrors §3's check of the exported files:
+- **`give_truth`:** Moonkale first writes every stored annotation to the jsonl. It then passes the ids it wrote: `give_truth(exported_files, exported_annotations: &[Digest])`. In the same transaction, Sophia refuses with `AnnotationsNotExported { ids }` (the first few ids) if a stored annotation is not among them. Annotations stay in the derived store afterwards: the jsonl is now the truth, and the store holds its loaded copy. The records they name may be collected, so an annotation about an old version can dangle. Moonkale shows such an annotation from its payload (the quote), as a stale goal.
+- **`take_truth`:** Moonkale passes the jsonl's annotations: `take_truth(files, annotations: &[Annotation])`. Sophia stores them in the same transaction as the files and the mode switch. The jsonl is not deleted, but from then on it is no longer read. Moonkale may move it aside.
+- **Loading a derived store:** `Store::annotate_many` must skip an annotation already stored, as `record_facts` does. Otherwise every sync appends a log entry per annotation. Annotation writes stay allowed in derived mode: only the interface's edits are refused there (SPEC-009 §3).
+
+The other gaps ADR-0031 lists are not specified here:
+- removing an annotation;
+- an annotation staleness check;
+- term-path subjects.
+
+They belong in SPEC-001 §8 once Daniel schedules WP-19.
+
+A status update half exists. Storing an annotation again under the same id overwrites its `status` and `inputs` on every backend: the SQL backends use `ON CONFLICT(id) DO UPDATE`, and `kv.rs` rewrites the row. This was checked by reading `put_annotation` in `sqlite.rs`, `duckdb_store.rs` and `kv.rs`. It is untested, and it is not a named API.
+
 ## Acceptance
 
 1. `replace_files_checked`, `file_token`, `take_truth`, `give_truth` and `propose_files` on all four backends, with tests:
