@@ -187,6 +187,79 @@ annotation {                         derived fact {
 - **Test results (SR-54):** a test re-runs only when its result is stale. The static case is free, because the test's content id covers its static dependencies. The dispatch case uses the recorded relation versions: a new method affects a test only if its signature overlaps a recorded call signature. The equivalence case uses proofs ([[SPEC-002 Sophialang Principles]] §8).
 - **Performance and identity (SR-53, SR-79):** annotations and derived facts never feed back into a definition's bytes. Compiled **artifacts** may depend on facts and evidence, but each artifact records exactly which ones in its identity ([[SPEC-006 Worlds, Artifacts and Evidence]] §3).
 
+### 8a. The cost of recomputing, and a fact cache that survives the store (proposal, 2026-10-30)
+
+**A draft by Claude (Sophia), asked for by Daniel on 2026-10-30 after his remark on ADR-0031 (SR-151). Its open questions were answered by Daniel on 2026-10-31 (below). Not built. No numbers yet: every cost below is an expectation until measured.**
+
+**Daniel's remark:** one result can be both a significant computation and something that works like a claim. Finding a dependent type is the example. So "fact or annotation" may be too coarse.
+
+**Proposed answer: keep the split, and add a second axis.** Each statement has two independent properties:
+
+| | cheap to recompute | expensive to recompute |
+|---|---|---|
+| **rests on rerunning** (fact) | call edges, imports, simple typings | dependent typings, e-graph saturation, specialisation, long test runs |
+| **rests on trust** (annotation) | a comment, a doc | a proof from an external prover, a review |
+
+- **The first axis decides the type**, as in §8: can anyone rerun the recorded tool on the recorded inputs and get the same value? Cost doesn't change that. An elaborator that takes an hour is still deterministic, so its result is a fact.
+- **The second axis decides retention.** It says what losing a statement costs. Annotations are never recomputable, so they must be kept anyway (ADR-0031, [[SPEC-010 Store-Truth Folders and Generated Files]] §7). Facts are where the axis matters. Today a folder store drops a file's facts with the file, and deleting a derived store drops all of them (SPEC-009). That is right for call edges and wasteful for an hour of type inference.
+
+**1. Expensive facts carry a certificate where one exists.** Finding a dependent typing is search: unification, instance resolution, proof search. Checking the result is not. The fact's `value` should hold what makes checking cheap:
+- the elaborated term;
+- the solved metavariables;
+- the remaining obligations.
+
+Losing the fact then costs only a re-check. This is SPEC-006 §5's certificate pattern applied to facts: expensive search, cheap check.
+
+**2. Facts record their cost.** Add `cost` to `Fact`: the wall time the tool spent, in milliseconds. It goes **outside the id**, as `derived_at` already does: the id hashes kind, subject, value, tool and inputs, but not when or how long. Policy then reads it. Proposal: a fact costing more than a threshold (1 s, to be measured) is *retained* (point 3).
+
+**3. A per-user fact cache, outside any folder store.**
+- **Where:** `$XDG_CACHE_HOME/sophia/facts`, one Sophia store holding only facts.
+- **What may go in:** only facts whose inputs are all `Input::Content`:
+  - **Content-only facts:** their subject and inputs are immutable content ids, so they are true in every store and every folder. §8 already says a fact about immutable content is never wrong.
+  - **Facts with an `Input::Relation`:** their nominal versions are local to one store, so they stay in that store.
+- **Writing:** when a folder store records or drops a retained fact, a copy goes to the cache.
+- **Lookup:** before running a tool on a subject, the caller asks the cache for `(subject, kind, by, by_version)`. A hit is copied into the folder store instead of recomputed.
+- **Rebuilds:** a derived store's rebuild then loses only cheap facts.
+- **Sharing:** the cache is shared across folders and projects. The same dependent typing of a library function is found once.
+- **Merging:** facts are content-addressed, so merging two caches is a union. There are no conflicts, as with records (SPEC-010 Q5).
+
+**4. A fact from someone else is a claim until rerun or checked.** The cache could be shared across machines, like `sccache`, with a team cache or a Sophia server. A fact read from another machine's cache has not been reproduced here. That is the line between §8's two types:
+- an **imported fact** keeps its fact type, but carries `trust = imported(source)` (outside the id);
+- re-checking its certificate, or rerunning the tool, clears the flag;
+- a build policy that trusts only local or checked facts ignores imported ones (SPEC-006 §5: "checked" is never one global flag).
+
+This is where Daniel's two kinds meet. The same statement starts as a computation and is used as a claim until someone checks it.
+
+**5. Facts as evidence for annotations.** A proof annotation may name fact ids in its `assumptions` or `inputs`. For example, an equivalence proof can rest on two dependent typings. Its staleness then also follows those facts (ADR-0031 §4).
+
+**Not proposed:** a third record type. Every statement so far fits the two types and the two axes.
+
+**Questions answered by Daniel on 2026-10-31 (SR-152):**
+- **What enters the cache is a setting, decided by experiment.** The setting `facts/cache-policy` takes one of three values:
+  - `all-content-only`: every content-only fact, evicting the cheapest per byte first;
+  - `threshold(ms)`: only facts that cost more than the threshold;
+  - `off`.
+
+  The default is chosen after the experiment below.
+- **Local cache only at first.** Point 4's `trust` flag is still specified now, so that a shared cache later changes no format.
+- **One cache per user at first.**
+
+**The experiment (planned, not run).** It answers three questions:
+- **Size:** how large the cache grows under each policy.
+- **Hit rate:** how many tool runs a cache hit saves across folders.
+- **Lookup:** what a lookup costs per tool run.
+
+Workloads:
+- Moonkale's history replays (Lenticulum.jl, Moonkale). These give cheap facts and cross-folder reuse.
+- One producer of expensive facts. Sophia has none today: no dependent typing is computed yet. Candidates: sophialang typings once they exist, or Lean declarations through `lean4export`, where Lean's elaboration time is the cost.
+
+Commands and numbers go into a note in `vault/Storage and Materialization/` before the default is set and before the cache file is added (SR-126).
+
+**Cost of the change, by expectation:**
+- `cost` and `trust` are two fields outside the id: no migration, and no change to any content id.
+- The cache is a new store file. That is a storage-layout addition, so it needs Daniel's agreement (SR-126).
+- Lookup is one indexed read per tool run.
+
 ## 9. Typings
 
 Typings are derived facts of kind `typing`, carrying `system` (for example `sophialang-simple`, `sophialang-dependent`, `cubical`) and `status`. There are several per definition, never merged. Moonkale draws each one as a shared `TypeOf` edge from the definition to its type's node, with the fact's provenance as edge properties ([[SPEC-004 Moonkale Interface]] §2).

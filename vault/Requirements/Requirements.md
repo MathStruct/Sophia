@@ -203,6 +203,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-148 | Where the truth lives (Moonkale ADR-0030, Daniel's words): "If there are legacy data where working on a folder is expected, then the folder should be the source of truth, except if the user explicitly moves the source of truth into Sophia. In all other cases assume Sophia store to be the source of truth, even if there are files generated from the store." For Sophia: moving a folder's truth into the store and back, and files generated from a store-truth project, with outside edits to them taken back as proposals. | D 2026-10-26 (Moonkale ADR-0030, `874d0c2b`) | next | specified, accepted 2026-10-26 ([[SPEC-010 Store-Truth Folders and Generated Files]]) |
 | SR-150 | Saving text whose reference now points at other content than when the edited name was last saved warns, and does not conflict (option C of three: leave it silent, widen the edit token to cover references, or warn). The save uses what the name means now. | D 2026-10-29 | now | done: `Interface::write_text` warning, test `a_moved_reference_warns_on_save` |
 | SR-151 | Moonkale's ADR-0031 accepted: comments, docs and proofs are Sophia annotations in store-truth folders and stay in Moonkale's `annotations.jsonl` elsewhere. Typings stay facts. Daniel's remark: one result can be both a costly computation (finding a dependent type) and a claim, so 'fact or annotation' may be too coarse; there may be several kinds of each. Open; answered in [[SPEC-010 Store-Truth Folders and Generated Files]] §7's notes once he decides. | D 2026-10-30 | WP-19 | accepted: SPEC-010 §7 (accepted 2026-10-30, not built); the remark is open |
+| SR-152 | The fact cache of SPEC-001 §8a. What enters it is a setting (every content-only fact, or a cost threshold, or off), with the default chosen by experiment. Local only at first, one per user at first. | D 2026-10-31 | later | proposal answered; experiment planned, nothing built |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | open: needs its own spec |
 
 ## From Moonkale
@@ -239,6 +240,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-10-31: SR-152 added: the fact cache's policy is a setting, decided by experiment; local and per user at first.
 - 2026-10-30: SR-151 added: ADR-0031 accepted, with the fact/annotation remark.
 - 2026-10-29: SR-150 added: a moved reference warns on save (Daniel chose option C, after Codex's second review of SPEC-010).
 - 2026-10-26: SR-149 added: sharing store-truth folders by a text export (Daniel's answer to SPEC-010 Q5, relayed by the Moonkale agent).
