@@ -1,6 +1,6 @@
 # Sophia
 
-**This repository is an experiment: We currently do not know much about the topic at all, so we query  a lot in order to gain understanding. However it is already the main code parsing backend for [Moonkale](https://mathstruct.org/Moonkale). Whether we can hit all specifications the sophialang sub project has is to be discovered**
+**This repository is an experiment: We currently do not know much about the topic at all, so we query  a lot in order to gain understanding. However it is already the main code parsing backend for [Moonkale](https://mathstruct.org/Moonkale). And considered as model compiler for [Lenticulum](https://mathstruct.org/Moonkale). Whether we can hit all specifications the sophialang sub project has is to be discovered.**
 
 Regardless of that if you have any feed back w.r.t. such an undertaking send us a message.
 
