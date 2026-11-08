@@ -18,3 +18,5 @@ sophia [--store PATH] [--backend sqlite|redb] init | sample | gen N [SEED] | ls 
 **Known rough edge:** piping into `head` panics with "Broken pipe" instead of exiting quietly.
 
 **`sophia query Q [ARG..]`** (2026-10-20): Q is query text, `@FILE`, or the name of a stored query. Arguments follow the parameters in order; an `Id` argument may be a name. `--explain` prints the canonical text, the id, the result type and the program the executor runs (with magic sets, in Datalog notation). `--sql` prints the SQL translation. `--plain` runs without magic sets. `--save NAME` stores the query.
+
+**`sophia verify`** (2026-11-08) counts three outcomes: valid, failed, and records from another tool's normal form, for which only the component size is checked ([[logic]]). It fails only on the second.

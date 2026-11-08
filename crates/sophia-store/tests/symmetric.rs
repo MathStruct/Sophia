@@ -16,11 +16,24 @@ fn check<B: Backend>(s: Store<B>) {
     let recs = normalise_batch(&symmetric(), &mut Default::default()).unwrap();
     s.add(&recs, &[("f".into(), 0, Visibility::Public), ("g".into(), 1, Visibility::Public)]).unwrap();
     for r in &recs {
-        assert!(s.verify(&r.id).unwrap(), "verify failed for {:?} (component size {})", r.id, r.component_size);
+        assert_eq!(s.verify(&r.id).unwrap(), Verification::Valid, "verify failed for {:?} (component size {})", r.id, r.component_size);
         let back = s.record(&r.id).unwrap().unwrap();
         let members: Vec<Record> = s.read(|tx| tx.component(&back.component)).unwrap();
         assert_eq!(members.len() as u32, back.component_size, "stored members must reconstruct the component");
     }
+    // A component that is not symmetric, written without one of its two
+    // members, is refused and leaves nothing behind (Gemini's X-BUG-01).
+    let int = || Term::Nominal(builtin("Int64"));
+    let odd = Definition::method(Term::arrow(int(), int()), Term::lam("x", Term::app(Term::Draft(1), [Term::Var(0)])));
+    let even = Definition::method(Term::arrow(int(), int()), Term::lam("y", Term::app(Term::Draft(0), [Term::Var(0), Term::Var(0)])));
+    let pair = normalise_batch(&[odd, even], &mut Default::default()).unwrap();
+    assert_eq!(pair[0].component_size, 2);
+    let err = s.add(&pair[..1], &[("odd".into(), 0, Visibility::Public)]).unwrap_err();
+    assert!(matches!(err, StoreError::IncompleteComponent { size: 2, stored: 1, .. }), "{err}");
+    assert!(s.record(&pair[0].id).unwrap().is_none());
+    assert!(s.resolve("odd").unwrap().is_none());
+    assert!(matches!(s.put_records(&pair[1..]), Err(StoreError::IncompleteComponent { .. })));
+    s.put_records(&pair).unwrap();
 }
 
 #[test]

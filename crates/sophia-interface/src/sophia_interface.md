@@ -121,3 +121,13 @@ WASM_BINDGEN_USE_BROWSER=1 GECKODRIVER=$(which geckodriver) PATH=$SOPHIA_CORPORA
 ```
 
 Since the parser and elaborator use explicit stacks too (2026-10-24, later), `tests/wasm_deep.rs` also checks `Debug` and parses the printed text back to the same id in both profiles: 3 of 3 under Node (22 s, debug build) and in Firefox (19 s).
+
+**Source text by full name** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08, S-BUG-05). `text_source(key)` and `fetch_text` pass the full store path to `Store::text_source`, so a span is taken from the file that owns the name ([[folder]]). The `source-span` fact path in `foreign_text` matches the last segment as a whole word, not as a substring.
+
+Wasm, rerun 2026-11-08: `wasm_read` 4 of 4 and `wasm_deep` 3 of 3 under Node. They need the system toolchain (`rustup` with `wasm32-unknown-unknown`, `CC_wasm32_unknown_unknown=clang`), because `nix develop`'s Rust has no `lld`. Run without `-q`, which `wasm-bindgen-test-runner` refuses:
+
+```sh
+PATH=$SOPHIA_CORPORA/tools/bin:$PATH CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
+  CC_wasm32_unknown_unknown=clang cargo test -p sophia-interface --no-default-features --features sqlite \
+  --target wasm32-unknown-unknown --test wasm_read
+```

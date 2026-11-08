@@ -715,7 +715,7 @@ impl<B: Backend + Sync> Interface<B> {
             Key::Derived(s) if s.starts_with("name:") => {
                 let path = &s[5..];
                 let Some(n) = self.store.resolve(path)? else { return Ok(None) };
-                (n.target.digest(), Some(last_segment(path).to_string()))
+                (n.target.digest(), Some(path.to_string()))
             }
             Key::Content(d) => (*d, None),
             _ => return Ok(None),
@@ -744,7 +744,7 @@ impl<B: Backend + Sync> Interface<B> {
                 let members: Vec<Record> =
                     if r.component_size > 1 { self.store.read(|tx| tx.component(&r.component))? } else { vec![r.clone()] };
                 if r.lang != sophialang_core::normalise::LANG {
-                    return Ok((self.foreign_text(&members, &d, last_segment(path))?, HashMap::new()));
+                    return Ok((self.foreign_text(&members, &d, path)?, HashMap::new()));
                 }
                 let profile = self.profile_for(ns, &r.lang)?;
                 let mut named = Vec::new();
@@ -804,7 +804,8 @@ impl<B: Backend + Sync> Interface<B> {
     ///
     /// One id can have several spans: the name is not part of a
     /// definition's identity, so `struct A x end` and `struct B x end` are
-    /// one record. `id`'s span is the one whose text contains `name`.
+    /// one record. `id`'s span is chosen by `name`, a full store path
+    /// ([`Store::text_source`]).
     fn foreign_text(&self, members: &[Record], id: &Digest, name: &str) -> Result<String> {
         let mut s = String::new();
         for m in members {
@@ -840,7 +841,9 @@ impl<B: Backend + Sync> Interface<B> {
                 let file = String::from_utf8_lossy(&src.display).into_owned();
                 texts.push((file, sp, String::from_utf8_lossy(t).into_owned()));
             }
-            let pick = if m.id == *id { texts.iter().position(|(_, _, t)| t.contains(name)).unwrap_or(0) } else { 0 };
+            let word = last_segment(name);
+            let pick =
+                if m.id == *id { texts.iter().position(|(_, _, t)| sophia_store::folder::has_word(t, word)).unwrap_or(0) } else { 0 };
             let text = if texts.is_empty() { None } else { Some(texts.swap_remove(pick)) };
             match text {
                 Some((file, sp, t)) => {

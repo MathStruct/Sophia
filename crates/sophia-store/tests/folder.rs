@@ -70,6 +70,28 @@ fn methods<B: Backend>(s: &Store<B>) -> Vec<Digest> {
     }
 }
 
+/// One id, several spans (names are not part of identity): the text shown
+/// for a name is its own, not that of another name that contains it
+/// (Gemini's S-BUG-05: the span was picked by `text.contains(name)`).
+fn text_source_follows_the_name<B: Backend>(s: Store<B>) {
+    s.set_derived().unwrap();
+    let id = rec("5", "const_statement").id;
+    let text = |ts: TextSource| {
+        let src = s.record(&ts.source).unwrap().unwrap();
+        (ts.path, String::from_utf8(src.bytes[ts.start as usize..ts.end as usize].to_vec()).unwrap())
+    };
+    // Two files: x.jl's `ab` sorts first and contains "b".
+    s.replace_files(&[file("src/x.jl", &[("ab", "5")]), file("src/y.jl", &[("b", "5")])]).unwrap();
+    let ts = s.text_source(&id, Some("jl.P.b")).unwrap().unwrap();
+    assert_eq!(text(ts), ("src/y.jl".into(), "b = 5".into()));
+    let ts = s.text_source(&id, Some("jl.P.ab")).unwrap().unwrap();
+    assert_eq!(text(ts), ("src/x.jl".into(), "ab = 5".into()));
+    // One file: the span with the name as a whole word.
+    s.replace_files(&[file("src/x.jl", &[("ab", "5"), ("b", "5")]), file("src/y.jl", &[])]).unwrap();
+    let ts = s.text_source(&id, Some("jl.P.b")).unwrap().unwrap();
+    assert_eq!(text(ts), ("src/x.jl".into(), "b = 5".into()));
+}
+
 fn sorted(mut v: Vec<Digest>) -> Vec<Digest> {
     v.sort();
     v
@@ -86,7 +108,7 @@ fn files_replace_names_generics_and_spans<B: Backend>(s: Store<B>) {
     assert_eq!(methods(&s), sorted(vec![rec("g(x::Int) = 1", "function_definition").id, rec("g(x::Float64) = 2", "function_definition").id]));
     let m = s.file_manifest("src/a.jl").unwrap().unwrap();
     assert_eq!(m.source, Some(source_record("src/a.jl", a.text.as_ref().unwrap()).id));
-    let ts = s.text_source(&rec("2", "const_statement").id, Some("b")).unwrap().unwrap();
+    let ts = s.text_source(&rec("2", "const_statement").id, Some("jl.P.b")).unwrap().unwrap();
     let src = s.record(&ts.source).unwrap().unwrap();
     assert_eq!(&src.bytes[ts.start as usize..ts.end as usize], b"b = 2");
     assert_eq!(ts.path, "src/a.jl");
@@ -619,6 +641,11 @@ macro_rules! suite {
             fn files_replace_names_generics_and_spans() {
                 let (s, _d) = store();
                 super::files_replace_names_generics_and_spans(s);
+            }
+            #[test]
+            fn text_source_follows_the_name() {
+                let (s, _d) = store();
+                super::text_source_follows_the_name(s);
             }
             #[test]
             fn shared_methods_are_counted() {

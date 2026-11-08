@@ -351,8 +351,21 @@ fn run<B: Backend + Sync>(
         }
         "verify" => {
             let ids = store.read(|tx| tx.records_of_kind(None, usize::MAX))?;
-            let bad: Vec<_> = ids.iter().filter(|d| !store.verify(d).unwrap_or(false)).collect();
-            println!("{} definitions, {} failed verification", ids.len(), bad.len());
+            let mut bad = Vec::new();
+            let mut foreign = 0;
+            for d in &ids {
+                match store.verify(d) {
+                    Ok(sophia_store::Verification::Valid) => {}
+                    Ok(sophia_store::Verification::Foreign { .. }) => foreign += 1,
+                    _ => bad.push(d),
+                }
+            }
+            println!(
+                "{} definitions, {} failed verification, {} from another tool's normal form (component sizes checked only)",
+                ids.len(),
+                bad.len(),
+                foreign
+            );
             for d in &bad {
                 println!("  {}", d);
             }

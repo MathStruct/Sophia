@@ -41,7 +41,7 @@ fn records_round_trip_and_verify<B: Backend>(s: Store<B>) {
     let (_, records) = populated(&s);
     for r in &records {
         assert_eq!(s.record(&r.id).unwrap().as_ref(), Some(r));
-        assert!(s.verify(&r.id).unwrap(), "{}", r.kind);
+        assert_eq!(s.verify(&r.id).unwrap(), Verification::Valid, "{}", r.kind);
     }
 }
 
@@ -163,8 +163,17 @@ fn annotations_attach_to_subjects<B: Backend>(s: Store<B>) {
     s.annotate(&a).unwrap();
     let p = Annotation::new("proves:memory", vec![records[12].id], b"evidence".to_vec(), Some(("sophia-own", "0")));
     s.annotate(&p).unwrap();
-    assert_eq!(s.read(|tx| tx.annotations_of(&records[1].id)).unwrap(), vec![a]);
-    assert_eq!(s.read(|tx| tx.annotations_of(&records[12].id)).unwrap(), vec![p]);
+    assert_eq!(s.read(|tx| tx.annotations_of(&records[1].id)).unwrap(), vec![a.clone()]);
+    assert_eq!(s.read(|tx| tx.annotations_of(&records[12].id)).unwrap(), vec![p.clone()]);
+    // By id, also with several subjects or none (Gemini's S-BUG-02: the SQL
+    // backends found an annotation only through a subject).
+    let eq = Annotation::new("equivalence", vec![records[1].id, records[12].id], b"".to_vec(), None);
+    let bare = Annotation::new("comment", vec![], b"about nothing yet".to_vec(), None);
+    s.annotate_many(&[eq.clone(), bare.clone()]).unwrap();
+    for x in [&a, &p, &eq, &bare] {
+        assert_eq!(s.read(|tx| tx.annotation(&x.id)).unwrap().as_ref(), Some(x), "{}", x.kind);
+    }
+    assert_eq!(s.read(|tx| tx.annotation(&records[1].id)).unwrap(), None);
 }
 
 fn changes_since_pages_through_the_log<B: Backend>(s: Store<B>) {
@@ -450,6 +459,30 @@ fn duckdb_queries_are_read_only_capped_and_timed() {
     assert!(capped.truncated && capped.rows.len() == 3);
     for bad in ["DELETE FROM t_name", "INSERT INTO t_meta VALUES ('a', 'x')", "SELECT 1; DELETE FROM t_name", "ATTACH 'x.db' AS y", "SELECT * FROM read_csv('/etc/passwd')"] {
         assert!(db.query_readonly(bad, QueryLimits::default()).is_err(), "{bad}");
+    }
+    // Only the views, as SQLite's authorizer allows (Gemini's review §5.3).
+    for bad in [
+        "SELECT * FROM t_meta",
+        "SELECT * FROM main.t_meta",
+        "SELECT * FROM T_META",
+        "SELECT n.path FROM names n JOIN t_definition d ON d.id = n.target_id",
+        "SELECT (SELECT count(*) FROM t_meta) FROM names",
+        "SELECT * FROM names WHERE path IN (SELECT key FROM t_meta)",
+        "WITH x AS (SELECT * FROM t_meta) SELECT * FROM x",
+        "WITH t_meta AS (SELECT * FROM t_meta) SELECT * FROM t_meta",
+        "SELECT * FROM query_table('t_meta')",
+        "SELECT * FROM query('SELECT * FROM t_meta')",
+        "SELECT * FROM duckdb_tables()",
+    ] {
+        assert!(matches!(db.query_readonly(bad, QueryLimits::default()), Err(StoreError::QueryRefused(_))), "{bad}");
+    }
+    for good in [
+        "SELECT path FROM names",
+        "WITH x AS (SELECT path FROM names) SELECT count(*) FROM x",
+        "SELECT n.path FROM names n JOIN definitions d ON d.id = n.target_id",
+        "SELECT * FROM range(3)",
+    ] {
+        assert!(db.query_readonly(good, QueryLimits::default()).is_ok(), "{good}");
     }
     let slow = db.query_readonly("SELECT count(*) FROM range(10000000000) a", QueryLimits { max_steps_k: 50, ..Default::default() });
     assert!(slow.is_err(), "the time budget interrupts runaway queries");

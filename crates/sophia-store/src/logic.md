@@ -29,3 +29,10 @@ Garbage collection, branches, update propagation, the overlap check that would l
 **Batches** (2026-10-20): `add_members` adds many members to one nominal entity in a single transaction, checking membership once. `add_method` checks it per call, which was quadratic for set.mm's 48 000 proofs. `annotate_many` adds many annotations in one transaction.
 
 **`record_facts(facts)`** (2026-10-21): several facts in one transaction, skipping (and not logging) facts already stored. Ingests use it for `source-span` facts: one transaction for a package instead of one per definition.
+
+**`verify` gives a verdict, and incomplete components are refused** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08). `verify` returns a `Verification`:
+- `Valid`: the component is complete, and rehashing it gives the id.
+- `Invalid`: the component is incomplete, or rehashing it gives another id.
+- `Foreign { normaliser }`: the component is complete, but its ids come from another tool's normal form (`moonkale-*`, SPEC-009 §1), which Sophia cannot recompute. It used to say `false` for every Moonkale record, a lone definition included.
+
+`check_components` runs at the end of `put_records`, `add`, `update` and `replace_files`. It refuses with `IncompleteComponent` a component whose stored members are not exactly indices 0 to `component_size` − 1. Moonkale's normaliser before `06fd112c` gave symmetric members one id but kept the full size, so a 2-member component was stored with 1 member. Tests: `tests/symmetric.rs` on all four backends fails without the check, and `sophia-ingest`'s `moonkale_records_verify_as_foreign`.

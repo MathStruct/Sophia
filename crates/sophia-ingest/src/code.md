@@ -22,3 +22,14 @@
 **Modules and imports (2026-10-20).** A Julia `Def` also carries its `module` (the `module … end` blocks around it; in module mode, from the package root) and `extends`, the function a method adds to when it is not its own module's. `julia_scopes` collects every declared module and every `import M: f` / `import M.f`; `julia_extends` then places qualified heads and imported names with `locate`, which looks a module path up as Julia does: relative dots, then declared submodules innermost outwards, the enclosing module's own name, Base's exported submodules (`Broadcast`, `Iterators`, …), else a top-level module. **Approximation:** bindings that come from `using` and re-exports (`Base.Array` is `Core.Array`) are not followed; [[Julia Conformance]] measures what that costs.
 
 **Moved to Moonkale (2026-10-24, SPEC-009 §8).** `Def`, `JuliaScopes`, `julia_scopes`, `julia_extends`, `locate` and `BASE_SUBMODULES` now live in `moonkale-content-id` (pinned at `c166fbd6`), ported from this file; `code::Def` is a re-export of its `Definition` (new fields `language`, `path_derived`, `diagnostic`). What stays here: finding definitions (`definitions`, `file`). Since `09ce6d9c` the crate also exports `modules_around` and `locate`, and Sophia's copy is gone; the crate has no depth limit any more either (SR-145, budgets on size and work). Re-ingesting LinearAlgebra on `09ce6d9c`: the same 905 names and 145 definition ids, all 3 152 records rebuilt identically, 1.45 s (2.48 s on `c166fbd6`). `tests/bindings.rs` checks that Sophia's definitions, named by the shared rule, are exactly the Julia rows of Moonkale's golden `bindings.tsv` (66 of 66). Rust and Python still use the per-file naming (`rs.<pkg>.<name>`); Moonkale's crate-and-module naming (SPEC-009 §7) is not switched on yet.
+
+**Pin moved to `06fd112c` (2026-11-08, normaliser 7 → 8).** Moonkale's fix for Gemini's X-BUG-01: symmetric members of a recursive component collapse into classes, and the size is the number of classes ([[Review 2026-11-07 Gemini (external)]]). The golden `ids.tsv` and `module.tsv` were copied, and every golden row reproduces (`cargo test -p sophia-ingest`).
+
+Re-ingesting LinearAlgebra (Julia 1.13.1 stdlib, `sophia ingest-code julia LinearAlgebra <dir>`, release, stores in `$SOPHIA_CORPORA/pin-move-2026-11-08/`), old pin against new:
+- the same 3 416 definitions, 3 284 new records, 798 generic functions and 2 907 methods;
+- the same 945 names (identical path lists by md5);
+- 3 319 stored definitions in both, 4 of them in recursive components;
+- no component with a member count different from its size, in either store;
+- 34 records keep their ids, the source files; every definition id changes, because the normaliser version is part of the id.
+
+LinearAlgebra has no symmetric components, so only the ids change. `moonkale_records_verify_as_foreign` (`tests/code.rs`) checks the f/g class (size 1), a two-member component, and `Store::verify` returning `Foreign`.

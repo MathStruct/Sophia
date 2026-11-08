@@ -2,6 +2,7 @@
 //! columnar engine, for analytical queries and bulk scans (SPEC-001 §12,
 //! [[Database Comparison]]). See `duckdb_store.md`.
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -11,7 +12,7 @@ use sophia_hash::{Digest, NominalId, Record, Status};
 use crate::backend::{Backend, ReadTx, Result, WriteTx};
 use crate::codec::{decode_inputs, encode_inputs};
 use crate::error::StoreError;
-use crate::query::{QueryLimits, Table, Value};
+use crate::query::{QueryLimits, Table, VIEWS, Value};
 use crate::types::*;
 
 const SCHEMA: &str = r#"
@@ -143,20 +144,18 @@ impl DuckDb {
             return Err(StoreError::QueryRefused("one statement only".into()));
         }
         let mut conn = self.conn.lock().unwrap();
+        only_views(&conn, body)?;
+        // The time budget: a timer that wakes when the query ends, so a fast
+        // query does not wait for it.
         let handle = conn.interrupt_handle();
-        let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let done = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
         let timer = {
             let done = done.clone();
-            let ms = limits.max_steps_k as u64;
+            let budget = std::time::Duration::from_millis(limits.max_steps_k as u64);
             std::thread::spawn(move || {
-                let t = std::time::Instant::now();
-                while t.elapsed().as_millis() < ms as u128 {
-                    if done.load(std::sync::atomic::Ordering::Relaxed) {
-                        return;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(2));
-                }
-                if !done.load(std::sync::atomic::Ordering::Relaxed) {
+                let (lock, cv) = &*done;
+                let finished = cv.wait_timeout_while(lock.lock().unwrap(), budget, |d| !*d).unwrap();
+                if !*finished.0 {
                     handle.interrupt();
                 }
             })
@@ -201,7 +200,11 @@ impl DuckDb {
             Ok(Table { columns, rows: out_rows, truncated })
         })();
         let _ = tx.rollback();
-        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        {
+            let (lock, cv) = &*done;
+            *lock.lock().unwrap() = true;
+            cv.notify_one();
+        }
         let _ = timer.join();
         result
     }
@@ -260,7 +263,99 @@ type RecordRow = (Vec<u8>, String, String, String, Vec<u8>, u32, u32, Vec<u8>, V
 
 const RECORD_COLS: &str = "id, lang, normaliser, kind, component, idx, size, bytes, display, status, refs, nominal_refs";
 
+/// SQLite's authorizer has no DuckDB counterpart, so a query's parse tree
+/// is checked instead (SPEC-004 §5; Gemini's review §5.3). Every table it
+/// names must be a documented view or one of its own CTEs, and a CTE may not
+/// shadow a stored table, since `WITH t_meta AS (SELECT * FROM t_meta)`
+/// would read it. Only generator table functions are allowed: `query_table`
+/// and the file readers would reach past the views.
+fn only_views(conn: &Connection, body: &str) -> Result<()> {
+    let refuse = |why: String| Err(StoreError::QueryRefused(why));
+    let json: String = conn.query_row("SELECT json_serialize_sql(CAST($1 AS VARCHAR))", [body], |r| r.get(0)).map_err(be)?;
+    let tree: serde_json::Value = serde_json::from_str(&json).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
+    if tree["error"].as_bool() != Some(false) {
+        return refuse(tree["error_message"].as_str().unwrap_or("not a query").to_string());
+    }
+    let mut stmt = conn.prepare("SELECT lower(table_name) FROM duckdb_tables()").map_err(be)?;
+    let stored: HashSet<String> = stmt.query_map([], |r| r.get(0)).map_err(be)?.collect::<std::result::Result<_, _>>().map_err(be)?;
+    let mut ctes = HashSet::new();
+    let mut tables = Vec::new();
+    let mut functions = Vec::new();
+    let mut stack = vec![&tree];
+    while let Some(v) = stack.pop() {
+        match v {
+            serde_json::Value::Array(xs) => stack.extend(xs),
+            serde_json::Value::Object(m) => {
+                match m.get("type").and_then(|t| t.as_str()) {
+                    Some("BASE_TABLE") => tables.push((
+                        m["catalog_name"].as_str().unwrap_or("").to_string(),
+                        m["schema_name"].as_str().unwrap_or("").to_string(),
+                        m["table_name"].as_str().unwrap_or("").to_lowercase(),
+                    )),
+                    Some("TABLE_FUNCTION") => {
+                        functions.push(m["function"]["function_name"].as_str().unwrap_or("").to_lowercase())
+                    }
+                    _ => {}
+                }
+                if let Some(map) = m.get("cte_map").and_then(|c| c["map"].as_array()) {
+                    ctes.extend(map.iter().filter_map(|e| e["key"].as_str()).map(str::to_lowercase));
+                }
+                stack.extend(m.values());
+            }
+            _ => {}
+        }
+    }
+    if let Some(c) = ctes.iter().find(|c| stored.contains(*c)) {
+        return refuse(format!("the CTE {c:?} shadows a stored table"));
+    }
+    for (catalog, schema, table) in &tables {
+        if !catalog.is_empty() || !schema.is_empty() || !(VIEWS.contains(&table.as_str()) || ctes.contains(table)) {
+            return refuse(format!("{table:?} is not one of the views ({})", VIEWS.join(", ")));
+        }
+    }
+    if let Some(f) = functions.iter().find(|f| !["range", "generate_series", "unnest"].contains(&f.as_str())) {
+        return refuse(format!("table function {f:?}"));
+    }
+    Ok(())
+}
+
 impl DuckTx<'_> {
+    /// Annotation rows of `sql`, which selects the eight columns by one
+    /// blob parameter.
+    fn annotation_rows(&self, sql: &str, param: &[u8]) -> Result<Vec<Annotation>> {
+        let mut st = self.tx.prepare_cached(sql).map_err(be)?;
+        let v: Vec<_> = st
+            .query_map([param], |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Vec<u8>>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, String>(6)?,
+                    r.get::<_, Vec<u8>>(7)?,
+                ))
+            })
+            .map_err(be)?
+            .collect();
+        v.into_iter()
+            .map(|r| {
+                let r = r.map_err(be)?;
+                Ok(Annotation {
+                    id: dg(r.0)?,
+                    kind: r.1,
+                    subjects: blob_digests(&r.2)?,
+                    payload: r.3,
+                    checker: r.4,
+                    checker_version: r.5,
+                    status: r.6,
+                    inputs: blob_digests(&r.7)?,
+                })
+            })
+            .collect()
+    }
+
     fn record_row(&self, row: &duckdb::Row) -> duckdb::Result<RecordRow> {
         Ok((
             row.get(0)?,
@@ -505,52 +600,16 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn annotation(&self, id: &Digest) -> Result<Option<Annotation>> {
-        // Through its first subject, which reuses the row decoding below.
-        let mut st = self.tx.prepare_cached("SELECT subject FROM t_annotation_subject WHERE id = $1 LIMIT 1").map_err(be)?;
-        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
-        let Some(subject) = v.into_iter().next() else { return Ok(None) };
-        let subject = dg(subject.map_err(be)?)?;
-        Ok(self.annotations_of(&subject)?.into_iter().find(|a| a.id == *id))
+        // By its primary key, so an annotation without subjects is found too.
+        Ok(self.annotation_rows("SELECT id, kind, subjects, payload, checker, checker_version, status, inputs FROM t_annotation WHERE id = $1", id.as_bytes().as_slice())?.pop())
     }
 
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>> {
-        let mut st = self
-            .tx
-            .prepare_cached(
-                "SELECT a.id, a.kind, a.subjects, a.payload, a.checker, a.checker_version, a.status, a.inputs
+        self.annotation_rows(
+            "SELECT a.id, a.kind, a.subjects, a.payload, a.checker, a.checker_version, a.status, a.inputs
                  FROM t_annotation a JOIN t_annotation_subject s ON s.id = a.id WHERE s.subject = $1 ORDER BY a.id",
-            )
-            .map_err(be)?;
-        let v: Vec<_> = st
-            .query_map([subject.as_bytes().as_slice()], |r| {
-                Ok((
-                    r.get::<_, Vec<u8>>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, Vec<u8>>(2)?,
-                    r.get::<_, Vec<u8>>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, Option<String>>(5)?,
-                    r.get::<_, String>(6)?,
-                    r.get::<_, Vec<u8>>(7)?,
-                ))
-            })
-            .map_err(be)?
-            .collect();
-        v.into_iter()
-            .map(|r| {
-                let r = r.map_err(be)?;
-                Ok(Annotation {
-                    id: dg(r.0)?,
-                    kind: r.1,
-                    subjects: blob_digests(&r.2)?,
-                    payload: r.3,
-                    checker: r.4,
-                    checker_version: r.5,
-                    status: r.6,
-                    inputs: blob_digests(&r.7)?,
-                })
-            })
-            .collect()
+            subject.as_bytes().as_slice(),
+        )
     }
 
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>> {

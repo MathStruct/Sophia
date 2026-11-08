@@ -98,3 +98,10 @@ Codex found no backend-specific difference in the rolled-back proposal.
 3. **A proposal could miss a generic function brought back through another file**: not reachable. The case needs `g` to be a constant of `a.jl` while `b.jl` has a method of it. One batch cannot hold both (`validate_batch`), and a later batch with only `a.jl` is claimed by `b.jl`'s method. The test checks both refusals.
 4. **`give_truth` checked owner rows, not targets**: true. A file's name retargeted by a store call (`Store::update`) kept its owner row, so `give_truth` accepted it, and the store differed from a fresh build. `give_truth` now reads every manifest once and requires each content name to have its file's target (`ExportMismatch` for that file otherwise) and each generic function name to be contributed by some file (`NotInFiles` otherwise). The test fails before the fix.
 5. **`give_truth` scanned every manifest once per generic name**: true; unmeasured. The one manifest pass of (4) replaces it. `laid_out` still scans the manifests for a generic function's name, once per interface edit of such a name.
+
+**`text_source` follows the name** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08, S-BUG-05). One id can have several spans, because names are not part of identity. The span used to be the first whose text contained the name's last segment as a substring, so `b` could show `ab = 5`. Now `name` is a full store path:
+1. the span comes from the file that owns the name (`laid_out_in`);
+2. within that file, it is the span whose text has the last segment as a whole word (`has_word`, which is public; [[sophia_interface]] uses it for `source-span` facts);
+3. otherwise the first span.
+
+`replace_files` also checks components at its end ([[logic]]). Test: `text_source_follows_the_name` on all four backends fails with the old rule.

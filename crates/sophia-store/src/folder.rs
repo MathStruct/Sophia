@@ -324,8 +324,11 @@ impl<B: Backend> Store<B> {
         Ok(self.meta_prefix("file/")?.into_iter().map(|(k, _)| k["file/".len()..].to_string()).collect())
     }
 
-    /// Where a record's text is, if a file contributed it: the file whose
-    /// span text contains `name`, else the first.
+    /// Where a record's text is, if a file contributed it. One id can have
+    /// several spans, because names are not part of identity. With `name`
+    /// (a full store path), the span is taken from the file that owns the
+    /// name, and among that file's spans, the one whose text has the name's
+    /// last segment as a whole word; otherwise the first span.
     pub fn text_source(&self, id: &Digest, name: Option<&str>) -> Result<Option<TextSource>> {
         let paths: Vec<String> =
             self.meta_prefix(&defined_prefix(id))?.into_iter().map(|(k, _)| k[defined_prefix(id).len()..].to_string()).collect();
@@ -340,9 +343,15 @@ impl<B: Backend> Store<B> {
             }
         }
         if let Some(n) = name {
+            if let Some(owner) = self.backend().read(|tx| laid_out_in(tx, n))? {
+                if found.iter().any(|t| t.path == owner) {
+                    found.retain(|t| t.path == owner);
+                }
+            }
+            let word = n.rsplit('.').next().unwrap_or(n);
             for (i, t) in found.iter().enumerate() {
                 let text = self.record(&t.source)?.and_then(|r| r.bytes.get(t.start as usize..t.end as usize).map(|b| b.to_vec()));
-                if text.is_some_and(|b| String::from_utf8_lossy(&b).contains(n)) {
+                if text.is_some_and(|b| has_word(&String::from_utf8_lossy(&b), word)) {
                     return Ok(Some(found.swap_remove(i)));
                 }
             }
@@ -448,6 +457,7 @@ impl<B: Backend> Store<B> {
                 self.put_new(tx, &[source_record(&f.path, t)])?;
             }
         }
+        self.check_components(tx, files.iter().flat_map(|f| &f.records))?;
         // Content names: removed, moved, added. A generic function's
         // methods are not counted while its name is a definition's, so a
         // name changing kind has its memberships rebuilt (P-231).
@@ -1019,6 +1029,15 @@ fn file_token_in<T: ReadTx + ?Sized>(tx: &T, path: &str) -> Result<u64> {
     }
     let t = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
     Ok(if t == 0 { 1 } else { t })
+}
+
+/// Whether `word` occurs in `text` with no identifier character on
+/// either side.
+pub fn has_word(text: &str, word: &str) -> bool {
+    let ident = |c: char| c.is_alphanumeric() || c == '_' || c == '!';
+    text.match_indices(word).any(|(i, _)| {
+        !text[..i].chars().next_back().is_some_and(ident) && !text[i + word.len()..].chars().next().is_some_and(ident)
+    })
 }
 
 /// The file that lays out `name`: its owner, or for a generic function

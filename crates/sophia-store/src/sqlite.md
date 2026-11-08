@@ -40,3 +40,5 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
 `prefix_reads_use_the_index` checks with `EXPLAIN QUERY PLAN` that the statements `SEARCH` and never `SCAN`. The old forms show `SCAN t_meta` and `SCAN t_name` on Moonkale's store. `prefix_reads_agree` (conformance, all four backends) covers namespace boundaries, quoted segments, `é` and U+10FFFF keys, and limits.
 
 On a collected copy of Moonkale's store (`listing_timing … rs 5`, release), `Interface::all(100000)` goes from 274 ms to 120 ms, with the same output digest; it was 2089 ms before the namespace-edge fix. `children(ns:)` goes from 1.1 to 0.5 ms.
+
+**`annotation(id)` reads `t_annotation` by its primary key** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08, S-BUG-02). It used to go through `t_annotation_subject WHERE id = ?`, which is keyed `(subject, id)`, so it scanned that table. An annotation with no subjects then read as `None`, while the KV backends found it. `annotation` and `annotations_of` share one row decoder. Test: `annotations_attach_to_subjects` in `tests/conformance.rs` fails on SQLite and DuckDB without the fix.

@@ -1,6 +1,7 @@
 //! The store's logic, written once over any [`Backend`] (SPEC-001 §5 to §8).
 //! See `logic.md`.
 
+use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,6 +30,30 @@ pub fn fresh_nonce() -> [u8; 32] {
     h.update(&(&local as *const u8 as usize).to_le_bytes());
     h.update(format!("{:?}", std::thread::current().id()).as_bytes());
     *h.finalize().as_bytes()
+}
+
+/// What [`Store::verify`] found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verification {
+    /// The component is complete and rehashing it gives the id.
+    Valid,
+    /// The component is incomplete, or rehashing it gives another id.
+    Invalid,
+    /// The component is complete, but its ids come from another tool's
+    /// normal form, which Sophia cannot recompute.
+    Foreign { normaliser: String },
+}
+
+impl Verification {
+    /// Not known to be wrong: valid, or foreign with a complete component.
+    pub fn is_ok(&self) -> bool {
+        !matches!(self, Verification::Invalid)
+    }
+}
+
+/// Normal forms whose ids another tool computes: Moonkale's WP-66.
+fn is_foreign_normaliser(normaliser: &str) -> bool {
+    normaliser.starts_with("moonkale-")
 }
 
 /// Checks a dotted name path (SPEC-004 §3): non-empty segments that do not
@@ -150,9 +175,38 @@ impl<B: Backend> Store<B> {
         Ok(new)
     }
 
+    /// Refuses, at the end of a write, a component of `records` whose
+    /// stored members are not exactly indices 0 to `component_size` − 1.
+    pub(crate) fn check_components<'r>(
+        &self,
+        tx: &mut dyn WriteTx,
+        records: impl IntoIterator<Item = &'r Record>,
+    ) -> Result<()> {
+        let mut seen = BTreeSet::new();
+        for r in records {
+            if !seen.insert(r.component) {
+                continue;
+            }
+            let members = tx.component(&r.component)?;
+            let indices: BTreeSet<u32> = members.iter().map(|m| m.index).collect();
+            if members.len() as u32 != r.component_size || indices.len() != members.len() || indices.last().is_some_and(|i| *i >= r.component_size) {
+                return Err(StoreError::IncompleteComponent {
+                    component: r.component.to_hex(),
+                    size: r.component_size,
+                    stored: members.len(),
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Stores records without naming them. Returns how many were new.
     pub fn put_records(&self, records: &[Record]) -> Result<usize> {
-        self.backend.write(|tx| self.put_new(tx, records))
+        self.backend.write(|tx| {
+            let new = self.put_new(tx, records)?;
+            self.check_components(tx, records)?;
+            Ok(new)
+        })
     }
 
     /// Stores records and adds names to some of them: `(path, index into
@@ -166,6 +220,7 @@ impl<B: Backend> Store<B> {
         }
         self.backend.write(|tx| {
             let new_records = self.put_new(tx, records)?;
+            self.check_components(tx, records)?;
             let mut name_seqs = Vec::new();
             for (path, i, vis) in names {
                 if tx.name(path)?.is_some() {
@@ -202,6 +257,7 @@ impl<B: Backend> Store<B> {
                 });
             }
             self.put_new(tx, records)?;
+            self.check_components(tx, records)?;
             let old = name.target;
             let seq = self.log(tx, LogOp::MoveName, path.into(), Some(old.digest()), Some(new))?;
             tx.put_name(&NameEntry { target: Target::Content(new), seq, ..name })?;
@@ -278,13 +334,22 @@ impl<B: Backend> Store<B> {
         self.backend.read(|tx| tx.record(id))
     }
 
-    /// Re-verifies a stored definition by rehashing its whole component.
-    pub fn verify(&self, id: &Digest) -> Result<bool> {
+    /// Re-verifies a stored definition: its component must have exactly
+    /// `component_size` members, and rehashing them must give its id. Ids
+    /// from another tool's normal form (`moonkale-*`, SPEC-009 §1) can only
+    /// be recomputed by that tool, so for them only the size is checked.
+    pub fn verify(&self, id: &Digest) -> Result<Verification> {
         self.backend.read(|tx| {
             let r = tx.record(id)?.ok_or_else(|| StoreError::NotFound(id.to_hex()))?;
             let members = tx.component(&r.component)?;
+            if members.len() as u32 != r.component_size {
+                return Ok(Verification::Invalid);
+            }
+            if is_foreign_normaliser(&r.normaliser) {
+                return Ok(Verification::Foreign { normaliser: r.normaliser });
+            }
             let refs: Vec<&Record> = members.iter().collect();
-            Ok(members.len() as u32 == r.component_size && Record::verify(&refs))
+            Ok(if Record::verify(&refs) { Verification::Valid } else { Verification::Invalid })
         })
     }
 

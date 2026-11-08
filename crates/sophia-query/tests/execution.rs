@@ -185,7 +185,7 @@ fn queries_are_stored_as_definitions<B: Backend>(s: Store<B>) {
     let qs = prepare_text("select q where def(q, :Query)").unwrap();
     let rows = s.read(|tx| Ok(qs.run(tx, &[], Limits::default(), Strategy::Auto).unwrap())).unwrap();
     assert_eq!(rows.rows, vec![vec![Val::Id(qid)]]);
-    assert!(s.verify(&qid).unwrap());
+    assert_eq!(s.verify(&qid).unwrap(), sophia_store::Verification::Valid);
 }
 
 fn limits_stop_runaway_queries<B: Backend>(s: Store<B>) {

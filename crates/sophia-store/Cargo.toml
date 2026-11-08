@@ -14,7 +14,7 @@ path = "src/sophia_store.rs"
 default = ["sqlite", "redb"]
 sqlite = ["dep:rusqlite"]
 redb = ["dep:redb"]
-duckdb = ["dep:duckdb"]
+duckdb = ["dep:duckdb", "dep:serde_json"]
 lmdb = ["dep:heed"]
 
 [dependencies]
@@ -25,6 +25,7 @@ rusqlite = { workspace = true, optional = true }
 redb = { workspace = true, optional = true }
 duckdb = { workspace = true, optional = true }
 heed = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 sophialang-core.workspace = true

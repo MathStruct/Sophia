@@ -99,3 +99,21 @@ fn stored_ids_are_moonkale_ids() {
         }
     }
 }
+
+/// Moonkale's ids can only be recomputed by moonkale-content-id (SPEC-009
+/// §1), so `verify` checks only their component sizes. Symmetric members
+/// collapse into one class since Moonkale `06fd112c` (Gemini's X-BUG-01).
+#[test]
+fn moonkale_records_verify_as_foreign() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = sophia_store::Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("v.sqlite")).unwrap());
+    let src = "fn h() -> i32 { 1 }\nfn f() -> i32 { g() }\nfn g() -> i32 { f() }\nfn odd() -> i32 { even() }\nfn even() -> i32 { odd() + 1 }\n";
+    sophia_ingest::store_code(&s, "rust", "v", &[("a.rs".into(), src.into())]).unwrap();
+    let got = file("rust", src).unwrap();
+    let size = |n: &str| got.records[got.defs.iter().position(|d| d.name == n).unwrap()].component_size;
+    assert_eq!((size("h"), size("f"), size("g"), size("odd"), size("even")), (1, 1, 1, 2, 2));
+    for r in &got.records {
+        let v = s.verify(&r.id).unwrap();
+        assert!(matches!(&v, sophia_store::Verification::Foreign { normaliser } if normaliser.starts_with("moonkale-wp66@")), "{v:?}");
+    }
+}

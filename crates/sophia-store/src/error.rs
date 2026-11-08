@@ -22,6 +22,12 @@ pub enum StoreError {
     /// kind must follow from content (SP-012), so this is a frontend bug.
     #[error("record {id} is stored with kind {stored:?}, not {new:?}")]
     KindConflict { id: String, stored: String, new: String },
+    /// A recursive component would be stored with other than
+    /// `component_size` distinct members, indexed 0 to size − 1. A frontend
+    /// bug: a normal form that collapses symmetric members must count
+    /// classes (Gemini's X-BUG-01, Moonkale `06fd112c`).
+    #[error("component {component} claims {size} members but would have {stored}")]
+    IncompleteComponent { component: String, size: u32, stored: usize },
     /// `replace_files`: a name is owned by a file outside the batch (its
     /// path in `owner`; empty when no file owns it). Retry with that file
     /// in the batch (SPEC-009 §7).

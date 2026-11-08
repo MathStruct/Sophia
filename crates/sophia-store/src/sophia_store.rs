@@ -24,6 +24,6 @@ pub mod sqlite;
 
 pub use backend::{Backend, ReadTx, WriteTx};
 pub use error::StoreError;
-pub use logic::{AddReport, Store, UpdateReport, validate_path};
+pub use logic::{AddReport, Store, UpdateReport, Verification, validate_path};
 pub use types::*;
 pub use folder::{FileGeneric, FileIngest, FileManifest, FileProposal, FileReport, Proposal, TextSource};

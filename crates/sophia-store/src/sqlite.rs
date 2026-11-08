@@ -298,6 +298,42 @@ const META_PREFIX_SQL: &str = "SELECT key, value FROM t_meta WHERE key >= ?1 AND
 const RECORD_COLS: &str = "id, lang, normaliser, kind, component, idx, size, bytes, display, status, refs, nominal_refs";
 
 impl SqliteTx<'_> {
+    /// Annotation rows of `sql`, which selects the eight columns by one
+    /// blob parameter.
+    fn annotation_rows(&self, sql: &str, param: &[u8]) -> Result<Vec<Annotation>> {
+        let mut st = self.tx.prepare_cached(sql).map_err(be)?;
+        let v: Vec<_> = st
+            .query_map([param], |r| {
+                Ok((
+                    r.get::<_, Vec<u8>>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, Vec<u8>>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, String>(6)?,
+                    r.get::<_, Vec<u8>>(7)?,
+                ))
+            })
+            .map_err(be)?
+            .collect();
+        v.into_iter()
+            .map(|r| {
+                let r = r.map_err(be)?;
+                Ok(Annotation {
+                    id: dg(r.0)?,
+                    kind: r.1,
+                    subjects: blob_digests(&r.2)?,
+                    payload: r.3,
+                    checker: r.4,
+                    checker_version: r.5,
+                    status: r.6,
+                    inputs: blob_digests(&r.7)?,
+                })
+            })
+            .collect()
+    }
+
     fn record_row(&self, row: &rusqlite::Row) -> rusqlite::Result<RecordRow> {
         Ok((
             row.get(0)?,
@@ -557,52 +593,16 @@ impl ReadTx for SqliteTx<'_> {
     }
 
     fn annotation(&self, id: &Digest) -> Result<Option<Annotation>> {
-        // Through its first subject, which reuses the row decoding below.
-        let mut st = self.tx.prepare_cached("SELECT subject FROM t_annotation_subject WHERE id = ?1 LIMIT 1").map_err(be)?;
-        let v: Vec<_> = st.query_map([id.as_bytes()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
-        let Some(subject) = v.into_iter().next() else { return Ok(None) };
-        let subject = dg(subject.map_err(be)?)?;
-        Ok(self.annotations_of(&subject)?.into_iter().find(|a| a.id == *id))
+        // By its primary key, so an annotation without subjects is found too.
+        Ok(self.annotation_rows("SELECT id, kind, subjects, payload, checker, checker_version, status, inputs FROM t_annotation WHERE id = ?1", id.as_bytes())?.pop())
     }
 
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>> {
-        let mut st = self
-            .tx
-            .prepare_cached(
-                "SELECT a.id, a.kind, a.subjects, a.payload, a.checker, a.checker_version, a.status, a.inputs
+        self.annotation_rows(
+            "SELECT a.id, a.kind, a.subjects, a.payload, a.checker, a.checker_version, a.status, a.inputs
                  FROM t_annotation a JOIN t_annotation_subject s ON s.id = a.id WHERE s.subject = ?1 ORDER BY a.id",
-            )
-            .map_err(be)?;
-        let v: Vec<_> = st
-            .query_map([subject.as_bytes()], |r| {
-                Ok((
-                    r.get::<_, Vec<u8>>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, Vec<u8>>(2)?,
-                    r.get::<_, Vec<u8>>(3)?,
-                    r.get::<_, Option<String>>(4)?,
-                    r.get::<_, Option<String>>(5)?,
-                    r.get::<_, String>(6)?,
-                    r.get::<_, Vec<u8>>(7)?,
-                ))
-            })
-            .map_err(be)?
-            .collect();
-        v.into_iter()
-            .map(|r| {
-                let r = r.map_err(be)?;
-                Ok(Annotation {
-                    id: dg(r.0)?,
-                    kind: r.1,
-                    subjects: blob_digests(&r.2)?,
-                    payload: r.3,
-                    checker: r.4,
-                    checker_version: r.5,
-                    status: r.6,
-                    inputs: blob_digests(&r.7)?,
-                })
-            })
-            .collect()
+            subject.as_bytes(),
+        )
     }
 
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>> {
