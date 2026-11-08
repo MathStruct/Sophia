@@ -51,10 +51,11 @@ impl Verification {
     }
 }
 
-/// Normal forms whose ids another tool computes: Moonkale's WP-66
-/// (`moonkale-wp66@<normaliser version>`).
+/// Normal forms whose ids another tool computes: Moonkale's WP-66, as
+/// `moonkale-wp66@<version>` (sophia-ingest) or with a variant, as
+/// `moonkale-wp66-imports-v1@<version>` (Moonkale's folder store).
 fn is_foreign_normaliser(normaliser: &str) -> bool {
-    normaliser.starts_with("moonkale-wp66@")
+    normaliser.starts_with("moonkale-wp66@") || normaliser.starts_with("moonkale-wp66-")
 }
 
 /// Checks a dotted name path (SPEC-004 §3): non-empty segments that do not

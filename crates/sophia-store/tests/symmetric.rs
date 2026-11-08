@@ -47,6 +47,14 @@ fn check<B: Backend>(s: Store<B>) {
     forged.bytes.push(0);
     s.put_records(std::slice::from_ref(&forged)).unwrap();
     assert_eq!(s.verify(&forged.id).unwrap(), Verification::Invalid);
+    // Moonkale's folder store names its variant `moonkale-wp66-imports-v1@8`:
+    // foreign too (Moonkale's report on v0.1.10).
+    let other = Definition::method(Term::arrow(int(), Term::arrow(int(), int())), Term::lam("a", Term::lam("b", Term::Var(1))));
+    let mut moon = normalise_batch(&[other], &mut Default::default()).unwrap().remove(0);
+    moon.normaliser = "moonkale-wp66-imports-v1@8".into();
+    moon.bytes.push(0);
+    s.put_records(std::slice::from_ref(&moon)).unwrap();
+    assert!(matches!(s.verify(&moon.id).unwrap(), Verification::Foreign { .. }));
 }
 
 #[test]
