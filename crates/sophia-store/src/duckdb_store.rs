@@ -135,9 +135,10 @@ impl DuckDb {
     ///   connection;
     /// - a timer interrupts it after `max_steps_k` milliseconds;
     /// - rows past `max_rows` set `truncated`.
+    /// - it may name only the documented views (and its own CTEs), checked
+    ///   on DuckDB's parse tree by `only_views`.
     ///
-    /// It does **not** restrict the query to the documented views: tables can
-    /// be read too (read-only). See `duckdb_store.md`.
+    /// See `duckdb_store.md`.
     pub fn query_readonly(&self, sql: &str, limits: QueryLimits) -> Result<Table> {
         let body = sql.trim().trim_end_matches(';');
         if body.contains(';') {
@@ -147,22 +148,13 @@ impl DuckDb {
         only_views(&conn, body)?;
         // The time budget: a timer that wakes when the query ends, so a fast
         // query does not wait for it.
-        let handle = conn.interrupt_handle();
-        let done = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
-        let timer = {
-            let done = done.clone();
-            let budget = std::time::Duration::from_millis(limits.max_steps_k as u64);
-            std::thread::spawn(move || {
-                let (lock, cv) = &*done;
-                let finished = cv.wait_timeout_while(lock.lock().unwrap(), budget, |d| !*d).unwrap();
-                if !*finished.0 {
-                    handle.interrupt();
-                }
-            })
-        };
+        // The timer is stopped and joined when `_timer` drops, on every
+        // return path, so it cannot interrupt a later query on this
+        // connection (Mistral's review of v0.1.9, finding 1).
+        let _timer = Timer::start(conn.interrupt_handle(), std::time::Duration::from_millis(limits.max_steps_k as u64));
         let tx = conn.transaction().map_err(be)?;
         let result = (|| -> Result<Table> {
-            let wrapped = format!("SELECT * FROM ({body}) AS sophia_query LIMIT {}", limits.max_rows + 1);
+            let wrapped = format!("SELECT * FROM ({body}) AS sophia_query LIMIT {}", limits.max_rows.min(i64::MAX as usize - 1) + 1);
             let mut stmt = tx.prepare(&wrapped).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
             let mut rows = stmt.query([]).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
             let mut out_rows = Vec::new();
@@ -200,13 +192,42 @@ impl DuckDb {
             Ok(Table { columns, rows: out_rows, truncated })
         })();
         let _ = tx.rollback();
-        {
-            let (lock, cv) = &*done;
-            *lock.lock().unwrap() = true;
-            cv.notify_one();
-        }
-        let _ = timer.join();
         result
+    }
+}
+
+/// Interrupts a connection when its time budget runs out, unless dropped
+/// first. Dropping wakes the timer thread and waits for it.
+struct Timer {
+    done: std::sync::Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Timer {
+    fn start(handle: std::sync::Arc<duckdb::InterruptHandle>, budget: std::time::Duration) -> Timer {
+        let done = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let thread = {
+            let done = done.clone();
+            std::thread::spawn(move || {
+                let (lock, cv) = &*done;
+                let finished = cv.wait_timeout_while(lock.lock().unwrap_or_else(|e| e.into_inner()), budget, |d| !*d);
+                if !finished.map(|f| *f.0).unwrap_or(true) {
+                    handle.interrupt();
+                }
+            })
+        };
+        Timer { done, thread: Some(thread) }
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        let (lock, cv) = &*self.done;
+        *lock.lock().unwrap_or_else(|e| e.into_inner()) = true;
+        cv.notify_one();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
     }
 }
 

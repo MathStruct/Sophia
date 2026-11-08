@@ -348,7 +348,7 @@ impl<B: Backend> Store<B> {
                     found.retain(|t| t.path == owner);
                 }
             }
-            let word = n.rsplit('.').next().unwrap_or(n);
+            let word = name_word(n);
             for (i, t) in found.iter().enumerate() {
                 let text = self.record(&t.source)?.and_then(|r| r.bytes.get(t.start as usize..t.end as usize).map(|b| b.to_vec()));
                 if text.is_some_and(|b| has_word(&String::from_utf8_lossy(&b), word)) {
@@ -1029,6 +1029,13 @@ fn file_token_in<T: ReadTx + ?Sized>(tx: &T, path: &str) -> Result<u64> {
     }
     let t = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
     Ok(if t == 0 { 1 } else { t })
+}
+
+/// The word a name is written as in source text: its last segment
+/// (dots inside backquotes do not split), without the backquotes.
+pub fn name_word(name: &str) -> &str {
+    let last = crate::logic::split_path(name).pop().unwrap_or(name);
+    last.strip_prefix('`').and_then(|s| s.strip_suffix('`')).unwrap_or(last)
 }
 
 /// Whether `word` occurs in `text` with no identifier character on

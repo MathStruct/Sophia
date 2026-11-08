@@ -51,9 +51,10 @@ impl Verification {
     }
 }
 
-/// Normal forms whose ids another tool computes: Moonkale's WP-66.
+/// Normal forms whose ids another tool computes: Moonkale's WP-66
+/// (`moonkale-wp66@<normaliser version>`).
 fn is_foreign_normaliser(normaliser: &str) -> bool {
-    normaliser.starts_with("moonkale-")
+    normaliser.starts_with("moonkale-wp66@")
 }
 
 /// Checks a dotted name path (SPEC-004 §3): non-empty segments that do not
@@ -177,6 +178,8 @@ impl<B: Backend> Store<B> {
 
     /// Refuses, at the end of a write, a component of `records` whose
     /// stored members are not exactly indices 0 to `component_size` − 1.
+    /// Every size a record claims is checked, so two records of one
+    /// component that disagree on its size are refused too.
     pub(crate) fn check_components<'r>(
         &self,
         tx: &mut dyn WriteTx,
@@ -184,7 +187,7 @@ impl<B: Backend> Store<B> {
     ) -> Result<()> {
         let mut seen = BTreeSet::new();
         for r in records {
-            if !seen.insert(r.component) {
+            if !seen.insert((r.component, r.component_size)) {
                 continue;
             }
             let members = tx.component(&r.component)?;

@@ -841,7 +841,7 @@ impl<B: Backend + Sync> Interface<B> {
                 let file = String::from_utf8_lossy(&src.display).into_owned();
                 texts.push((file, sp, String::from_utf8_lossy(t).into_owned()));
             }
-            let word = last_segment(name);
+            let word = sophia_store::folder::name_word(name);
             let pick =
                 if m.id == *id { texts.iter().position(|(_, _, t)| sophia_store::folder::has_word(t, word)).unwrap_or(0) } else { 0 };
             let text = if texts.is_empty() { None } else { Some(texts.swap_remove(pick)) };

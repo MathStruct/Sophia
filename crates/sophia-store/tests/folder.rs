@@ -90,6 +90,12 @@ fn text_source_follows_the_name<B: Backend>(s: Store<B>) {
     s.replace_files(&[file("src/x.jl", &[("ab", "5"), ("b", "5")]), file("src/y.jl", &[])]).unwrap();
     let ts = s.text_source(&id, Some("jl.P.b")).unwrap().unwrap();
     assert_eq!(text(ts), ("src/x.jl".into(), "b = 5".into()));
+    // An operator with a dot in backquotes is one word (Mistral's review of
+    // v0.1.9, finding 4): splitting at every dot would look for "b`" and
+    // pick `x.b`.
+    s.replace_files(&[file("src/x.jl", &[("`x.b`", "5"), ("`a.b`", "5")]), file("src/y.jl", &[])]).unwrap();
+    let ts = s.text_source(&id, Some("jl.P.`a.b`")).unwrap().unwrap();
+    assert_eq!(text(ts), ("src/x.jl".into(), "`a.b` = 5".into()));
 }
 
 fn sorted(mut v: Vec<Digest>) -> Vec<Digest> {

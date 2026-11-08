@@ -101,7 +101,7 @@ Codex found no backend-specific difference in the rolled-back proposal.
 
 **`text_source` follows the name** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08, S-BUG-05). One id can have several spans, because names are not part of identity. The span used to be the first whose text contained the name's last segment as a substring, so `b` could show `ab = 5`. Now `name` is a full store path:
 1. the span comes from the file that owns the name (`laid_out_in`);
-2. within that file, it is the span whose text has the last segment as a whole word (`has_word`, which is public; [[sophia_interface]] uses it for `source-span` facts);
+2. within that file, it is the span whose text has the name's word as a whole word (`name_word`: the last segment, a backquoted operator kept whole and unquoted, so `` jl.P.`a.b` `` looks for `a.b`; `has_word`. Both are public; [[sophia_interface]] uses it for `source-span` facts);
 3. otherwise the first span.
 
 `replace_files` also checks components at its end ([[logic]]). Test: `text_source_follows_the_name` on all four backends fails with the old rule.

@@ -15,16 +15,17 @@ The file was derived from [[sqlite]] and changed where DuckDB differs:
 
 The schema and the views are otherwise the same, so the same `sql` queries run on both.
 
-## The query guard is weaker than SQLite's
+## The query guard
 
 DuckDB has no authorizer. So:
 - the text must be one statement;
 - it runs as a subquery (`SELECT * FROM (…)`), which admits only queries;
 - it runs inside a transaction that is always rolled back;
 - external access (files, extensions) is switched off for the connection at open;
-- a timer interrupts it after `max_steps_k` milliseconds.
+- a timer interrupts it after `max_steps_k` milliseconds;
+- it may name only the documented views and its own CTEs, checked on the parse tree (since 2026-11-08, see below).
 
-It does **not** restrict queries to the documented views: tables can be read, read-only. The test tries `DELETE`, `INSERT`, two statements, `ATTACH`, `read_csv` and a runaway query.
+Scalar functions are not checked by name, as SQLite's authorizer does for `readfile`; with external access off they cannot reach files. The test tries `DELETE`, `INSERT`, two statements, `ATTACH`, `read_csv` and a runaway query.
 
 ## Findings (2026-10-20)
 
@@ -44,3 +45,7 @@ It does **not** restrict queries to the documented views: tables can be read, re
   - This needs the `json` feature of the `duckdb` crate, added to the workspace dependency: about 3½ minutes more on a fresh build. `serde_json` reads the tree.
   - Test: `duckdb_queries_are_read_only_capped_and_timed` checks 11 refused and 4 allowed queries, and fails without the check.
 - **The time budget waits on a `Condvar`** (S-PERF-01). It used to poll every 2 ms, and a query waited for the poll to see it was done. Measured with 500 queries of `SELECT path FROM names` on an empty store, release build, three runs each (a temporary test, deleted): **2.10–2.12 ms per query before, 0.67–0.70 ms after**, including the two extra queries of the view check.
+
+**Fixes from Mistral's review of v0.1.9 (2026-11-08, [[Review 2026-11-08 Mistral v0.1.9 (external)]]):**
+- **The timer is a drop guard** (`Timer`). It used to be stopped only at the end of `query_readonly`. When `conn.transaction()` failed, or the code panicked, the thread lived for the whole budget and then interrupted whatever query ran next on the connection. Now dropping the guard wakes and joins the thread on every return path. No test makes `transaction()` fail, so this path is untested.
+- **The row cap is clamped to `i64::MAX`.** `max_rows + 1` overflowed for `usize::MAX`, and DuckDB refuses a `LIMIT` above `i64::MAX`. Test: the same test queries with `max_rows: usize::MAX`. Without the clamp, a debug build panics on the overflow.

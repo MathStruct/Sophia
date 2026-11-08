@@ -335,6 +335,9 @@ fn sql_queries_are_read_only_and_capped() {
     let capped = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: 3, ..Default::default() }).unwrap();
     assert_eq!(capped.rows.len(), 3);
     assert!(capped.truncated);
+    // No row cap: `max_rows + 1` must not overflow (Mistral's review of v0.1.9).
+    let all = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: usize::MAX, ..Default::default() }).unwrap();
+    assert!(!all.truncated);
 
     for bad in [
         "DELETE FROM t_name",
@@ -457,6 +460,10 @@ fn duckdb_queries_are_read_only_capped_and_timed() {
     assert!(!t.rows.is_empty());
     let capped = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: 3, ..Default::default() }).unwrap();
     assert!(capped.truncated && capped.rows.len() == 3);
+    // No row cap: `max_rows + 1` must not overflow (Mistral's review of
+    // v0.1.9, finding 1), and the timer is stopped on every return path.
+    let all = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: usize::MAX, ..Default::default() }).unwrap();
+    assert!(!all.truncated);
     for bad in ["DELETE FROM t_name", "INSERT INTO t_meta VALUES ('a', 'x')", "SELECT 1; DELETE FROM t_name", "ATTACH 'x.db' AS y", "SELECT * FROM read_csv('/etc/passwd')"] {
         assert!(db.query_readonly(bad, QueryLimits::default()).is_err(), "{bad}");
     }

@@ -33,7 +33,20 @@ fn check<B: Backend>(s: Store<B>) {
     assert!(s.record(&pair[0].id).unwrap().is_none());
     assert!(s.resolve("odd").unwrap().is_none());
     assert!(matches!(s.put_records(&pair[1..]), Err(StoreError::IncompleteComponent { .. })));
+    // Both members, but the second claims another size: each claim is
+    // checked, not only the first (Mistral's review of v0.1.9, finding 5).
+    let mut wrong = pair[1].clone();
+    wrong.component_size = 3;
+    assert!(matches!(s.put_records(&[pair[0].clone(), wrong]), Err(StoreError::IncompleteComponent { size: 3, .. })));
     s.put_records(&pair).unwrap();
+    // Only Moonkale's WP-66 normal form is foreign: another `moonkale-`
+    // name is re-hashed like any record (finding 2).
+    let lone = Definition::method(Term::arrow(int(), int()), Term::lam("z", Term::Var(0)));
+    let mut forged = normalise_batch(&[lone], &mut Default::default()).unwrap().remove(0);
+    forged.normaliser = "moonkale-typo".into();
+    forged.bytes.push(0);
+    s.put_records(std::slice::from_ref(&forged)).unwrap();
+    assert_eq!(s.verify(&forged.id).unwrap(), Verification::Invalid);
 }
 
 #[test]

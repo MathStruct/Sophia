@@ -56,7 +56,7 @@
   - waits on a `Condvar` for the DuckDB time budget (2.1 → 0.69 ms per query);
   - limits DuckDB queries to the views, checked on the parse tree.
 
-  333 tests pass, and wasm passes under Node. **`v0.1.9`** (not tagged). Sharing a store-truth folder: a text export for now (SR-149), its own spec to come. Also fixed for Moonkale: `Interface::all` on large stores (P-229: no term recursion, no quadratic edge check).
+  333 tests pass, and wasm passes under Node. **`v0.1.9` tagged on 2026-11-08** (`c19862a`). Moonkale master `639f8d0c` pins it; its replays: Lenticulum.jl 130 commits and Moonkale 471, 0 findings, 0 errors each (Moonkale's report; `history-2026-11-08-*-v0.1.9.jsonl`, summary lines checked). **A read-only review of v0.1.9 by Mistral** (through `vibe`, 2026-11-08, [[Review 2026-11-08 Mistral v0.1.9 (external)]]) found five real bugs and no way past the view check. All five are fixed, four with a test that fails without its fix: the DuckDB timer outlived an error path; the row cap overflowed; any `moonkale-` normaliser skipped re-hashing; `text_source` split backquoted operators; and a batch was checked only for its first claimed size. **`v0.1.10`** (not tagged). Sharing a store-truth folder: a text export for now (SR-149), its own spec to come. Also fixed for Moonkale: `Interface::all` on large stores (P-229: no term recursion, no quadratic edge check).
 
   **Next (SR-124 to SR-126):** the [[Semantic Boundary Experiments]] (small, each with an oracle), and B-15 (Moonkale edits) as soon as Moonkale is on the current revision. LuxCore is dropped as a step; full Lux.jl after the AD and Reactant experiments, Lenticulum after that. No storage-layout change without Daniel's agreement.
 - **Specifications:** eight drafts ([[Specifications]]).
