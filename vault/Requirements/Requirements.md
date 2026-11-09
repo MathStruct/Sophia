@@ -205,6 +205,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-151 | Moonkale's ADR-0031 accepted: comments, docs and proofs are Sophia annotations in store-truth folders and stay in Moonkale's `annotations.jsonl` elsewhere. Typings stay facts. Daniel's remark: one result can be both a costly computation (finding a dependent type) and a claim, so 'fact or annotation' may be too coarse; there may be several kinds of each. Open; answered in [[SPEC-010 Store-Truth Folders and Generated Files]] §7's notes once he decides. | D 2026-10-30 | WP-19 | accepted: SPEC-010 §7 (accepted 2026-10-30, not built); the remark is open |
 | SR-152 | The fact cache of SPEC-001 §8a. What enters it is a setting (every content-only fact, or a cost threshold, or off), with the default chosen by experiment. Local only at first, one per user at first. | D 2026-10-31 | later | proposal answered; experiment planned, nothing built |
 | SR-153 | Act on Gemini's review (2026-11-07): move the `moonkale-content-id` pin to Moonkale's X-BUG-01 fix, make `Store::verify` say when it cannot check another tool's ids, and make the five small fixes. | D 2026-11-08 | now | done: `v0.1.9` ([[Review 2026-11-07 Gemini (external)]]) |
+| SR-154 | sophialang is meant as **one language with three parts**: a programming language that executes (Julia/Lisp-like), a query language, and a type-theory language that can describe arbitrary types and type systems. The other specifications should hold for all three. Storing types, proofs and other information in the store must not slow down the executed program. Daniel would rather move from SQL to Sophia's query language over a key-value store (LMDB, RocksDB or redb). Asked whether this is still in scope. | D 2026-11-09 | later | open: in scope. The programming and query parts are planned to meet through S-ADR-0012's `Query{S, A}`. The store already runs queries without SQL on redb and LMDB (S-ADR-0011). Storing must not slow execution: SR-52/53. The type-system language is not specified anywhere: [[RQ-004 A Language for Defining Type Systems]] |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | open: needs its own spec |
 
 ## From Moonkale
@@ -241,6 +242,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-11-09: SR-154 added: sophialang as one language with three parts (programming, queries, type systems), with three external reviews of the question ([[Review 2026-11-09 Scope (external)]]).
 - 2026-11-08: SR-153 added: act on Gemini's review (pin move, `verify`, five fixes).
 - 2026-10-31: SR-152 added: the fact cache's policy is a setting, decided by experiment; local and per user at first.
 - 2026-10-30: SR-151 added: ADR-0031 accepted, with the fact/annotation remark.
