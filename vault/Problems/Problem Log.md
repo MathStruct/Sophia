@@ -17,5 +17,5 @@
 | [[SP-011 Reference edges dominate storage on real code]] | On set.mm, 32-byte reference edges take 42 % of the store | open |
 | [[SP-012 Record kinds must follow from content]] | A kind that can differ between users of the same content is a role, not a kind | enforced (2026-10-20) |
 | [[SP-013 Julia bindings of modules Sophia has not ingested]] | Which function a method extends depends on Base's bindings (`Base.Matrix` is `Core.Array`); 86 wrong owners in LinearAlgebra | open, proposal: a binding table from Julia as an environment artifact |
-| [[SP-014 The query result cache is never evicted]] | Cached query results accumulate in `t_meta` forever | open, proposal: in-memory by default |
+| [[SP-014 The query result cache is never evicted]] | Cached query results accumulate in `t_meta` forever | option 2 done 2026-11-09 (stale snapshots removed on a miss); option 3, in-memory by default, open |
 | [[SP-015 Stored definitions deeper than the parse limit cannot be edited]] | 7 % of `sophia gen` definitions print but do not parse back (depth > 128) | resolved 2026-10-24: no depth limit; no pass recurses on the call stack, native and wasm |

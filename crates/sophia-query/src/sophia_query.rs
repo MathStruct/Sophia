@@ -326,6 +326,10 @@ pub fn run_sql(
 /// The meta key under which a store keeps its random instance id.
 const STORE_ID: &str = "store-id";
 
+/// The meta key prefix of the result cache: `query-result/<snapshot hex>/<result id hex>`.
+/// The snapshot segment lets a miss evict every other snapshot's entries (SP-014).
+const RESULT_CACHE: &str = "query-result/";
+
 /// The snapshot a result is identified against (SPEC-007 §4.3): the store
 /// instance and its log position. v0 is coarse: any logged change, even an
 /// unrelated one, gives a new snapshot (SP-010).
@@ -369,6 +373,11 @@ pub enum Cache {
 ///   does not change the snapshot. Writing happens after the read
 ///   transaction; if the store changed meanwhile, the rows still belong to
 ///   the snapshot whose id they are stored under.
+/// - **Entries are keyed by snapshot** (`query-result/<snapshot>/<result
+///   id>`), and a miss that writes first removes every entry of another
+///   snapshot — old-layout `query-result/<result id>` keys have no snapshot
+///   segment and go too — in the same write transaction, so only the current
+///   snapshot's results stay (SP-014, option 2).
 pub fn run_cached<B: Backend>(
     store: &Store<B>,
     p: &Prepared,
@@ -378,12 +387,13 @@ pub fn run_cached<B: Backend>(
     ensure_store_id(store)?;
     let mut failure: Option<Error> = None;
     let outcome = store.read(|tx| {
-        let inner = (|| -> Result<(Digest, Rows, Cache)> {
-            let rid = canon::result_id(&p.id, &snapshot(tx)?, params);
-            if let Some(bytes) = tx.meta(&format!("query-result/{}", rid.to_hex()))? {
-                return Ok((rid, Rows::decode(&bytes)?, Cache::Hit));
+        let inner = (|| -> Result<(Digest, Digest, Rows, Cache)> {
+            let snap = snapshot(tx)?;
+            let rid = canon::result_id(&p.id, &snap, params);
+            if let Some(bytes) = tx.meta(&format!("{RESULT_CACHE}{}/{}", snap.to_hex(), rid.to_hex()))? {
+                return Ok((snap, rid, Rows::decode(&bytes)?, Cache::Hit));
             }
-            Ok((rid, p.run(tx, params, limits, Strategy::Auto)?, Cache::Miss))
+            Ok((snap, rid, p.run(tx, params, limits, Strategy::Auto)?, Cache::Miss))
         })();
         inner.map_err(|e| {
             let msg = e.to_string();
@@ -391,12 +401,23 @@ pub fn run_cached<B: Backend>(
             StoreError::Backend(msg)
         })
     });
-    let (rid, mut rows, cache) = match outcome {
+    let (snap, rid, mut rows, cache) = match outcome {
         Ok(v) => v,
         Err(e) => return Err(failure.take().unwrap_or(Error::Store(e))),
     };
     if cache == Cache::Miss && !rows.truncated {
-        store.set_meta(&format!("query-result/{}", rid.to_hex()), &rows.encode())?;
+        // One write transaction stores the result under its snapshot and
+        // evicts every entry of another snapshot (SP-014, option 2).
+        let current = format!("{RESULT_CACHE}{}/", snap.to_hex());
+        store.backend().write(|tx| -> std::result::Result<(), StoreError> {
+            for (k, _) in tx.meta_prefix(RESULT_CACHE)? {
+                if !k.starts_with(&current) {
+                    tx.remove_meta(&k)?;
+                }
+            }
+            tx.set_meta(&format!("{current}{}", rid.to_hex()), &rows.encode())?;
+            Ok(())
+        })?;
     }
     if rows.rows.len() > limits.max_rows {
         rows.rows.truncate(limits.max_rows);

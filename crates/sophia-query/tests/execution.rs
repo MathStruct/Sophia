@@ -154,6 +154,13 @@ fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     assert_ne!(rid4, rid1);
     assert_eq!(c4, Cache::Miss);
     assert!(c.rows.contains(&vec![Val::Id(id(1000))]));
+    // Eviction (SP-014 option 2): that miss stored its result under the new
+    // snapshot and removed every other snapshot's entries, so exactly one
+    // `query-result/` row remains.
+    let snap = s.read(|tx| sophia_query::snapshot(tx).map_err(|e| sophia_store::StoreError::Backend(e.to_string()))).unwrap();
+    let entries = s.meta_prefix("query-result/").unwrap();
+    assert_eq!(entries.len(), 1, "{:?}", entries.iter().map(|(k, _)| k).collect::<Vec<_>>());
+    assert_eq!(entries[0].0, format!("query-result/{}/{}", snap.to_hex(), rid4.to_hex()));
     // A cached complete result honours the next caller's row cap.
     let all = prepare_text("select a, b where refs(a, b)").unwrap();
     let (full, _, m) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: usize::MAX, ..Default::default() }).unwrap();
@@ -168,6 +175,14 @@ fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     let (_, _, m1) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
     let (_, _, m2) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
     assert_eq!((m1, m2), (Cache::Miss, Cache::Miss));
+    // An old-layout key (no snapshot segment) is removed on the next miss too.
+    s.set_meta("query-result/0000000000000000000000000000000000000000000000000000000000000000", b"legacy").unwrap();
+    let (_, rid5, c5) = sophia_query::run_cached(&s, &p, &[Val::Id(id(7))], Limits::default()).unwrap();
+    assert_eq!(c5, Cache::Miss);
+    let snap = s.read(|tx| sophia_query::snapshot(tx).map_err(|e| sophia_store::StoreError::Backend(e.to_string()))).unwrap();
+    let entries = s.meta_prefix("query-result/").unwrap();
+    assert_eq!(entries.len(), 1, "{:?}", entries.iter().map(|(k, _)| k).collect::<Vec<_>>());
+    assert_eq!(entries[0].0, format!("query-result/{}/{}", snap.to_hex(), rid5.to_hex()));
 }
 
 fn queries_are_stored_as_definitions<B: Backend>(s: Store<B>) {
