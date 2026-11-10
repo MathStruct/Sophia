@@ -36,3 +36,10 @@ Garbage collection, branches, update propagation, the overlap check that would l
 - `Foreign { normaliser }`: the component is complete, but its ids come from another tool's normal form (`moonkale-wp66@…`, or `moonkale-wp66-…@…`, which is how Moonkale's folder store writes `moonkale-wp66-imports-v1@8`; SPEC-009 §1; until the 2026-11-08 Mistral review any `moonkale-` prefix counted, so a record could skip re-hashing by its name alone), which Sophia cannot recompute. It used to say `false` for every Moonkale record, a lone definition included.
 
 `check_components` runs at the end of `put_records`, `add`, `update` and `replace_files`. It refuses with `IncompleteComponent` a component whose stored members are not exactly indices 0 to `component_size` − 1. Every size a record of the write claims is checked, so two records of one component that disagree on its size are refused (Mistral's review, 2026-11-08; `tests/symmetric.rs`). Moonkale's normaliser before `06fd112c` gave symmetric members one id but kept the full size, so a 2-member component was stored with 1 member. Tests: `tests/symmetric.rs` on all four backends fails without the check, and `sophia-ingest`'s `moonkale_records_verify_as_foreign`.
+
+**Fixes from Fable's review (2026-11-10, [[Review 2026-11-10 Fable (external)]]):**
+- **`changes_since`** with `limit = usize::MAX` overflowed `limit + 1` (S-2); it now saturates.
+- **`set_settings`** accepts only keys under `SETTINGS_PREFIXES` (`profile/`, `reader/`, `ns/`, `settings-version/`), and refuses others with `NotASetting` (S-7). It used to accept any key, so `store/mode` could make the store derived.
+- **`set_settings_if`** writes settings only if a version counter still reads the expected value, in one transaction (S-14).
+
+Tests: `settings_are_listed_and_logged` on all four backends. It fails without each of the three.

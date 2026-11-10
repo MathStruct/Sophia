@@ -29,7 +29,7 @@ impl Writer {
     /// Writes a complete field.
     pub fn field(&mut self, tag: &str, payload: &[u8]) {
         self.tag(tag);
-        self.buf.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        self.buf.extend_from_slice(&len32(payload.len()).to_le_bytes());
         self.buf.extend_from_slice(payload);
     }
 
@@ -55,7 +55,7 @@ impl Writer {
     }
 
     pub fn close(&mut self, open: Open) {
-        let len = (self.buf.len() - open.0 - 4) as u32;
+        let len = len32(self.buf.len() - open.0 - 4);
         self.buf[open.0..open.0 + 4].copy_from_slice(&len.to_le_bytes());
     }
 
@@ -77,7 +77,7 @@ impl Writer {
     }
 
     fn tag(&mut self, tag: &str) {
-        self.buf.extend_from_slice(&(tag.len() as u32).to_le_bytes());
+        self.buf.extend_from_slice(&len32(tag.len()).to_le_bytes());
         self.buf.extend_from_slice(tag.as_bytes());
     }
 }
@@ -178,6 +178,14 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// A length as the 4 bytes the framing writes. A field of 4 GiB or more
+/// cannot be framed: truncating its length would make two encodings equal,
+/// so it panics instead (Fable's review, S-13). Ids of every encodable
+/// value are unchanged.
+fn len32(n: usize) -> u32 {
+    u32::try_from(n).expect("a canonical field of 4 GiB or more cannot be framed")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,3 +231,4 @@ mod tests {
         }
     }
 }
+

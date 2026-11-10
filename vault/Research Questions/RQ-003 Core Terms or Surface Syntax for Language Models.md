@@ -26,8 +26,8 @@ abstractions or when the model is fine-tuned on core terms?**
 - **Expected, not measured:** models do best in languages common in their training data (Chen et al.).
   That favours surface syntax without fine-tuning.
 - **Expected, not measured:** a canonical form has no stylistic variation, which could help a
-  fine-tuned model. A vocabulary of abstractions could shorten outputs ([[Compression and Canonical
-  Form]] §3.5).
+  fine-tuned model. A vocabulary of abstractions could shorten outputs ([[Compression and Canonical Form]]
+  §3.5).
 - Nothing has been measured. `crates/sophia-mcp`, through which a model would reach the store, is
   planned (M3), not built.
 

@@ -42,3 +42,9 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
 On a collected copy of Moonkale's store (`listing_timing … rs 5`, release), `Interface::all(100000)` goes from 274 ms to 120 ms, with the same output digest; it was 2089 ms before the namespace-edge fix. `children(ns:)` goes from 1.1 to 0.5 ms.
 
 **`annotation(id)` reads `t_annotation` by its primary key** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08, S-BUG-02). It used to go through `t_annotation_subject WHERE id = ?`, which is keyed `(subject, id)`, so it scanned that table. An annotation with no subjects then read as `None`, while the KV backends found it. `annotation` and `annotations_of` share one row decoder. Test: `annotations_attach_to_subjects` in `tests/conformance.rs` fails on SQLite and DuckDB without the fix.
+
+**Memory** (Fable's review, 2026-11-10, [[Review 2026-11-10 Fable (external)]], S-3). The step budget and the row cap did not bound memory: one `SELECT length(hex(zeroblob(300000000)))` row raised the reviewer's peak resident size from 7 MB to 865 MB. Now:
+- `guarded` sets `SQLITE_LIMIT_LENGTH` to `max_value_bytes` for the query and restores it after, so SQLite refuses to build the value;
+- the result stops at `max_bytes`.
+
+This needs the `rusqlite` feature `limits`. The test is in `sql_queries_are_read_only_and_capped`. It fails without the length limit, and it fails without the byte budget. Not bounded: the memory of intermediate results inside SQLite (sorting, grouping), short of the step budget.

@@ -433,7 +433,14 @@ impl<B: Backend + Sync> Interface<B> {
         changes.push((format!("reader/{}/default", self.reader), Some(mine.clone())));
         let version = found + 1;
         changes.push((format!("settings-version/{}", self.reader), Some(version.to_string())));
-        self.store.set_settings(&format!("reader/{}", self.reader), &changes)?;
+        // The version check and the write are one transaction (S-14).
+        let key = format!("settings-version/{}", self.reader);
+        match self.store.set_settings_if(&format!("reader/{}", self.reader), &changes, &key, found) {
+            Err(StoreError::Conflict { found, .. }) => return Err(EditError::Conflict { expected, found }),
+            r => {
+                r?;
+            }
+        }
         Ok(Written { version, targets: Vec::new(), warnings: Vec::new(), stale_dependants: Vec::new() })
     }
 

@@ -110,7 +110,7 @@ const ANALYTICS: [(&str, &str); 3] = [
 
 fn analytics<B: Backend + sophia_store::query::ReadOnlyQuery>(store: &Store<B>, n: usize) {
     for (label, q) in ANALYTICS {
-        let limits = sophia_store::query::QueryLimits { max_rows: 1000, max_steps_k: 10_000_000 };
+        let limits = sophia_store::query::QueryLimits { max_rows: 1000, max_steps_k: 10_000_000, ..Default::default() };
         let t = median_time(5, || {
             std::hint::black_box(store.backend().query_readonly(q, limits).unwrap());
         });

@@ -67,4 +67,14 @@ pub enum StoreError {
     /// fresh build of the files would not have it (SPEC-010 §3).
     #[error("name {name:?} is in no file: export or remove it first")]
     NotInFiles { name: String },
+    /// `replace_files` and its relatives: a malformed batch (a file twice,
+    /// an index or a span out of range, a name bound twice in one file).
+    /// It used to be `NotFound`, which read as a missing file (Fable's
+    /// review, S-12).
+    #[error("file {path:?}: {reason}")]
+    InvalidBatch { path: String, reason: String },
+    /// `set_settings`: a key outside the settings' prefixes, such as the
+    /// store's own `store/mode` (Fable's review, S-7).
+    #[error("{key:?} is not a settings key")]
+    NotASetting { key: String },
 }

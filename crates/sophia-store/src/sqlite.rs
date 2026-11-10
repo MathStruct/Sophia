@@ -203,6 +203,10 @@ impl Sqlite {
             }),
         )
         .map_err(be)?;
+        // No single value longer than the budget allows (S-3): SQLite
+        // refuses to build it, so `zeroblob(3e8)` fails instead of
+        // allocating.
+        let old_length = conn.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH, crate::query::max_value_bytes(&limits) as i32).map_err(be)?;
 
         let result = (|| -> Result<Table> {
             let mut stmt = conn.prepare(sql).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
@@ -213,8 +217,9 @@ impl Sqlite {
             let n = columns.len();
             let mut rows = stmt.query([]).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
             let mut table = Table { columns, rows: Vec::new(), truncated: false };
+            let mut bytes = 0usize;
             while let Some(row) = rows.next().map_err(|e| StoreError::QueryRefused(e.to_string()))? {
-                if table.rows.len() == limits.max_rows {
+                if table.rows.len() == limits.max_rows || bytes > limits.max_bytes {
                     table.truncated = true;
                     break;
                 }
@@ -229,11 +234,18 @@ impl Sqlite {
                         ValueRef::Blob(b) => Value::Blob(b.to_vec()),
                     });
                 }
+                bytes += out.iter().map(Value::size).sum::<usize>();
                 table.rows.push(out);
+            }
+            if bytes > limits.max_bytes {
+                // The last row went over the budget: drop it.
+                table.rows.pop();
+                table.truncated = true;
             }
             Ok(table)
         })();
 
+        conn.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_LENGTH, old_length).map_err(be)?;
         conn.authorizer(None::<fn(AuthContext<'_>) -> Authorization>).map_err(be)?;
         conn.progress_handler(0, None::<fn() -> bool>).map_err(be)?;
         result

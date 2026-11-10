@@ -98,6 +98,30 @@ fn text_source_follows_the_name<B: Backend>(s: Store<B>) {
     assert_eq!(text(ts), ("src/x.jl".into(), "`a.b` = 5".into()));
 }
 
+/// Fable's review: a malformed batch is `InvalidBatch`, not `NotFound`
+/// (S-12), and a reference count that is not 4 bytes is an error, not 0
+/// (S-8).
+fn batches_and_counters_are_checked<B: Backend>(s: Store<B>) {
+    s.set_derived().unwrap();
+    let a = file("src/a.jl", &[("g:1", "g(x::Int) = 1")]);
+    let err = s.replace_files(&[a.clone(), a.clone()]).unwrap_err();
+    assert!(matches!(err, StoreError::InvalidBatch { .. }), "{err}");
+    s.replace_files(&[a]).unwrap();
+    let Some(Target::Nominal(g)) = s.resolve("jl.P.g").unwrap().map(|e| e.target) else { panic!("no generic") };
+    let m = methods(&s)[0];
+    let key = format!("member/{}/{}", g.to_hex(), m.to_hex());
+    // A counter of the wrong length: a second file contributing the same
+    // method reads it.
+    s.set_meta(&key, b"xx").unwrap();
+    let b = file("src/b.jl", &[("g:1", "g(x::Int) = 1")]);
+    let err = s.replace_files(&[b]).unwrap_err();
+    assert!(matches!(err, StoreError::Codec(_)), "{err}");
+    // A counter that would go below 0.
+    s.set_meta(&key, &0u32.to_le_bytes()).unwrap();
+    let err = s.replace_files(&[deleted("src/a.jl")]).unwrap_err();
+    assert!(matches!(err, StoreError::Codec(_)), "{err}");
+}
+
 fn sorted(mut v: Vec<Digest>) -> Vec<Digest> {
     v.sort();
     v
@@ -192,7 +216,10 @@ fn shared_methods_are_counted<B: Backend>(s: Store<B>) {
 
 /// What a folder store says about `jl.P.g` and the names of `jl.P`: the
 /// state a history replay must agree on with a store built fresh (P-231).
-fn state<B: Backend>(s: &Store<B>) -> (Option<Digest>, Vec<Digest>, Vec<(String, Option<Digest>)>) {
+/// A name's target, the generic's methods, and each file's source id.
+type State = (Option<Digest>, Vec<Digest>, Vec<(String, Option<Digest>)>);
+
+fn state<B: Backend>(s: &Store<B>) -> State {
     let content = match s.resolve("jl.P.g").unwrap().map(|e| e.target) {
         Some(Target::Content(id)) => Some(id),
         _ => None,
@@ -652,6 +679,11 @@ macro_rules! suite {
             fn text_source_follows_the_name() {
                 let (s, _d) = store();
                 super::text_source_follows_the_name(s);
+            }
+            #[test]
+            fn batches_and_counters_are_checked() {
+                let (s, _d) = store();
+                super::batches_and_counters_are_checked(s);
             }
             #[test]
             fn shared_methods_are_counted() {

@@ -16,7 +16,7 @@ pub enum Value {
 pub struct Table {
     pub columns: Vec<String>,
     pub rows: Vec<Vec<Value>>,
-    /// The row cap cut the result.
+    /// The row cap or the byte budget cut the result.
     pub truncated: bool,
 }
 
@@ -26,11 +26,33 @@ pub struct QueryLimits {
     pub max_rows: usize,
     /// Virtual-machine steps, in units of 1000, before the query is aborted.
     pub max_steps_k: u32,
+    /// Bytes of result values before the result is cut (`truncated`). It
+    /// also bounds every single value the query computes: SQLite refuses a
+    /// longer string or blob (`SQLITE_LIMIT_LENGTH`, at most 16 MiB), and
+    /// DuckDB runs under `memory_limit` (Fable's review, S-3).
+    pub max_bytes: usize,
 }
 
 impl Default for QueryLimits {
     fn default() -> Self {
-        QueryLimits { max_rows: 10_000, max_steps_k: 100_000 }
+        QueryLimits { max_rows: 10_000, max_steps_k: 100_000, max_bytes: 64 << 20 }
+    }
+}
+
+/// The largest single value a guarded query may compute: `max_bytes`, at
+/// most 16 MiB.
+pub fn max_value_bytes(limits: &QueryLimits) -> usize {
+    limits.max_bytes.min(16 << 20)
+}
+
+impl Value {
+    /// The bytes this value adds to a result, for the byte budget.
+    pub fn size(&self) -> usize {
+        match self {
+            Value::Text(s) => s.len(),
+            Value::Blob(b) => b.len(),
+            _ => 8,
+        }
     }
 }
 

@@ -305,7 +305,11 @@ pub fn run_sql(
 ) -> Result<Rows> {
     use sophia_store::query::{QueryLimits, Value};
     let sql = p.to_sql(params, strategy)?;
-    let ql = QueryLimits { max_rows: limits.max_rows, max_steps_k: limits.max_steps_k.min(u32::MAX as u64) as u32 };
+    let ql = QueryLimits {
+        max_rows: limits.max_rows,
+        max_steps_k: limits.max_steps_k.min(u32::MAX as u64) as u32,
+        max_bytes: limits.max_bytes.min(usize::MAX as u64) as usize,
+    };
     let t = db.query_compiled(&sql, ql)?;
     let mut rows = Vec::with_capacity(t.rows.len());
     for r in t.rows {

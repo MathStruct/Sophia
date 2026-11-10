@@ -338,6 +338,12 @@ fn sql_queries_are_read_only_and_capped() {
     // No row cap: `max_rows + 1` must not overflow (Mistral's review of v0.1.9).
     let all = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: usize::MAX, ..Default::default() }).unwrap();
     assert!(!all.truncated);
+    // Memory (Fable's review, S-3): one value longer than 16 MiB is
+    // refused instead of allocated, and the result stops at `max_bytes`.
+    let big = db.query_readonly("SELECT length(hex(zeroblob(300000000))) AS n", QueryLimits::default());
+    assert!(matches!(big, Err(StoreError::QueryRefused(_))), "{big:?}");
+    let small = db.query_readonly("SELECT * FROM log", QueryLimits { max_bytes: 100, ..Default::default() }).unwrap();
+    assert!(small.truncated && small.rows.len() < all.rows.len(), "{} of {}", small.rows.len(), all.rows.len());
 
     for bad in [
         "DELETE FROM t_name",
@@ -372,6 +378,18 @@ fn settings_are_listed_and_logged<B: Backend>(s: Store<B>) {
     s.set_settings("profile/mine", &[("profile/mine/blocks".into(), None)]).unwrap();
     assert_eq!(s.meta_prefix("profile/mine/").unwrap().len(), 1);
     assert_eq!(s.changes_since(before, 10).unwrap().entries.iter().filter(|e| e.op == LogOp::Setting).count(), 2);
+    // No limit is `usize::MAX`, not an overflow (Fable's review, S-2).
+    let all = s.changes_since(before, usize::MAX).unwrap();
+    assert_eq!((all.entries.len(), all.more), (2, false));
+    // Settings may not write the store's own keys (S-7).
+    let err = s.set_settings("x", &[("store/mode".into(), Some("derived".into()))]).unwrap_err();
+    assert!(matches!(err, StoreError::NotASetting { .. }), "{err}");
+    assert!(!s.is_derived().unwrap());
+    // A versioned write checks the version in its own transaction (S-14).
+    let row = || vec![("settings-version/r".to_string(), Some("1".to_string())), ("reader/r/default".to_string(), Some("p".to_string()))];
+    s.set_settings_if("reader/r", &row(), "settings-version/r", 0).unwrap();
+    let err = s.set_settings_if("reader/r", &row(), "settings-version/r", 0).unwrap_err();
+    assert!(matches!(err, StoreError::Conflict { expected: 0, found: 1, .. }), "{err}");
 }
 
 mod settings {
@@ -460,6 +478,15 @@ fn duckdb_queries_are_read_only_capped_and_timed() {
     assert!(!t.rows.is_empty());
     let capped = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: 3, ..Default::default() }).unwrap();
     assert!(capped.truncated && capped.rows.len() == 3);
+    // Memory (Fable's review, S-3): a value over 16 MiB is refused, a
+    // query over the memory limit fails, and the result stops at
+    // `max_bytes`.
+    let big = db.query_readonly("SELECT repeat('x', 20000000) AS s", QueryLimits::default());
+    assert!(big.is_err(), "a 20 MB value");
+    let huge = db.query_readonly("SELECT length(string_agg(repeat('x', 1000000), '')) FROM range(2000)", QueryLimits::default());
+    assert!(huge.is_err(), "2 GB of strings under a 512 MiB limit: {huge:?}");
+    let some = db.query_readonly("SELECT * FROM log", QueryLimits { max_bytes: 100, ..Default::default() }).unwrap();
+    assert!(some.truncated, "{} rows", some.rows.len());
     // No row cap: `max_rows + 1` must not overflow (Mistral's review of
     // v0.1.9, finding 1), and the timer is stopped on every return path.
     let all = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: usize::MAX, ..Default::default() }).unwrap();

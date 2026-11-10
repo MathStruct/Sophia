@@ -47,7 +47,12 @@ nix develop .#lean          # + elan
 sophia-corpora              # clones set.mm into $SOPHIA_CORPORA (~/.cache/sophia-corpora)
 sophia-mathlib              # Mathlib, its build cache, lean4export (several GB)
 cargo test --workspace --all-features
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo fmt --all                 # rustfmt.toml: 140 columns
 ```
+
+CI (`.github/workflows/ci.yml`) runs these three on every push. Before a tag, `sophia-ingest`'s
+`moonkale_fixtures_verify_under_every_moonkale_normaliser` must pass (it is in the test run).
 
 - Corpora and large stores live in `$SOPHIA_CORPORA`, never in the repository.
 - `/tmp` on the author's machine is a 16 GB RAM disk: do not put builds, stores or corpora there.

@@ -117,3 +117,41 @@ fn moonkale_records_verify_as_foreign() {
         assert!(matches!(&v, sophia_store::Verification::Foreign { normaliser } if normaliser.starts_with("moonkale-wp66@")), "{v:?}");
     }
 }
+
+/// The normaliser names Moonkale writes. Its folder store uses
+/// `moonkale-wp66-imports-v1@<version>`
+/// (`packages/services/index/src/folder_store/mod.rs`, `normaliser()`), and
+/// sophia-ingest writes `moonkale-wp66@<version>`. Update this list when
+/// Moonkale adds one.
+fn moonkale_normalisers() -> [String; 2] {
+    let v = moonkale_content_id::NORMALIZER_VERSION;
+    [format!("moonkale-wp66@{v}"), format!("moonkale-wp66-imports-v1@{v}")]
+}
+
+/// A consumer test, run before each tag (Fable's review, 07 §5). Every
+/// definition of Moonkale's golden fixtures, stored under each normaliser
+/// name Moonkale writes, verifies as `Foreign`. `v0.1.10` failed this: it
+/// made every definition of Moonkale's folder store `Invalid`.
+#[test]
+fn moonkale_fixtures_verify_under_every_moonkale_normaliser() {
+    for norm in moonkale_normalisers() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = sophia_store::Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("c.sqlite")).unwrap());
+        let mut n = 0;
+        for f in FILES {
+            let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
+            let got = file(lang(f), &src).unwrap();
+            let records: Vec<_> = got.records.iter().cloned().map(|mut r| {
+                r.normaliser = norm.clone();
+                r
+            }).collect();
+            s.put_records(&records).unwrap();
+            for r in &records {
+                let v = s.verify(&r.id).unwrap();
+                assert!(matches!(v, sophia_store::Verification::Foreign { .. }), "{f} under {norm}: {v:?}");
+                n += 1;
+            }
+        }
+        assert!(n > 10, "{n} records under {norm}");
+    }
+}

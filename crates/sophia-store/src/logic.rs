@@ -51,6 +51,17 @@ impl Verification {
     }
 }
 
+/// The meta prefixes that settings may write (S-7). The store's own keys
+/// (`store/`, `file/`, `owner/`, counters, …) are not among them.
+pub const SETTINGS_PREFIXES: &[&str] = &["profile/", "reader/", "ns/", "settings-version/"];
+
+fn check_settings(rows: &[(String, Option<String>)]) -> Result<()> {
+    match rows.iter().find(|(k, _)| !SETTINGS_PREFIXES.iter().any(|p| k.starts_with(p))) {
+        Some((k, _)) => Err(StoreError::NotASetting { key: k.clone() }),
+        None => Ok(()),
+    }
+}
+
 /// Normal forms whose ids another tool computes: Moonkale's WP-66, as
 /// `moonkale-wp66@<version>` (sophia-ingest) or with a variant, as
 /// `moonkale-wp66-imports-v1@<version>` (Moonkale's folder store).
@@ -522,7 +533,8 @@ impl<B: Backend> Store<B> {
     /// Log entries after `seq`, at most `limit` (SPEC-004 §6).
     pub fn changes_since(&self, seq: u64, limit: usize) -> Result<Changes> {
         self.backend.read(|tx| {
-            let mut entries = tx.log_since(seq, limit + 1)?;
+            // `saturating_add`: no limit is `usize::MAX` (Fable's review, S-2).
+            let mut entries = tx.log_since(seq, limit.saturating_add(1))?;
             let more = entries.len() > limit;
             entries.truncate(limit);
             let next = entries.last().map(|e| e.seq).unwrap_or(seq);
@@ -604,7 +616,30 @@ impl<B: Backend> Store<B> {
     /// in one transaction, logged as one `setting` change, so readers see a
     /// profile change through `changes_since` (SPEC-005 §2). Returns its seq.
     pub fn set_settings(&self, subject: &str, rows: &[(String, Option<String>)]) -> Result<u64> {
+        check_settings(rows)?;
         self.backend.write(|tx| {
+            for (k, v) in rows {
+                match v {
+                    Some(v) => tx.set_meta(k, v.as_bytes())?,
+                    None => tx.remove_meta(k)?,
+                }
+            }
+            self.log(tx, LogOp::Setting, subject.into(), None, None)
+        })
+    }
+
+    /// `set_settings`, if the decimal counter at `version_key` still reads
+    /// `expected` (absent reads 0). The check and the write are one
+    /// transaction (Fable's review, S-14); the counter is not changed here,
+    /// so a caller that bumps it puts the new value in `rows`. Otherwise
+    /// `Conflict`.
+    pub fn set_settings_if(&self, subject: &str, rows: &[(String, Option<String>)], version_key: &str, expected: u64) -> Result<u64> {
+        check_settings(rows)?;
+        self.backend.write(|tx| {
+            let found = tx.meta(version_key)?.and_then(|v| String::from_utf8(v).ok()?.parse().ok()).unwrap_or(0);
+            if found != expected {
+                return Err(StoreError::Conflict { path: version_key.into(), expected, found });
+            }
             for (k, v) in rows {
                 match v {
                     Some(v) => tx.set_meta(k, v.as_bytes())?,

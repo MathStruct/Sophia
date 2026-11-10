@@ -33,3 +33,5 @@ Re-ingesting LinearAlgebra (Julia 1.13.1 stdlib, `sophia ingest-code julia Linea
 - 34 records keep their ids, the source files; every definition id changes, because the normaliser version is part of the id.
 
 LinearAlgebra has no symmetric components, so only the ids change. `moonkale_records_verify_as_foreign` (`tests/code.rs`) checks the f/g class (size 1), a two-member component, and `Store::verify` returning `Foreign`.
+
+**A consumer test** (Fable's review, 2026-11-10, [[Review 2026-11-10 Fable (external)]], 07 §5): `moonkale_fixtures_verify_under_every_moonkale_normaliser` stores every definition of the golden fixtures under each normaliser name Moonkale writes: `moonkale-wp66@8` here, and `moonkale-wp66-imports-v1@8` in Moonkale's folder store. Each must verify as `Foreign`. It fails with `v0.1.10`'s rule, which made every definition of Moonkale's folder store `Invalid`. Run it before each tag. When Moonkale adds a normaliser name, add it to `moonkale_normalisers`.

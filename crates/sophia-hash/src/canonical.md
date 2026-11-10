@@ -17,3 +17,5 @@ A field is `u32le(tag length) ‖ tag ‖ u32le(payload length) ‖ payload`. `W
 ## Costs and difficulties
 
 Each field costs 8 bytes of lengths plus its tag. On the synthetic corpus that made canonical definitions about 40 bytes per term node ([[Benchmark Results]] 2026-10-20), larger than [[Block Size and Hash Overhead]] assumed. That is acceptable for hashing. For storage, a compact encoding is benchmark B-06's question.
+
+**Lengths** are written through `len32`, which panics on a field of 4 GiB or more instead of truncating its length (Fable's review, 2026-11-10, [[Review 2026-11-10 Fable (external)]], S-13). A truncated length would make two encodings equal. Every encodable value keeps its id. Not tested, since a test would need a 4 GiB value.

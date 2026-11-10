@@ -1,0 +1,35 @@
+name: CI
+
+# Formatting, clippy with warnings denied, and the workspace tests with all
+# features (all four backends; the DuckDB build takes a few minutes). Asked for
+# by Fable's review (2026-11-10, 04 §1). The wasm tests are not run here: they
+# need wasm-bindgen's test runner and clang for wasm32 (see sophia_interface.md).
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --all-features

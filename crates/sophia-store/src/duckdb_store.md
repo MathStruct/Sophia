@@ -49,3 +49,10 @@ Scalar functions are not checked by name, as SQLite's authorizer does for `readf
 **Fixes from Mistral's review of v0.1.9 (2026-11-08, [[Review 2026-11-08 Mistral v0.1.9 (external)]]):**
 - **The timer is a drop guard** (`Timer`). It used to be stopped only at the end of `query_readonly`. When `conn.transaction()` failed, or the code panicked, the thread lived for the whole budget and then interrupted whatever query ran next on the connection. Now dropping the guard wakes and joins the thread on every return path. No test makes `transaction()` fail, so this path is untested.
 - **The row cap is clamped to `i64::MAX`.** `max_rows + 1` overflowed for `usize::MAX`, and DuckDB refuses a `LIMIT` above `i64::MAX`. Test: the same test queries with `max_rows: usize::MAX`. Without the clamp, a debug build panics on the overflow.
+
+**Memory** (Fable's review, 2026-11-10, [[Review 2026-11-10 Fable (external)]], S-3):
+- `query_readonly` runs under `SET memory_limit = '512MiB'` and resets it afterwards. DuckDB's limit belongs to the database, so bulk loads are not bounded by it.
+- A value over `max_value_bytes` is refused.
+- The result stops at `max_bytes`.
+
+Test: `duckdb_queries_are_read_only_capped_and_timed`, which aggregates 2 GB of strings. It fails without the memory limit, and it fails without the byte budget.

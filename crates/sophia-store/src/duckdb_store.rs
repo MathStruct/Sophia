@@ -152,6 +152,10 @@ impl DuckDb {
         // return path, so it cannot interrupt a later query on this
         // connection (Mistral's review of v0.1.9, finding 1).
         let _timer = Timer::start(conn.interrupt_handle(), std::time::Duration::from_millis(limits.max_steps_k as u64));
+        // What one query may allocate (Fable's review, S-3). DuckDB's limit
+        // belongs to the database, so it is set for this query only and
+        // reset afterwards; bulk loads are not bounded by it.
+        conn.execute_batch(&format!("SET memory_limit = '{}MiB';", QUERY_MEMORY_MIB)).map_err(be)?;
         let tx = conn.transaction().map_err(be)?;
         let result = (|| -> Result<Table> {
             let wrapped = format!("SELECT * FROM ({body}) AS sophia_query LIMIT {}", limits.max_rows.min(i64::MAX as usize - 1) + 1);
@@ -159,6 +163,7 @@ impl DuckDb {
             let mut rows = stmt.query([]).map_err(|e| StoreError::QueryRefused(e.to_string()))?;
             let mut out_rows = Vec::new();
             let mut ncols = 0;
+            let (mut bytes, mut over) = (0usize, false);
             while let Some(row) = rows.next().map_err(|e| StoreError::QueryRefused(e.to_string()))? {
                 ncols = row.as_ref().column_count();
                 let mut out = Vec::with_capacity(ncols);
@@ -182,19 +187,34 @@ impl DuckDb {
                         other => Value::Text(format!("{other:?}")),
                     });
                 }
+                let size = out.iter().map(Value::size).sum::<usize>();
+                if out.iter().any(|v| v.size() > crate::query::max_value_bytes(&limits)) {
+                    return Err(StoreError::QueryRefused(format!("a value is longer than {} bytes", crate::query::max_value_bytes(&limits))));
+                }
+                bytes += size;
+                if bytes > limits.max_bytes {
+                    over = true;
+                    break;
+                }
                 out_rows.push(out);
             }
             drop(rows);
             let columns: Vec<String> = stmt.column_names();
             let _ = ncols;
-            let truncated = out_rows.len() > limits.max_rows;
+            let truncated = over || out_rows.len() > limits.max_rows;
             out_rows.truncate(limits.max_rows);
             Ok(Table { columns, rows: out_rows, truncated })
         })();
         let _ = tx.rollback();
-        result
+        let reset = conn.execute_batch("RESET memory_limit;").map_err(be);
+        let result = result?;
+        reset?;
+        Ok(result)
     }
 }
+
+/// The memory DuckDB may use while it runs a user's query.
+const QUERY_MEMORY_MIB: usize = 512;
 
 /// Interrupts a connection when its time budget runs out, unless dropped
 /// first. Dropping wakes the timer thread and waits for it.

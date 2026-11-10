@@ -420,7 +420,7 @@ impl<B: Backend> Store<B> {
                 };
                 let mut outside: HashMap<Digest, i64> = HashMap::new();
                 for r in tx.relation(&g)? {
-                    let c = tx.meta(&member_key(&g, &r.member))?.map(|b| u32::from_le_bytes(b.try_into().unwrap_or([0; 4]))).unwrap_or(0);
+                    let c = count(tx, &member_key(&g, &r.member))?;
                     outside.insert(r.member, c as i64);
                 }
                 for m in old.values() {
@@ -587,13 +587,7 @@ impl<B: Backend> Store<B> {
                     continue;
                 }
                 let key = member_key(&nominal, &member);
-                let before = tx.meta(&key)?.map(|b| u32::from_le_bytes(b.try_into().unwrap_or([0; 4]))).unwrap_or(0) as i64;
-                let after = (before + delta).max(0);
-                if after == 0 {
-                    tx.remove_meta(&key)?;
-                } else {
-                    tx.set_meta(&key, &(after as u32).to_le_bytes())?;
-                }
+                let (before, after) = adjust(tx, &key, delta)?;
                 if before == 0 && after > 0 && !relation.contains_key(&member) {
                     let seq = self.log(tx, LogOp::AddMethod, nominal.to_hex(), None, Some(member))?;
                     let e = RelationEntry { nominal, member, added_seq: seq, removed_seq: None };
@@ -645,13 +639,7 @@ impl<B: Backend> Store<B> {
                 continue;
             }
             let key = fact_key(&id);
-            let before = tx.meta(&key)?.map(|b| u32::from_le_bytes(b.try_into().unwrap_or([0; 4]))).unwrap_or(0) as i64;
-            let after = (before + delta).max(0);
-            if after == 0 {
-                tx.remove_meta(&key)?;
-            } else {
-                tx.set_meta(&key, &(after as u32).to_le_bytes())?;
-            }
+            let (before, after) = adjust(tx, &key, delta)?;
             if before == 0 && after > 0 {
                 let Some(fact) = new_facts.get(&id) else { continue };
                 if tx.facts_of(&fact.subject)?.iter().any(|g| g.id == id) {
@@ -936,10 +924,10 @@ fn validate_batch<'a>(files: &[&'a FileIngest]) -> Result<BTreeSet<&'a str>> {
     let mut batch_paths = BTreeSet::new();
     for f in files {
         if !batch_paths.insert(f.path.as_str()) {
-            return Err(StoreError::NotFound(format!("file {} twice in one batch", f.path)));
+            return Err(StoreError::InvalidBatch { path: f.path.clone(), reason: "the file is twice in one batch".into() });
         }
         let n = f.records.len();
-        let bad = |i: usize| StoreError::NotFound(format!("{}: record index {i}", f.path));
+        let bad = |i: usize| StoreError::InvalidBatch { path: f.path.clone(), reason: format!("record index {i} is out of range") };
         for (name, i) in &f.names {
             validate_path(name)?;
             if *i >= n {
@@ -955,7 +943,7 @@ fn validate_batch<'a>(files: &[&'a FileIngest]) -> Result<BTreeSet<&'a str>> {
         for (i, a, b) in &f.spans {
             let len = f.text.as_ref().map_or(0, String::len) as u32;
             if *i >= n || a > b || *b > len {
-                return Err(StoreError::NotFound(format!("{}: span {a}..{b} of record {i}", f.path)));
+                return Err(StoreError::InvalidBatch { path: f.path.clone(), reason: format!("span {a}..{b} of record {i} is out of range") });
             }
         }
         // Every record must be reached from what the manifest references
@@ -1036,6 +1024,36 @@ fn file_token_in<T: ReadTx + ?Sized>(tx: &T, path: &str) -> Result<u64> {
 pub fn name_word(name: &str) -> &str {
     let last = crate::logic::split_path(name).pop().unwrap_or(name);
     last.strip_prefix('`').and_then(|s| s.strip_suffix('`')).unwrap_or(last)
+}
+
+/// A reference count kept in a meta row (4 bytes, little endian); 0 when
+/// absent. A value of another length is an inconsistent store, and an
+/// error (Fable's review, S-8).
+fn count<T: ReadTx + ?Sized>(tx: &T, key: &str) -> Result<u32> {
+    match tx.meta(key)? {
+        None => Ok(0),
+        Some(b) => {
+            let n = b.len();
+            Ok(u32::from_le_bytes(b.try_into().map_err(|_| StoreError::Codec(format!("counter {key:?} has {n} bytes, not 4")))?))
+        }
+    }
+}
+
+/// Adds `delta` to the counter at `key` and returns (before, after). A
+/// counter that would go below 0 or above `u32::MAX` is an error, not a
+/// clamp (S-8); a counter of 0 is removed.
+fn adjust(tx: &mut dyn WriteTx, key: &str, delta: i64) -> Result<(i64, i64)> {
+    let before = count(tx, key)? as i64;
+    let after = before + delta;
+    if after < 0 || after > u32::MAX as i64 {
+        return Err(StoreError::Codec(format!("counter {key:?} would go from {before} to {after}")));
+    }
+    if after == 0 {
+        tx.remove_meta(key)?;
+    } else {
+        tx.set_meta(key, &(after as u32).to_le_bytes())?;
+    }
+    Ok((before, after))
 }
 
 /// Whether `word` occurs in `text` with no identifier character on

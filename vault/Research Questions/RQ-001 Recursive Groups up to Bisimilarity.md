@@ -66,8 +66,8 @@ transition $j$ goes to $r_{m,j}$.
 ## Why it matters here
 
 Identity is the store's foundation (SR-01). The rule is shared with Moonkale (SR-116), so changing it
-is a migration in both tools (SPEC-006 §6) and a decision for Daniel and Moonkale. [[Theory of the v0
-Store]] argues that merging automorphic members is correct because they are interchangeable. Bisimilar
+is a migration in both tools (SPEC-006 §6) and a decision for Daniel and Moonkale. [[Theory of the v0 Store]]
+argues that merging automorphic members is correct because they are interchangeable. Bisimilar
 members are interchangeable too, so the same argument asks for more than the code does.
 
 ## Leads

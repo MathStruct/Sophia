@@ -23,3 +23,5 @@
 - **`load_sample`:** the 16 sample definitions, the two relations as nominal entities with their members, and the built-ins.
 
 **Queries as text** (2026-10-20): `create_text` with text whose first line starts with `query` or `select` stores a query under the new name (`sophia_query::save`). `write_text` on a name that points at a query re-parses it, checks the edit token, and moves the name with `Store::update`. Query parse errors become diagnostics with byte spans.
+
+**`write_settings`** checks the reader's settings version in the same transaction as the write, through `Store::set_settings_if` (Fable's review, 2026-11-10, [[Review 2026-11-10 Fable (external)]], S-14). Before, two writers could both pass the check and write the same version.

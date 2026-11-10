@@ -26,14 +26,14 @@ members = [
 exclude = ["attic"]
 
 [workspace.package]
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 license = "MIT"
 rust-version = "1.85"
 
 [workspace.dependencies]
 blake3 = "1.8"
-rusqlite = { version = "0.40", features = ["bundled", "hooks", "serialize"] }
+rusqlite = { version = "0.40", features = ["bundled", "hooks", "serialize", "limits"] }
 redb = "4.4"
 duckdb = { version = "1.10506", features = ["bundled", "json"] }
 heed = "0.22"

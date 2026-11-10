@@ -105,3 +105,9 @@ Codex found no backend-specific difference in the rolled-back proposal.
 3. otherwise the first span.
 
 `replace_files` also checks components at its end ([[logic]]). Test: `text_source_follows_the_name` on all four backends fails with the old rule.
+
+**Fixes from Fable's review (2026-11-10, [[Review 2026-11-10 Fable (external)]]):**
+- **Reference counts** go through `count` and `adjust`. A counter that is not 4 bytes, or that would go below 0 or above `u32::MAX`, is a `Codec` error (S-8). It used to read as 0 and be clamped, which hid an inconsistent store.
+- **A malformed batch** is `InvalidBatch { path, reason }`, not `NotFound` (S-12): a file twice, a record index out of range, or a span out of range.
+
+Test: `batches_and_counters_are_checked` on all four backends. It fails without the batch error, without the length check, and without the underflow check.
