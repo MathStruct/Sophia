@@ -240,11 +240,8 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        let mut pairs: Vec<(u32, u32)> = dv
-            .iter()
-            .filter_map(|(a, b)| Some((*vnum.get(a)?, *vnum.get(b)?)))
-            .map(|(a, b)| (a.min(b), a.max(b)))
-            .collect();
+        let mut pairs: Vec<(u32, u32)> =
+            dv.iter().filter_map(|(a, b)| Some((*vnum.get(a)?, *vnum.get(b)?))).map(|(a, b)| (a.min(b), a.max(b))).collect();
         pairs.sort();
         pairs.dedup();
         for (a, b) in pairs {
@@ -500,7 +497,7 @@ pub fn proof_name_for(db: &str, label: &str) -> String {
 /// The store name for a label in a database: `mm.<db>.<label>`, with the
 /// label in backquotes when it is not a plain identifier.
 pub fn name_for(db: &str, label: &str) -> String {
-    let plain = label.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
-        && label.chars().all(|c| c.is_alphanumeric() || c == '_');
+    let plain =
+        label.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && label.chars().all(|c| c.is_alphanumeric() || c == '_');
     if plain { format!("mm.{db}.{label}") } else { format!("mm.{db}.`{label}`") }
 }

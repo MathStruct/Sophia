@@ -268,8 +268,8 @@ pub enum DecodeError {
 /// Fields whose payload is a sequence of fields (definition structure and
 /// terms); every other tag is a leaf.
 const CONTAINERS: [&str; 26] = [
-    "def", "ty", "body", "term", "cons", "con", "fields", "field", "rule", "vars", "prem", "weight", "c", "l", "dom",
-    "a", "p", "e", "x", "data", "mot", "case", "bs", "?", "!", "U",
+    "def", "ty", "body", "term", "cons", "con", "fields", "field", "rule", "vars", "prem", "weight", "c", "l", "dom", "a", "p", "e", "x",
+    "data", "mot", "case", "bs", "?", "!", "U",
 ];
 
 /// The definitions called directly in canonical bytes: the `Ref` heads of
@@ -452,13 +452,29 @@ enum Next<'a> {
 
 enum Shape {
     Con,
-    Lam { binder: Binder, has_dom: bool },
+    Lam {
+        binder: Binder,
+        has_dom: bool,
+    },
     App,
-    Pi { binder: Binder },
-    Let { binder: Binder, has_ty: bool },
+    Pi {
+        binder: Binder,
+    },
+    Let {
+        binder: Binder,
+        has_ty: bool,
+    },
     /// Stage: 0 scrutinee, 1 data?, 2 motive?, 3 cases.
-    Match { stage: u8, data: Option<Term>, motive: Option<Term>, cases: Vec<Case> },
-    Case { constructor: u32, binders: Vec<Binder> },
+    Match {
+        stage: u8,
+        data: Option<Term>,
+        motive: Option<Term>,
+        cases: Vec<Case>,
+    },
+    Case {
+        constructor: u32,
+        binders: Vec<Binder>,
+    },
     Hole,
     Unsafe(Aspect),
 }
@@ -526,7 +542,9 @@ fn start<'a>(r: &mut Reader<'a>) -> Result<Started<'a>, DecodeError> {
         }
         _ => {
             let (tag, p) = r.next()?;
-            return lit(tag, p)?.map(|l| Started::Done(Term::Lit(l))).ok_or_else(|| DecodeError::Unknown { what: "term", found: tag.into() });
+            return lit(tag, p)?
+                .map(|l| Started::Done(Term::Lit(l)))
+                .ok_or_else(|| DecodeError::Unknown { what: "term", found: tag.into() });
         }
     }))
 }
@@ -609,7 +627,11 @@ impl<'a> Frame<'a> {
                         while !bs.is_empty() {
                             binders.push(binder(&mut bs)?);
                         }
-                        break Ok(Next::Child(Started::Frame(Frame { kind: Shape::Case { constructor, binders }, r: c, kids: Vec::new() })));
+                        break Ok(Next::Child(Started::Frame(Frame {
+                            kind: Shape::Case { constructor, binders },
+                            r: c,
+                            kids: Vec::new(),
+                        })));
                     }
                     _ => {
                         let scrutinee = kids.pop().unwrap_or_default();

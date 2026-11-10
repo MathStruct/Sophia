@@ -137,11 +137,8 @@ pub fn generate(seed: u64, n: usize, shape: Shape) -> Vec<(String, Definition)> 
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
         let nodes = (shape.median_nodes * (shape.sigma * rng.normal()).exp()).clamp(3.0, 5000.0) as i64;
-        let mut refs: Vec<u32> = if i == 0 {
-            Vec::new()
-        } else {
-            (0..rng.poisson(shape.mean_refs)).map(|_| rng.below(i as u64) as u32).collect()
-        };
+        let mut refs: Vec<u32> =
+            if i == 0 { Vec::new() } else { (0..rng.poisson(shape.mean_refs)).map(|_| rng.below(i as u64) as u32).collect() };
         // Mutually recursive pairs: i references i+1 and i+1 references i.
         if i + 1 < n && i % 2 == 0 && rng.unit() < shape.recursive_fraction {
             refs.push(i as u32 + 1);

@@ -66,13 +66,34 @@ fn run<B: Backend>(store: Store<B>, program: &[(String, sophialang_core::Definit
     let per = |d: Duration| d / probes.len() as u32;
 
     let by_id = per(median_time(5, || {
-        store.read(|tx| { for d in &ids { std::hint::black_box(tx.record(d)?); } Ok(()) }).unwrap()
+        store
+            .read(|tx| {
+                for d in &ids {
+                    std::hint::black_box(tx.record(d)?);
+                }
+                Ok(())
+            })
+            .unwrap()
     }));
     let by_name = per(median_time(5, || {
-        store.read(|tx| { for p in &names { std::hint::black_box(tx.name(p)?); } Ok(()) }).unwrap()
+        store
+            .read(|tx| {
+                for p in &names {
+                    std::hint::black_box(tx.name(p)?);
+                }
+                Ok(())
+            })
+            .unwrap()
     }));
     let deps = per(median_time(5, || {
-        store.read(|tx| { for d in &ids { std::hint::black_box(tx.dependants(d)?); } Ok(()) }).unwrap()
+        store
+            .read(|tx| {
+                for d in &ids {
+                    std::hint::black_box(tx.dependants(d)?);
+                }
+                Ok(())
+            })
+            .unwrap()
     }));
     let root = records.last().unwrap().id;
     let mut closure_size = 0;
@@ -139,7 +160,8 @@ const WORKLOADS: [(&str, &str, bool); 6] = [
     ("names by prefix", "select p where name(p, _) && startswith(p, \"gen.m00001\")", false),
 ];
 
-type SqlRun<'a> = &'a dyn Fn(&sophia_query::Prepared, &[sophia_query::Val], sophia_query::Strategy) -> sophia_query::Result<sophia_query::Rows>;
+type SqlRun<'a> =
+    &'a dyn Fn(&sophia_query::Prepared, &[sophia_query::Val], sophia_query::Strategy) -> sophia_query::Result<sophia_query::Rows>;
 
 fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usize, sql: Option<SqlRun>) {
     use sophia_query::{Limits, Strategy, Val, prepare_text};
@@ -214,10 +236,18 @@ fn zero_copy(n: usize, seed: u64, shape: Shape) {
     let ids: Vec<Digest> = (0..1000).map(|_| records[rng.below(records.len() as u64) as usize].id).collect();
     let per = |d: Duration| d.as_secs_f64() * 1e9 / ids.len() as f64;
     let borrowed = per(median_time(5, || {
-        s.backend().with_record_bytes(&ids, |b| { std::hint::black_box(b.map(|b| b.len())); }).unwrap()
+        s.backend()
+            .with_record_bytes(&ids, |b| {
+                std::hint::black_box(b.map(|b| b.len()));
+            })
+            .unwrap()
     }));
     let copied = per(median_time(5, || {
-        s.backend().with_record_bytes(&ids, |b| { std::hint::black_box(b.map(<[u8]>::to_vec)); }).unwrap()
+        s.backend()
+            .with_record_bytes(&ids, |b| {
+                std::hint::black_box(b.map(<[u8]>::to_vec));
+            })
+            .unwrap()
     }));
     let walked = per(median_time(5, || {
         // Walk the stored record's framing in place, without allocating.
@@ -225,13 +255,21 @@ fn zero_copy(n: usize, seed: u64, shape: Shape) {
             .with_record_bytes(&ids, |b| {
                 let mut r = sophia_hash::canonical::Reader::new(b.unwrap());
                 let mut k = 0usize;
-                while let Ok((_, p)) = r.next() { k += p.len(); }
+                while let Ok((_, p)) = r.next() {
+                    k += p.len();
+                }
                 std::hint::black_box(k);
             })
             .unwrap()
     }));
     let record = per(median_time(5, || {
-        s.read(|tx| { for d in &ids { std::hint::black_box(tx.record(d)?); } Ok(()) }).unwrap()
+        s.read(|tx| {
+            for d in &ids {
+                std::hint::black_box(tx.record(d)?);
+            }
+            Ok(())
+        })
+        .unwrap()
     }));
     let term = per(median_time(5, || {
         s.read(|tx| {
@@ -275,8 +313,22 @@ fn metamath<B: Backend>(store: Store<B>, db: &str, text: &str) {
     let limits = Limits { max_rows: usize::MAX, ..Limits::default() };
     let mut cells = Vec::new();
     for (label, p, args) in [
-        ("axioms behind 2p2e4", &rests, vec![Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "2p2e4"))), Val::Text(sophia_ingest::library_collection(db, "axioms"))]),
-        ("axioms behind fta (fundamental thm of algebra)", &rests, vec![Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "fta"))), Val::Text(sophia_ingest::library_collection(db, "axioms"))]),
+        (
+            "axioms behind 2p2e4",
+            &rests,
+            vec![
+                Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "2p2e4"))),
+                Val::Text(sophia_ingest::library_collection(db, "axioms")),
+            ],
+        ),
+        (
+            "axioms behind fta (fundamental thm of algebra)",
+            &rests,
+            vec![
+                Val::Id(id_of(&sophia_ingest::metamath::proof_name_for(db, "fta"))),
+                Val::Text(sophia_ingest::library_collection(db, "axioms")),
+            ],
+        ),
         ("proofs using ax-mp directly", &uses, vec![Val::Id(id_of(&sophia_ingest::metamath::name_for(db, "ax-mp")))]),
         ("count by kind", &kinds, vec![]),
     ] {
@@ -286,7 +338,12 @@ fn metamath<B: Backend>(store: Store<B>, db: &str, text: &str) {
     }
     println!(
         "| {name} | {} | {} | {} | {:.2?} | {:.2?} | {bytes} | {} |",
-        r.assertions, r.proofs, r.new_records, parse, ingest, cells.join("; ")
+        r.assertions,
+        r.proofs,
+        r.new_records,
+        parse,
+        ingest,
+        cells.join("; ")
     );
 }
 
@@ -301,23 +358,22 @@ fn analytics_size(sizes: &[usize]) -> usize {
 }
 
 fn main() {
-    let sizes: Vec<usize> = arg("--sizes")
-        .unwrap_or_else(|| "1000,10000,100000".into())
-        .split(',')
-        .map(|s| s.trim().parse().expect("size"))
-        .collect();
-    let backends: Vec<String> = arg("--backends")
-        .unwrap_or_else(|| "sqlite,redb,lmdb,duckdb".into())
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
+    let sizes: Vec<usize> =
+        arg("--sizes").unwrap_or_else(|| "1000,10000,100000".into()).split(',').map(|s| s.trim().parse().expect("size")).collect();
+    let backends: Vec<String> =
+        arg("--backends").unwrap_or_else(|| "sqlite,redb,lmdb,duckdb".into()).split(',').map(|s| s.trim().to_string()).collect();
     let seed: u64 = arg("--seed").map(|s| s.parse().unwrap()).unwrap_or(42);
     let shape = Shape::default();
 
     println!("### Run of {} (seed {seed})\n", std::env::var("SOPHIA_BENCH_DATE").unwrap_or_else(|_| "today".into()));
     println!("- Machine: {}", machine());
-    println!("- Build: `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes {}`", sizes.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(","));
-    println!("- Workload: synthetic sophialang ({shape:?}); ingest in batches of 1000 with names; lookups are 1000 random probes, median of 5 runs.\n");
+    println!(
+        "- Build: `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes {}`",
+        sizes.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",")
+    );
+    println!(
+        "- Workload: synthetic sophialang ({shape:?}); ingest in batches of 1000 with names; lookups are 1000 random probes, median of 5 runs.\n"
+    );
 
     // B-07 on the synthetic corpus, and B-05's estimate of local-id savings.
     let corpus = generate(seed, *sizes.iter().max().unwrap_or(&1000).min(&100_000), shape);
@@ -330,7 +386,11 @@ fn main() {
     for r in &records {
         let d = sophialang_core::encode::decode(&r.bytes).unwrap();
         let mut k = 0;
-        d.walk(&mut |t| if matches!(t, Term::Ref(_)) { k += 1 });
+        d.walk(&mut |t| {
+            if matches!(t, Term::Ref(_)) {
+                k += 1
+            }
+        });
         ref_occ += k;
         refs_per.push(r.refs.len());
     }
@@ -341,7 +401,9 @@ fn main() {
     let mean_refs = refs_per.iter().sum::<usize>() as f64 / refs_per.len() as f64;
     let digest_bytes = ref_occ * 32;
     println!("#### B-07 / B-05: canonical sizes (synthetic corpus, {} definitions)\n", records.len());
-    println!("| median bytes | p90 bytes | mean bytes | distinct refs per def | 32-byte reference digests in canonical bytes | key overhead (32 B / mean) | savings with 8-byte local ids |");
+    println!(
+        "| median bytes | p90 bytes | mean bytes | distinct refs per def | 32-byte reference digests in canonical bytes | key overhead (32 B / mean) | savings with 8-byte local ids |"
+    );
     println!("|---|---|---|---|---|---|---|");
     println!(
         "| {med} | {p90} | {mean:.0} | {mean_refs:.2} | {:.1} % of bytes | {:.1} % | {:.1} % of bytes |\n",
@@ -353,7 +415,9 @@ fn main() {
     if !flag("--skip-queries") {
         let n: usize = arg("--query-size").map(|s| s.parse().unwrap()).unwrap_or_else(|| analytics_size(&sizes));
         println!("#### B-17: query workloads (SPEC-007), {n} definitions\n");
-        println!("- Per-probe workloads: 20 random probes, time per probe. Native limits: 50M join steps and 5M derived tuples; SQL step limit 50M VM steps.\n");
+        println!(
+            "- Per-probe workloads: 20 random probes, time per probe. Native limits: 50M join steps and 5M derived tuples; SQL step limit 50M VM steps.\n"
+        );
         println!("| backend | definitions | workload | executor | rows (per probe) | median |");
         println!("|---|---|---|---|---|---|");
         let program = generate(seed, n, shape);
@@ -365,7 +429,13 @@ fn main() {
                     let records = ingest(&s, &program, 1000);
                     let db = s.backend();
                     let run = |p: &sophia_query::Prepared, a: &[sophia_query::Val], st| {
-                        sophia_query::run_sql(db, p, a, sophia_query::Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Default::default() }, st)
+                        sophia_query::run_sql(
+                            db,
+                            p,
+                            a,
+                            sophia_query::Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Default::default() },
+                            st,
+                        )
                     };
                     queries(&s, &records, n, Some(&run));
                 }
@@ -438,7 +508,9 @@ fn main() {
     }
 
     println!("#### B-03 / B-04 / B-05: backends\n");
-    println!("| backend | definitions | ingest | ingest rate | size on disk | bytes / def | record by id | name | dependants | closure of last (size) | full change feed |");
+    println!(
+        "| backend | definitions | ingest | ingest rate | size on disk | bytes / def | record by id | name | dependants | closure of last (size) | full change feed |"
+    );
     println!("|---|---|---|---|---|---|---|---|---|---|---|");
     for &n in &sizes {
         let program = generate(seed, n, shape);

@@ -129,10 +129,26 @@ macro_rules! suite {
                 let make = $make;
                 (Store::new(make(dir.path())), dir)
             }
-            #[test] fn julia_modules_rebuild() { let (s, _d) = store(); super::julia_modules_rebuild(s); }
-            #[test] fn metamath_rebuilds() { let (s, _d) = store(); super::metamath_rebuilds(s); }
-            #[test] fn changed_source_is_detected() { let (s, _d) = store(); super::changed_source_is_detected(s); }
-            #[test] fn reingest_is_a_noop() { let (s, _d) = store(); super::reingest_is_a_noop(s); }
+            #[test]
+            fn julia_modules_rebuild() {
+                let (s, _d) = store();
+                super::julia_modules_rebuild(s);
+            }
+            #[test]
+            fn metamath_rebuilds() {
+                let (s, _d) = store();
+                super::metamath_rebuilds(s);
+            }
+            #[test]
+            fn changed_source_is_detected() {
+                let (s, _d) = store();
+                super::changed_source_is_detected(s);
+            }
+            #[test]
+            fn reingest_is_a_noop() {
+                let (s, _d) = store();
+                super::reingest_is_a_noop(s);
+            }
         }
     };
 }

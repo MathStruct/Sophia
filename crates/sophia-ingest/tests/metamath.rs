@@ -27,10 +27,19 @@ fn ids(text: &str) -> Vec<(String, sophia_hash::Digest, String)> {
 fn demo_parses_with_kinds_and_references() {
     let a = parse(DEMO).unwrap();
     let kinds: Vec<(&str, &str)> = a.iter().map(|x| (x.label.as_str(), x.role.as_str())).collect();
-    assert_eq!(kinds, vec![
-        ("tze", "syntax"), ("tpl", "syntax"), ("weq", "syntax"), ("wim", "syntax"),
-        ("a1", "axiom"), ("a2", "axiom"), ("mp", "axiom"), ("th1", "theorem"),
-    ]);
+    assert_eq!(
+        kinds,
+        vec![
+            ("tze", "syntax"),
+            ("tpl", "syntax"),
+            ("weq", "syntax"),
+            ("wim", "syntax"),
+            ("a1", "axiom"),
+            ("a2", "axiom"),
+            ("mp", "axiom"),
+            ("th1", "theorem"),
+        ]
+    );
     let th1 = a.last().unwrap();
     let proof = th1.proof.as_ref().expect("a theorem has a proof record");
     assert_eq!(proof.kind, "proof");
@@ -95,7 +104,9 @@ fn another_proof_of_the_same_statement_shares_the_statement() {
 
 #[test]
 fn repeated_theorems_are_one_record() {
-    let twice = format!("{DEMO}\nth2 $p |- t = t $=\n  tt tze tpl tt weq tt tt weq tt a2 tt tze tpl tt weq tt tze tpl tt weq tt tt\n  weq wim tt a2 tt tze tpl tt tt a1 mp mp $.\n");
+    let twice = format!(
+        "{DEMO}\nth2 $p |- t = t $=\n  tt tze tpl tt weq tt tt weq tt a2 tt tze tpl tt weq tt tze tpl tt weq tt tt\n  weq wim tt a2 tt tze tpl tt tt a1 mp mp $.\n"
+    );
     let a = parse(&twice).unwrap();
     let dir = tempfile::tempdir().unwrap();
     let s = Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("m.sqlite")).unwrap());

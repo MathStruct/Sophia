@@ -479,8 +479,7 @@ impl Parser {
                     "unsafe" => {
                         self.open_paren("(")?;
                         let (a, asp) = self.name()?;
-                        let aspect = Aspect::parse(&a)
-                            .ok_or_else(|| Diagnostic::error(asp, format!("unknown unsafe aspect `{a}`")))?;
+                        let aspect = Aspect::parse(&a).ok_or_else(|| Diagnostic::error(asp, format!("unknown unsafe aspect `{a}`")))?;
                         self.expect_sym(",")?;
                         call(frames, Frame::Unsafe(sp, aspect), Goal::Expr)
                     }

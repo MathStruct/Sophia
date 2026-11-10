@@ -26,15 +26,13 @@ fn source(p: Pred) -> (String, Vec<String>) {
         Pred::Base(Base::Def) => ("t_definition".into(), cols(&["id", "kind"])),
         Pred::Base(Base::Refs) => ("t_ref".into(), cols(&["src", "dst"])),
         Pred::Base(Base::Name) => ("t_name".into(), cols(&["path", "target"])),
-        Pred::Base(Base::Member) => (
-            "(SELECT nominal AS c0, member AS c1 FROM t_relation WHERE removed_seq IS NULL)".into(),
-            cols(&["c0", "c1"]),
-        ),
+        Pred::Base(Base::Member) => {
+            ("(SELECT nominal AS c0, member AS c1 FROM t_relation WHERE removed_seq IS NULL)".into(), cols(&["c0", "c1"]))
+        }
         Pred::Base(Base::Nominal) => ("t_nominal".into(), cols(&["id", "kind"])),
         Pred::Base(Base::Uses) => ("t_nominal_ref".into(), cols(&["src", "dst"])),
         Pred::Base(Base::Annotation) => (
-            "(SELECT a.id AS c0, a.kind AS c1, s.subject AS c2 FROM t_annotation a JOIN t_annotation_subject s ON s.id = a.id)"
-                .into(),
+            "(SELECT a.id AS c0, a.kind AS c1, s.subject AS c2 FROM t_annotation a JOIN t_annotation_subject s ON s.id = a.id)".into(),
             cols(&["c0", "c1", "c2"]),
         ),
         Pred::Base(Base::Fact) => ("t_fact".into(), cols(&["id", "kind", "subject"])),
@@ -87,7 +85,8 @@ impl Body<'_> {
             }
         }
         // Equations bind what positive literals did not.
-        let mut eqs: Vec<(&Term, &Term)> = body.iter().filter_map(|l| if let Literal::Eq(x, y) = l { Some((x, y)) } else { None }).collect();
+        let mut eqs: Vec<(&Term, &Term)> =
+            body.iter().filter_map(|l| if let Literal::Eq(x, y) = l { Some((x, y)) } else { None }).collect();
         while !eqs.is_empty() {
             let before = eqs.len();
             eqs.retain(|(x, y)| match (self.term(x), self.term(y)) {
@@ -173,9 +172,7 @@ pub fn to_sql(q: &Query, strata: &[Vec<u32>], params: &[Val]) -> Result<String, 
         let [p] = stratum[..] else {
             return Err(Error::Unsupported("mutual recursion between local predicates has no SQL translation".into()));
         };
-        let mentions = |r: &Rule| {
-            r.body.iter().filter(|l| matches!(l, Literal::Pos(Atom { pred: Pred::Local(x), .. }) if *x == p)).count()
-        };
+        let mentions = |r: &Rule| r.body.iter().filter(|l| matches!(l, Literal::Pos(Atom { pred: Pred::Local(x), .. }) if *x == p)).count();
         let mut base = Vec::new();
         let mut rec = Vec::new();
         for r in q.rules_of(p) {
@@ -196,7 +193,13 @@ pub fn to_sql(q: &Query, strata: &[Vec<u32>], params: &[Val]) -> Result<String, 
         ctes.push(format!("p{p}({}) AS ({})", cols.join(", "), parts.join(" UNION ")));
     }
     let s = &q.select;
-    let heads: Vec<Term> = s.outputs.iter().map(|o| match o { Output::Var(v) | Output::Count(v) => Term::Var(*v) }).collect();
+    let heads: Vec<Term> = s
+        .outputs
+        .iter()
+        .map(|o| match o {
+            Output::Var(v) | Output::Count(v) => Term::Var(*v),
+        })
+        .collect();
     let has_count = s.outputs.iter().any(|o| matches!(o, Output::Count(_)));
     let main = body().build(&heads, &s.body, !has_count, Some(&s.outputs))?;
     Ok(if ctes.is_empty() { main } else { format!("WITH RECURSIVE {} {main}", ctes.join(", ")) })

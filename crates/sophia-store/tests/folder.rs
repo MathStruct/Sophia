@@ -135,7 +135,10 @@ fn files_replace_names_generics_and_spans<B: Backend>(s: Store<B>) {
     let r = s.replace_files(&[a.clone(), b.clone()]).unwrap();
     assert_eq!((r.names_added, r.members_added), (4, 2), "{r:?}");
     assert_eq!(target(&s, "jl.P.a"), Some(rec("1", "const_statement").id));
-    assert_eq!(methods(&s), sorted(vec![rec("g(x::Int) = 1", "function_definition").id, rec("g(x::Float64) = 2", "function_definition").id]));
+    assert_eq!(
+        methods(&s),
+        sorted(vec![rec("g(x::Int) = 1", "function_definition").id, rec("g(x::Float64) = 2", "function_definition").id])
+    );
     let m = s.file_manifest("src/a.jl").unwrap().unwrap();
     assert_eq!(m.source, Some(source_record("src/a.jl", a.text.as_ref().unwrap()).id));
     let ts = s.text_source(&rec("2", "const_statement").id, Some("jl.P.b")).unwrap().unwrap();
@@ -308,7 +311,11 @@ fn pair(path: &str, a: &str, b: &str) -> FileIngest {
 /// text at two paths, a component, deletions.
 fn history() -> Vec<Vec<FileIngest>> {
     vec![
-        vec![file("a.jl", &[("a", "1"), ("b", "2"), ("g:1", "g(x) = 0")]), file("b.jl", &[("c", "3")]), pair("p.jl", "e() = f()", "f() = e()")],
+        vec![
+            file("a.jl", &[("a", "1"), ("b", "2"), ("g:1", "g(x) = 0")]),
+            file("b.jl", &[("c", "3")]),
+            pair("p.jl", "e() = f()", "f() = e()"),
+        ],
         vec![file("a.jl", &[("a", "10"), ("b", "2"), ("g:1", "g(x) = 1")])],
         vec![file("a.jl", &[("a", "10")]), file("b.jl", &[("c", "3"), ("b", "2")])],
         vec![file("c.jl", &[("c", "3")]), file("b.jl", &[("b", "2")])],
@@ -326,7 +333,11 @@ fn files_truth_collects_what_files_no_longer_reach<B: Backend>(s: Store<B>, fres
     for (i, c) in history().into_iter().enumerate() {
         removed += s.replace_files(&c).unwrap().records_removed;
         for f in c {
-            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+            if f.text.is_some() {
+                tree.insert(f.path.clone(), f);
+            } else {
+                tree.remove(&f.path);
+            }
         }
         let (t, _d) = fresh();
         t.set_derived().unwrap();
@@ -348,7 +359,11 @@ fn store_truth_keeps_history_until_swept<B: Backend>(s: Store<B>, fresh: impl Fn
         assert_eq!(s.replace_files(&c).unwrap().records_removed, 0);
         for f in c {
             seen.extend(f.records.iter().map(|r| r.id));
-            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+            if f.text.is_some() {
+                tree.insert(f.path.clone(), f);
+            } else {
+                tree.remove(&f.path);
+            }
         }
     }
     let kept: std::collections::BTreeSet<Digest> = all_records(&s).into_iter().collect();
@@ -370,7 +385,11 @@ fn replay_records<B: Backend>(s: &Store<B>, fresh: impl Fn() -> (Store<B>, tempf
     for (i, c) in commits.into_iter().enumerate() {
         s.replace_files(&c).unwrap();
         for f in c {
-            if f.text.is_some() { tree.insert(f.path.clone(), f); } else { tree.remove(&f.path); }
+            if f.text.is_some() {
+                tree.insert(f.path.clone(), f);
+            } else {
+                tree.remove(&f.path);
+            }
         }
         let (t, _d) = fresh();
         t.set_derived().unwrap();
@@ -389,7 +408,11 @@ fn facts_do_not_keep_records<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store
         let (s, _d) = fresh();
         let mut b = file("b.jl", &[("b", "2")]);
         b.facts.push(Fact::new("uses", subject, vec![], ("test", "0"), inputs, 0));
-        replay_records(&s, &fresh, vec![vec![file("a.jl", &[("a", "1")]), b.clone()], vec![deleted("a.jl")], vec![file("b.jl", &[("b", "2")])]]);
+        replay_records(
+            &s,
+            &fresh,
+            vec![vec![file("a.jl", &[("a", "1")]), b.clone()], vec![deleted("a.jl")], vec![file("b.jl", &[("b", "2")])]],
+        );
         assert!(s.record(&a_id).unwrap().is_none());
     }
     drop(s);
@@ -503,7 +526,11 @@ fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl 
     let commits = history();
     let apply = |tree: &mut Tree, c: &[FileIngest]| {
         for f in c {
-            if f.text.is_some() { tree.insert(f.path.clone(), f.clone()); } else { tree.remove(&f.path); }
+            if f.text.is_some() {
+                tree.insert(f.path.clone(), f.clone());
+            } else {
+                tree.remove(&f.path);
+            }
         }
     };
     s.replace_files(&commits[0]).unwrap();
@@ -525,7 +552,8 @@ fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl 
     let kept: std::collections::BTreeSet<Digest> = all_records(&s).into_iter().collect();
     assert!(seen.is_subset(&kept), "every version stays");
     // Back to the files: every current file, with the text written.
-    let exported: Vec<(String, Digest)> = tree.values().map(|f| (f.path.clone(), source_record(&f.path, f.text.as_ref().unwrap()).id)).collect();
+    let exported: Vec<(String, Digest)> =
+        tree.values().map(|f| (f.path.clone(), source_record(&f.path, f.text.as_ref().unwrap()).id)).collect();
     assert!(matches!(s.give_truth(&exported[1..]), Err(StoreError::ExportMismatch { .. })), "a file not exported");
     let mut wrong = exported.clone();
     wrong[0].1 = source_record(&wrong[0].0, "edited elsewhere").id;

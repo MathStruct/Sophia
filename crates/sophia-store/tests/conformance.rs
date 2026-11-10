@@ -13,18 +13,13 @@ fn sample() -> (Vec<&'static str>, Vec<Record>) {
 
 fn populated<B: Backend>(store: &Store<B>) -> (Vec<&'static str>, Vec<Record>) {
     let (names, records) = sample();
-    let named: Vec<(String, usize, Visibility)> =
-        names.iter().enumerate().map(|(i, n)| (n.to_string(), i, Visibility::Public)).collect();
+    let named: Vec<(String, usize, Visibility)> = names.iter().enumerate().map(|(i, n)| (n.to_string(), i, Visibility::Public)).collect();
     store.add(&records, &named).unwrap();
     (names, records)
 }
 
 fn add_one_more(n: i64) -> Record {
-    normalise_one(&Definition::constant(
-        Term::Nominal(builtin("Int64")),
-        Term::Lit(sophialang_core::Lit::Int64(n)),
-    ))
-    .unwrap()
+    normalise_one(&Definition::constant(Term::Nominal(builtin("Int64")), Term::Lit(sophialang_core::Lit::Int64(n)))).unwrap()
 }
 
 fn re_putting_writes_nothing<B: Backend>(s: Store<B>) {
@@ -206,10 +201,7 @@ fn failed_writes_roll_back<B: Backend>(s: Store<B>) {
     let (_, records) = populated(&s);
     let seq = s.last_seq().unwrap();
     // The second name collides: the whole call must leave no trace.
-    let r = s.add(
-        &[add_one_more(42)],
-        &[("fresh.name".into(), 0, Visibility::Public), ("sample.add".into(), 0, Visibility::Public)],
-    );
+    let r = s.add(&[add_one_more(42)], &[("fresh.name".into(), 0, Visibility::Public), ("sample.add".into(), 0, Visibility::Public)]);
     assert!(r.is_err());
     assert_eq!(s.last_seq().unwrap(), seq);
     assert!(s.resolve("fresh.name").unwrap().is_none());
@@ -235,8 +227,7 @@ fn kinds_follow_from_content<B: Backend>(s: Store<B>) {
 /// Paths around a namespace boundary: `!` and `-`-free neighbours that
 /// sort before and after `a.b.`, a quoted segment with a dot in it, and an
 /// operator name.
-const AROUND: [&str; 10] =
-    ["a.b", "a.b!", "a.b.c", "a.b.c.d", "a.`b.c`", "a.`b.c`.d", "a.b0", "a.`+`", "ab.x", "a"];
+const AROUND: [&str; 10] = ["a.b", "a.b!", "a.b.c", "a.b.c.d", "a.`b.c`", "a.`b.c`.d", "a.b0", "a.`+`", "ab.x", "a"];
 
 fn names_from_is_a_range_scan<B: Backend>(s: Store<B>) {
     let (_, records) = sample();
@@ -264,11 +255,18 @@ fn prefix_reads_agree<B: Backend>(s: Store<B>) {
     s.add(&records, &named).unwrap();
     let paths = |v: Vec<NameEntry>| v.into_iter().map(|n| n.path).collect::<Vec<_>>();
     for prefix in ["", "a", "a.b", "a.`b.c`", "ab", "a.b.c.d", "zz"] {
-        let mut want: Vec<String> =
-            AROUND.iter().filter(|p| prefix.is_empty() || **p == prefix || p.starts_with(&format!("{prefix}."))).map(|p| p.to_string()).collect();
+        let mut want: Vec<String> = AROUND
+            .iter()
+            .filter(|p| prefix.is_empty() || **p == prefix || p.starts_with(&format!("{prefix}.")))
+            .map(|p| p.to_string())
+            .collect();
         want.sort();
         assert_eq!(paths(s.read(|tx| tx.names_under(prefix, usize::MAX)).unwrap()), want, "names_under({prefix:?})");
-        assert_eq!(paths(s.read(|tx| tx.names_under(prefix, 2)).unwrap()), want.iter().take(2).cloned().collect::<Vec<_>>(), "limit, {prefix:?}");
+        assert_eq!(
+            paths(s.read(|tx| tx.names_under(prefix, 2)).unwrap()),
+            want.iter().take(2).cloned().collect::<Vec<_>>(),
+            "limit, {prefix:?}"
+        );
     }
     let keys = ["zz/a", "zz/a.b", "zz0", "zz", "zz/é", "zz/\u{10FFFF}x", "zz/\u{10FFFF}", "zy\u{10FFFF}", "zz/"];
     for k in keys {
@@ -369,7 +367,10 @@ fn sql_queries_are_read_only_and_capped() {
 fn settings_are_listed_and_logged<B: Backend>(s: Store<B>) {
     let before = s.last_seq().unwrap();
     let seq = s
-        .set_settings("profile/mine", &[("profile/mine/kw.function".into(), Some("fn".into())), ("profile/mine/blocks".into(), Some("braces".into()))])
+        .set_settings(
+            "profile/mine",
+            &[("profile/mine/kw.function".into(), Some("fn".into())), ("profile/mine/blocks".into(), Some("braces".into()))],
+        )
         .unwrap();
     assert_eq!(seq, before + 1);
     let rows = s.meta_prefix("profile/mine/").unwrap();
@@ -403,7 +404,9 @@ mod settings {
     #[test]
     fn lmdb() {
         let d = tempfile::tempdir().unwrap();
-        settings_are_listed_and_logged(Store::new(sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap()));
+        settings_are_listed_and_logged(Store::new(
+            sophia_store::lmdb_store::Lmdb::open_with_map_size(d.path().join("l"), 1 << 30).unwrap(),
+        ));
     }
     #[cfg(feature = "duckdb")]
     #[test]
@@ -491,7 +494,13 @@ fn duckdb_queries_are_read_only_capped_and_timed() {
     // v0.1.9, finding 1), and the timer is stopped on every return path.
     let all = db.query_readonly("SELECT * FROM log", QueryLimits { max_rows: usize::MAX, ..Default::default() }).unwrap();
     assert!(!all.truncated);
-    for bad in ["DELETE FROM t_name", "INSERT INTO t_meta VALUES ('a', 'x')", "SELECT 1; DELETE FROM t_name", "ATTACH 'x.db' AS y", "SELECT * FROM read_csv('/etc/passwd')"] {
+    for bad in [
+        "DELETE FROM t_name",
+        "INSERT INTO t_meta VALUES ('a', 'x')",
+        "SELECT 1; DELETE FROM t_name",
+        "ATTACH 'x.db' AS y",
+        "SELECT * FROM read_csv('/etc/passwd')",
+    ] {
         assert!(db.query_readonly(bad, QueryLimits::default()).is_err(), "{bad}");
     }
     // Only the views, as SQLite's authorizer allows (Gemini's review §5.3).

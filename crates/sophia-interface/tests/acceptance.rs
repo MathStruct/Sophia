@@ -201,9 +201,13 @@ fn queries_through_the_interface<B: Backend + Sync>(i: Interface<B>) {
     assert_ne!(w2.targets[0].1, w.targets[0].1, "an edit gives a new query id");
     assert!(matches!(i.write_text(&key, token, &edited), Err(EditError::Conflict { .. })));
     // Bad text is a diagnostic with a position, and nothing changes.
-    match i.write_text(&key, w2.version, "query users
+    match i.write_text(
+        &key,
+        w2.version,
+        "query users
  select p where nope(p)
-end") {
+end",
+    ) {
         Err(EditError::Diagnostics(d)) => assert!(d[0].message.contains("nope")),
         other => panic!("{other:?}"),
     }
@@ -261,8 +265,11 @@ fn foreign_records_print<B: Backend + Sync>(i: Interface<B>) {
     // One normal form for both structs: the name is not part of identity.
     let def = rec("julia", "struct_definition", b"struct-x-Int", "A");
     let opaque = rec("metamath", "axiom", b"|- ph", "ax-1");
-    let named = [("jl.A".to_string(), 1, sophia_store::Visibility::Public), ("jl.B".to_string(), 1, sophia_store::Visibility::Public),
-        ("mm.ax1".to_string(), 2, sophia_store::Visibility::Public)];
+    let named = [
+        ("jl.A".to_string(), 1, sophia_store::Visibility::Public),
+        ("jl.B".to_string(), 1, sophia_store::Visibility::Public),
+        ("mm.ax1".to_string(), 2, sophia_store::Visibility::Public),
+    ];
     i.store().add(&[src.clone(), def.clone(), opaque], &named).unwrap();
     let span = |start: u32, end: u32| {
         let v = sophia_store::SourceSpan { source: src.id, start, end };
@@ -494,8 +501,24 @@ fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
     assert_ne!(i.export("sample").unwrap().token, e.token);
 }
 
-both!(a_moved_reference_warns_on_save, store_truth_folder_routes_laid_out_names_through_files, generic_and_group_names_route_through_files, a_namespace_exports_as_one_file, all_draws_structure, group_members_cannot_be_overwritten_silently, folder_store_is_read_only_and_prints_files, listing_skips_sub_namespaces, foreign_records_print,
-    diagnostics_name_tokens_as_written, browsing, editing, renaming_and_feed, profiles_switch, creating, queries_through_the_interface);
+both!(
+    a_moved_reference_warns_on_save,
+    store_truth_folder_routes_laid_out_names_through_files,
+    generic_and_group_names_route_through_files,
+    a_namespace_exports_as_one_file,
+    all_draws_structure,
+    group_members_cannot_be_overwritten_silently,
+    folder_store_is_read_only_and_prints_files,
+    listing_skips_sub_namespaces,
+    foreign_records_print,
+    diagnostics_name_tokens_as_written,
+    browsing,
+    editing,
+    renaming_and_feed,
+    profiles_switch,
+    creating,
+    queries_through_the_interface
+);
 
 trait OtherReader {
     fn open_existing_for_test(i: &Self, reader: &str) -> String;

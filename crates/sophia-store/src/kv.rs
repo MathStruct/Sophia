@@ -45,8 +45,23 @@ pub enum Table {
 
 impl Table {
     pub const ALL: [Table; 17] = [
-        Table::Rec, Table::Comp, Table::Kind, Table::RefRev, Table::Name, Table::NameTgt, Table::Log, Table::Nom,
-        Table::Rel, Table::RelMem, Table::Lin, Table::LinId, Table::Ann, Table::AnnSub, Table::Fact, Table::FactSub, Table::Meta,
+        Table::Rec,
+        Table::Comp,
+        Table::Kind,
+        Table::RefRev,
+        Table::Name,
+        Table::NameTgt,
+        Table::Log,
+        Table::Nom,
+        Table::Rel,
+        Table::RelMem,
+        Table::Lin,
+        Table::LinId,
+        Table::Ann,
+        Table::AnnSub,
+        Table::Fact,
+        Table::FactSub,
+        Table::Meta,
     ];
 
     pub fn name(self) -> &'static str {
@@ -173,10 +188,7 @@ impl<X: Kv> ReadTx for X {
     }
 
     fn last_seq(&self) -> Result<u64> {
-        Ok(self
-            .last_key(Table::Log)?
-            .map(|k| u64::from_be_bytes(k.as_slice().try_into().unwrap_or([0; 8])))
-            .unwrap_or(0))
+        Ok(self.last_key(Table::Log)?.map(|k| u64::from_be_bytes(k.as_slice().try_into().unwrap_or([0; 8]))).unwrap_or(0))
     }
 
     fn log_since(&self, seq: u64, limit: usize) -> Result<Vec<LogEntry>> {
@@ -378,4 +390,3 @@ impl<X: KvWrite> WriteTx for X {
         self.del(Table::Meta, key.as_bytes())
     }
 }
-

@@ -69,8 +69,8 @@ fn check(env: &SampleEnv, profile: &Profile, group: &[(&str, &Record)]) -> Strin
         .map(|((n, r), d)| ToPrint { name: short(n), def: d, id: Some(r.id), index: r.index, relation: false })
         .collect();
     let text = print(env, "sample", profile, &items);
-    let (parsed, _warnings) = parse_text(env, "sample", &text, Limits::default())
-        .unwrap_or_else(|e| panic!("{} did not parse:\n{text}\n{e:?}", profile.name));
+    let (parsed, _warnings) =
+        parse_text(env, "sample", &text, Limits::default()).unwrap_or_else(|e| panic!("{} did not parse:\n{text}\n{e:?}", profile.name));
     let parsed_defs: Vec<Definition> = parsed.iter().map(|i| i.definition().clone()).collect();
     let rehashed = normalise_batch(&parsed_defs, &mut Default::default()).unwrap();
     for ((n, r), h) in group.iter().zip(&rehashed) {
@@ -144,12 +144,7 @@ fn the_julia_text_reads_like_julia() {
 fn relations_print_from_their_signature() {
     let (env, named) = SampleEnv::new();
     let sig = definition_of(&named[6].1).unwrap();
-    let text = print(
-        &env,
-        "sample",
-        &Profile::julia(),
-        &[ToPrint { name: "parent", def: &sig, id: None, index: 0, relation: true }],
-    );
+    let text = print(&env, "sample", &Profile::julia(), &[ToPrint { name: "parent", def: &sig, id: None, index: 0, relation: true }]);
     assert_eq!(text, "relation parent::Nat --> Nat --> Prop\n");
     let (items, _) = parse_text(&env, "sample", &text, Limits::default()).unwrap();
     assert!(matches!(&items[0], Item::Relation { name, signature } if name == "parent" && *signature == sig));
@@ -194,21 +189,26 @@ fn arb_term() -> impl Strategy<Value = Term> {
         "[a-z][a-z_]{0,6}".prop_map(Term::Prim),
         prop::collection::vec("u_[a-z]{1,4}", 1..3).prop_map(Term::Unresolved),
     ];
-    let binder = ("[a-z]{0,3}", prop_oneof![Just(Usage::Zero), Just(Usage::One), Just(Usage::Many)], any::<bool>())
-        .prop_map(|(name, usage, implicit)| Binder { name, usage: if implicit && usage == Usage::Many { Usage::Zero } else { usage }, implicit });
+    let binder = ("[a-z]{0,3}", prop_oneof![Just(Usage::Zero), Just(Usage::One), Just(Usage::Many)], any::<bool>()).prop_map(
+        |(name, usage, implicit)| Binder { name, usage: if implicit && usage == Usage::Many { Usage::Zero } else { usage }, implicit },
+    );
     leaf.prop_recursive(5, 40, 4, move |inner| {
         let ops = prop_oneof![Just("+"), Just("-"), Just("*"), Just("/"), Just("=="), Just("<="), Just("!=")];
         prop_oneof![
-            (binder.clone(), prop::option::of(inner.clone()), inner.clone())
-                .prop_map(|(binder, domain, body)| Term::Lam { binder, domain: domain.map(Box::new), body: Box::new(body) }),
-            (inner.clone(), prop::collection::vec(inner.clone(), 0..3)).prop_map(|(h, a)| Term::App(Box::new(h), a)),
-            (ops, inner.clone(), inner.clone())
-                .prop_map(|(o, l, r)| Term::App(Box::new(Term::Nominal(samples::builtin(o))), vec![l, r])),
-            (binder.clone(), inner.clone(), inner.clone())
-                .prop_map(|(binder, d, c)| Term::Pi { binder, domain: Box::new(d), codomain: Box::new(c) }),
-            (binder.clone(), prop::option::of(inner.clone()), inner.clone(), inner.clone()).prop_map(|(binder, ty, v, b)| {
-                Term::Let { binder, ty: ty.map(Box::new), value: Box::new(v), body: Box::new(b) }
+            (binder.clone(), prop::option::of(inner.clone()), inner.clone()).prop_map(|(binder, domain, body)| Term::Lam {
+                binder,
+                domain: domain.map(Box::new),
+                body: Box::new(body)
             }),
+            (inner.clone(), prop::collection::vec(inner.clone(), 0..3)).prop_map(|(h, a)| Term::App(Box::new(h), a)),
+            (ops, inner.clone(), inner.clone()).prop_map(|(o, l, r)| Term::App(Box::new(Term::Nominal(samples::builtin(o))), vec![l, r])),
+            (binder.clone(), inner.clone(), inner.clone()).prop_map(|(binder, d, c)| Term::Pi {
+                binder,
+                domain: Box::new(d),
+                codomain: Box::new(c)
+            }),
+            (binder.clone(), prop::option::of(inner.clone()), inner.clone(), inner.clone())
+                .prop_map(|(binder, ty, v, b)| { Term::Let { binder, ty: ty.map(Box::new), value: Box::new(v), body: Box::new(b) } }),
             (
                 inner.clone(),
                 prop::option::of(inner.clone()),
@@ -220,11 +220,7 @@ fn arb_term() -> impl Strategy<Value = Term> {
                     motive: None,
                     cases: cs
                         .into_iter()
-                        .map(|(constructor, bs, body)| Case {
-                            constructor,
-                            binders: bs.into_iter().map(Binder::named).collect(),
-                            body
-                        })
+                        .map(|(constructor, bs, body)| Case { constructor, binders: bs.into_iter().map(Binder::named).collect(), body })
                         .collect()
                 }),
             (inner.clone(), 0u32..3).prop_map(|(t, index)| Term::Con { ty: Box::new(t), index }),

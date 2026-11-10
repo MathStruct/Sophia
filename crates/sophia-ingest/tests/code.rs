@@ -77,12 +77,15 @@ fn sophia_resolves_like_moonkale() {
                 m.iter().map(move |((s, e), t)| (defs[i].0.name.clone(), format!("{s}:{e}"), defs[*t].0.name.clone()))
             })
             .collect();
-        let theirs: BTreeSet<(String, String, String)> = refs
-            .iter()
-            .filter(|r| r[0] == f)
-            .map(|r| (r[1].clone(), r[2].clone(), r[3].clone()))
-            .collect();
-        assert_eq!(mine, theirs, "{f}: only Sophia {:?}, only Moonkale {:?}", mine.difference(&theirs).collect::<Vec<_>>(), theirs.difference(&mine).collect::<Vec<_>>());
+        let theirs: BTreeSet<(String, String, String)> =
+            refs.iter().filter(|r| r[0] == f).map(|r| (r[1].clone(), r[2].clone(), r[3].clone())).collect();
+        assert_eq!(
+            mine,
+            theirs,
+            "{f}: only Sophia {:?}, only Moonkale {:?}",
+            mine.difference(&theirs).collect::<Vec<_>>(),
+            theirs.difference(&mine).collect::<Vec<_>>()
+        );
     }
 }
 
@@ -107,7 +110,8 @@ fn stored_ids_are_moonkale_ids() {
 fn moonkale_records_verify_as_foreign() {
     let dir = tempfile::tempdir().unwrap();
     let s = sophia_store::Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("v.sqlite")).unwrap());
-    let src = "fn h() -> i32 { 1 }\nfn f() -> i32 { g() }\nfn g() -> i32 { f() }\nfn odd() -> i32 { even() }\nfn even() -> i32 { odd() + 1 }\n";
+    let src =
+        "fn h() -> i32 { 1 }\nfn f() -> i32 { g() }\nfn g() -> i32 { f() }\nfn odd() -> i32 { even() }\nfn even() -> i32 { odd() + 1 }\n";
     sophia_ingest::store_code(&s, "rust", "v", &[("a.rs".into(), src.into())]).unwrap();
     let got = file("rust", src).unwrap();
     let size = |n: &str| got.records[got.defs.iter().position(|d| d.name == n).unwrap()].component_size;
@@ -141,10 +145,15 @@ fn moonkale_fixtures_verify_under_every_moonkale_normaliser() {
         for f in FILES {
             let src = std::fs::read_to_string(format!("{DIR}/{f}")).unwrap();
             let got = file(lang(f), &src).unwrap();
-            let records: Vec<_> = got.records.iter().cloned().map(|mut r| {
-                r.normaliser = norm.clone();
-                r
-            }).collect();
+            let records: Vec<_> = got
+                .records
+                .iter()
+                .cloned()
+                .map(|mut r| {
+                    r.normaliser = norm.clone();
+                    r
+                })
+                .collect();
             s.put_records(&records).unwrap();
             for r in &records {
                 let v = s.verify(&r.id).unwrap();

@@ -56,13 +56,9 @@ impl Sorts {
             return Ok(());
         }
         match (self.fixed[ra], self.fixed[rb]) {
-            (Some(x), Some(y)) if x != y => Err(Error::Check(format!(
-                "{} is {} but {} is {}",
-                self.what[a],
-                x.as_str(),
-                self.what[b],
-                y.as_str()
-            ))),
+            (Some(x), Some(y)) if x != y => {
+                Err(Error::Check(format!("{} is {} but {} is {}", self.what[a], x.as_str(), self.what[b], y.as_str())))
+            }
             (x, y) => {
                 self.parent[ra] = rb;
                 self.fixed[rb] = y.or(x);
@@ -80,8 +76,7 @@ impl Sorts {
 pub fn check(q: &Query, names: &Names) -> Result<Checked, Error> {
     let pname = |p: u32| names.preds.get(p as usize).cloned().unwrap_or_else(|| format!("p{p}"));
     let mut s = Sorts { parent: Vec::new(), fixed: Vec::new(), what: Vec::new() };
-    let params: Vec<usize> =
-        q.params.iter().enumerate().map(|(i, &so)| s.node(format!("parameter {}", i + 1), Some(so))).collect();
+    let params: Vec<usize> = q.params.iter().enumerate().map(|(i, &so)| s.node(format!("parameter {}", i + 1), Some(so))).collect();
     let cols: Vec<Vec<usize>> = q
         .preds
         .iter()
@@ -108,9 +103,7 @@ pub fn check(q: &Query, names: &Names) -> Result<Checked, Error> {
                             .enumerate()
                             .map(|(c, &so)| s.node(format!("column {} of `{}`", c + 1, b.name()), Some(so)))
                             .collect(),
-                        Pred::Local(p) => {
-                            cols.get(p as usize).cloned().ok_or_else(|| Error::Check("predicate out of range".into()))?
-                        }
+                        Pred::Local(p) => cols.get(p as usize).cloned().ok_or_else(|| Error::Check("predicate out of range".into()))?,
                     };
                     if want.len() != a.args.len() {
                         return Err(Error::Check(format!("wrong number of arguments in a literal on {:?}", a.pred)));
@@ -171,7 +164,8 @@ pub fn check(q: &Query, names: &Names) -> Result<Checked, Error> {
             Output::Var(v) | Output::Count(v) => Term::Var(*v),
         })
         .collect();
-    plan::check_safe(&out_terms, &q.select.body, q.select.vars, &names.select_vars).map_err(|e| Error::Check(format!("in the select: {e}")))?;
+    plan::check_safe(&out_terms, &q.select.body, q.select.vars, &names.select_vars)
+        .map_err(|e| Error::Check(format!("in the select: {e}")))?;
 
     let mut columns = Vec::new();
     for o in &q.select.outputs {
@@ -184,9 +178,7 @@ pub fn check(q: &Query, names: &Names) -> Result<Checked, Error> {
     for (p, cs) in cols.iter().enumerate() {
         let mut v = Vec::new();
         for (c, &n) in cs.iter().enumerate() {
-            v.push(s.sort(n).ok_or_else(|| {
-                Error::Check(format!("cannot infer the sort of column {} of `{}`", c + 1, pname(p as u32)))
-            })?);
+            v.push(s.sort(n).ok_or_else(|| Error::Check(format!("cannot infer the sort of column {} of `{}`", c + 1, pname(p as u32))))?);
         }
         pred_sorts.push(v);
     }

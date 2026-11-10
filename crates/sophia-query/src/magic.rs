@@ -85,11 +85,8 @@ impl Rewriter<'_> {
                     Literal::Pos(Atom { pred: Pred::Local(ap), args: args.clone() })
                 }
                 Literal::Neg(Atom { pred: Pred::Local(p), args }) => {
-                    let mask: Vec<bool> = if self.magic_neg {
-                        args.iter().map(|t| plan::is_bound(t, &bound)).collect()
-                    } else {
-                        vec![false; args.len()]
-                    };
+                    let mask: Vec<bool> =
+                        if self.magic_neg { args.iter().map(|t| plan::is_bound(t, &bound)).collect() } else { vec![false; args.len()] };
                     let ap = self.adorned(*p, mask.clone());
                     if mask.iter().any(|b| *b) {
                         let mp = self.magic(*p, &mask);

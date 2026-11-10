@@ -217,7 +217,8 @@ pub fn store_module<B: Backend>(
     source::store_manifest(store, &source::manifest_name("jl", pkg), &manifest, &texts)?;
     let r = module::ingest(&d)?;
     let calls = r.calls_generic.len();
-    let mut report = CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
+    let mut report =
+        CodeReport { files: d.files.len(), refused_definitions: r.refused.clone(), references: r.references, ..CodeReport::default() };
     // Where each definition was read (SourceSpan facts): its stored bytes
     // are WP-66's normal form, which does not print back, so a reader shows
     // the source text instead.
@@ -258,11 +259,7 @@ pub fn store_metamath_source<B: Backend>(
         frontend: source::METAMATH_FRONTEND.into(),
         normaliser: metamath::NORMALISER.into(),
         package: db.into(),
-        files: vec![source::ManifestFile {
-            path: format!("{db}.mm"),
-            source: source::source_record("", text).id,
-            base_module: Vec::new(),
-        }],
+        files: vec![source::ManifestFile { path: format!("{db}.mm"), source: source::source_record("", text).id, base_module: Vec::new() }],
         dynamic: Vec::new(),
     };
     let id = source::store_manifest(store, &source::manifest_name("mm", db), &manifest, &[text])?;
@@ -301,13 +298,7 @@ pub struct CodeReport {
 /// A function named like a type (a Julia constructor) goes to
 /// `<name>.new`. References are resolved within each file, as Moonkale
 /// does, so cross-file calls are not yet edges.
-pub fn store_code<B: Backend>(
-    store: &Store<B>,
-    lang: &str,
-    pkg: &str,
-    files: &[(String, String)],
-) -> Result<CodeReport, StoreError> {
-
+pub fn store_code<B: Backend>(store: &Store<B>, lang: &str, pkg: &str, files: &[(String, String)]) -> Result<CodeReport, StoreError> {
     let mut report = CodeReport { files: files.len(), ..CodeReport::default() };
     let mut items: Vec<(code::Def, sophia_hash::Record)> = Vec::new();
     for (path, src) in files {

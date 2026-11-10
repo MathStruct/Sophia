@@ -32,7 +32,12 @@ fn ours(d: &sophia_ingest::code::Def, pkg: &str) -> (String, String, String) {
     (format!("{:?}", d.name), format!("{b:?}"), format!("{path:?}"))
 }
 
-fn check(file: &str, defs: &[sophia_ingest::code::Def], pkg: &str, golden: &BTreeMap<(String, usize, usize), (String, String, String)>) -> usize {
+fn check(
+    file: &str,
+    defs: &[sophia_ingest::code::Def],
+    pkg: &str,
+    golden: &BTreeMap<(String, usize, usize), (String, String, String)>,
+) -> usize {
     for d in defs {
         let key = (file.to_string(), d.start, d.end);
         let want = golden.get(&key).unwrap_or_else(|| panic!("{file} {}..{} ({}) is not in bindings.tsv", d.start, d.end, d.name));
@@ -54,7 +59,13 @@ fn julia_names_match_moonkales_golden_bindings() {
         checked += check(f, &defs, "Fixture", &golden);
     }
     // Packages: their files read through `module::discover`, named under the root module.
-    for (dir, root, pkg) in [("module", "Geo.jl", "Geo"), ("module", "Callable.jl", "Callable"), ("module", "Macros.jl", "Macros"), ("module", "Dyn.jl", "Dyn"), ("generics", "Gen.jl", "Gen")] {
+    for (dir, root, pkg) in [
+        ("module", "Geo.jl", "Geo"),
+        ("module", "Callable.jl", "Callable"),
+        ("module", "Macros.jl", "Macros"),
+        ("module", "Dyn.jl", "Dyn"),
+        ("generics", "Gen.jl", "Gen"),
+    ] {
         let d = sophia_ingest::module::discover(&Path::new(GOLDEN).join(dir).join(root)).unwrap();
         let r = sophia_ingest::module::ingest(&d).unwrap();
         for (path, items) in &r.files {

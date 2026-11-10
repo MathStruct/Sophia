@@ -149,12 +149,8 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
     for f in &d.files {
         trees.push(parse("julia", &f.text, &mut Budget::new())?);
     }
-    let files: Vec<ModuleFile> = d
-        .files
-        .iter()
-        .zip(&trees)
-        .map(|(f, t)| ModuleFile { text: &f.text, tree: t, module: f.base_module.clone() })
-        .collect();
+    let files: Vec<ModuleFile> =
+        d.files.iter().zip(&trees).map(|(f, t)| ModuleFile { text: &f.text, tree: t, module: f.base_module.clone() }).collect();
     let dynamic: Vec<Vec<String>> = d.dynamic.iter().map(|(_, m)| m.clone()).collect();
     let jm = julia::module(&files, &dynamic)?;
     let ids: HashMap<DefKey, Identity> =
@@ -211,11 +207,8 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
     // non-local names, so parameters and type parameters are not listed.
     let mut uses_generic: HashMap<sophia_hash::Digest, Vec<Vec<String>>> = HashMap::new();
     for (f, span, name) in &jm.calls_generic {
-        let around = jm
-            .definitions
-            .iter()
-            .filter(|x| x.key.0 == *f && x.key.1 <= span.0 && span.1 <= x.key.2)
-            .min_by_key(|x| x.key.2 - x.key.1);
+        let around =
+            jm.definitions.iter().filter(|x| x.key.0 == *f && x.key.1 <= span.0 && span.1 <= x.key.2).min_by_key(|x| x.key.2 - x.key.1);
         let Some(around) = around else { continue };
         if let Some(id) = ids.get(&around.key) {
             let mut g = around.module.clone();
@@ -227,8 +220,7 @@ pub fn ingest(d: &Discovered) -> Result<Ingested, ModuleError> {
         }
     }
     let references = jm.definitions.iter().map(|x| x.references.len()).sum();
-    let cross_file_references =
-        jm.definitions.iter().flat_map(|x| x.references.iter().filter(move |(_, t)| t.0 != x.key.0)).count();
+    let cross_file_references = jm.definitions.iter().flat_map(|x| x.references.iter().filter(move |(_, t)| t.0 != x.key.0)).count();
     Ok(Ingested {
         files: out,
         refused,

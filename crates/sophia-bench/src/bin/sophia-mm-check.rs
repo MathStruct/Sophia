@@ -93,13 +93,8 @@ fn main() {
 
     // metamath.exe, one session for all labels.
     let mm_dir = std::path::Path::new(&file).parent().unwrap();
-    let mut child = Command::new(&exe)
-        .current_dir(mm_dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+    let mut child =
+        Command::new(&exe).current_dir(mm_dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().unwrap();
     // Commands are written from a thread: metamath.exe's output fills its
     // pipe long before thousands of commands are written, so writing
     // everything before reading would deadlock.
@@ -156,10 +151,8 @@ fn main() {
         // set.mm) has syntax constructors among its essential steps, and
         // metamath.exe lists them; Sophia's question is about axioms and
         // definitions only.
-        let others: Vec<&String> = theirs
-            .iter()
-            .filter(|x| !matches!(role.get(*x).map(String::as_str), Some("axiom" | "definition" | "syntax")))
-            .collect();
+        let others: Vec<&String> =
+            theirs.iter().filter(|x| !matches!(role.get(*x).map(String::as_str), Some("axiom" | "definition" | "syntax"))).collect();
         ax_total += mm_ax.len();
         df_total += mm_df.len();
         if *ax == mm_ax && *df == mm_df && others.is_empty() {

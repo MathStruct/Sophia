@@ -189,7 +189,10 @@ impl DuckDb {
                 }
                 let size = out.iter().map(Value::size).sum::<usize>();
                 if out.iter().any(|v| v.size() > crate::query::max_value_bytes(&limits)) {
-                    return Err(StoreError::QueryRefused(format!("a value is longer than {} bytes", crate::query::max_value_bytes(&limits))));
+                    return Err(StoreError::QueryRefused(format!(
+                        "a value is longer than {} bytes",
+                        crate::query::max_value_bytes(&limits)
+                    )));
                 }
                 bytes += size;
                 if bytes > limits.max_bytes {
@@ -333,9 +336,7 @@ fn only_views(conn: &Connection, body: &str) -> Result<()> {
                         m["schema_name"].as_str().unwrap_or("").to_string(),
                         m["table_name"].as_str().unwrap_or("").to_lowercase(),
                     )),
-                    Some("TABLE_FUNCTION") => {
-                        functions.push(m["function"]["function_name"].as_str().unwrap_or("").to_lowercase())
-                    }
+                    Some("TABLE_FUNCTION") => functions.push(m["function"]["function_name"].as_str().unwrap_or("").to_lowercase()),
                     _ => {}
                 }
                 if let Some(map) = m.get("cte_map").and_then(|c| c["map"].as_array()) {
@@ -464,10 +465,8 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn component(&self, component: &Digest) -> Result<Vec<Record>> {
-        let mut st = self
-            .tx
-            .prepare_cached(&format!("SELECT {RECORD_COLS} FROM t_definition WHERE component = $1 ORDER BY idx, id"))
-            .map_err(be)?;
+        let mut st =
+            self.tx.prepare_cached(&format!("SELECT {RECORD_COLS} FROM t_definition WHERE component = $1 ORDER BY idx, id")).map_err(be)?;
         let rows: Vec<_> = st.query_map([component.as_bytes().as_slice()], |r| self.record_row(r)).map_err(be)?.collect();
         rows.into_iter().map(|r| self.finish_record(r.map_err(be)?)).collect()
     }
@@ -492,10 +491,7 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn name(&self, path: &str) -> Result<Option<NameEntry>> {
-        let mut st = self
-            .tx
-            .prepare_cached("SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path = $1")
-            .map_err(be)?;
+        let mut st = self.tx.prepare_cached("SELECT path, target_kind, target, visibility, seq FROM t_name WHERE path = $1").map_err(be)?;
         st.query_row([path], Self::name_row).optional().map_err(be)?.map(Self::finish_name).transpose()
     }
 
@@ -525,10 +521,7 @@ impl ReadTx for DuckTx<'_> {
                  ORDER BY path LIMIT $3",
             )
             .map_err(be)?;
-        let v: Vec<_> = st
-            .query_map(params![start, upper, limit.min(i64::MAX as usize) as i64], Self::name_row)
-            .map_err(be)?
-            .collect();
+        let v: Vec<_> = st.query_map(params![start, upper, limit.min(i64::MAX as usize) as i64], Self::name_row).map_err(be)?.collect();
         v.into_iter().map(|r| Self::finish_name(r.map_err(be)?)).collect()
     }
 
@@ -581,10 +574,7 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn nominal(&self, id: &NominalId) -> Result<Option<Nominal>> {
-        let mut st = self
-            .tx
-            .prepare_cached("SELECT lang, kind, label, created_seq, version FROM t_nominal WHERE id = $1")
-            .map_err(be)?;
+        let mut st = self.tx.prepare_cached("SELECT lang, kind, label, created_seq, version FROM t_nominal WHERE id = $1").map_err(be)?;
         st.query_row([id.as_bytes().as_slice()], |r| {
             Ok(Nominal { id: *id, lang: r.get(0)?, kind: r.get(1)?, label: r.get(2)?, created_seq: u(r, 3)?, version: u(r, 4)? })
         })
@@ -599,8 +589,7 @@ impl ReadTx for DuckTx<'_> {
                 "SELECT member, added_seq FROM t_relation WHERE nominal = $1 AND removed_seq IS NULL ORDER BY added_seq, member",
             )
             .map_err(be)?;
-        let v: Vec<_> =
-            st.query_map([id.as_bytes().as_slice()], |r| Ok((r.get::<_, Vec<u8>>(0)?, u(r, 1)?))).map_err(be)?.collect();
+        let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| Ok((r.get::<_, Vec<u8>>(0)?, u(r, 1)?))).map_err(be)?.collect();
         v.into_iter()
             .map(|r| {
                 let (m, a) = r.map_err(be)?;
@@ -616,14 +605,9 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn lineage(&self, lineage: &Digest) -> Result<Vec<LineageEntry>> {
-        let mut st = self
-            .tx
-            .prepare_cached("SELECT id, seq, supersedes FROM t_lineage WHERE lineage = $1 ORDER BY seq, id")
-            .map_err(be)?;
+        let mut st = self.tx.prepare_cached("SELECT id, seq, supersedes FROM t_lineage WHERE lineage = $1 ORDER BY seq, id").map_err(be)?;
         let v: Vec<_> = st
-            .query_map([lineage.as_bytes().as_slice()], |r| {
-                Ok((r.get::<_, Vec<u8>>(0)?, u(r, 1)?, r.get::<_, Option<Vec<u8>>>(2)?))
-            })
+            .query_map([lineage.as_bytes().as_slice()], |r| Ok((r.get::<_, Vec<u8>>(0)?, u(r, 1)?, r.get::<_, Option<Vec<u8>>>(2)?)))
             .map_err(be)?
             .collect();
         v.into_iter()
@@ -635,14 +619,22 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn memberships_of(&self, id: &Digest) -> Result<Vec<NominalId>> {
-        let mut st = self.tx.prepare_cached("SELECT nominal FROM t_relation WHERE member = $1 AND removed_seq IS NULL ORDER BY nominal").map_err(be)?;
+        let mut st = self
+            .tx
+            .prepare_cached("SELECT nominal FROM t_relation WHERE member = $1 AND removed_seq IS NULL ORDER BY nominal")
+            .map_err(be)?;
         let v: Vec<_> = st.query_map([id.as_bytes().as_slice()], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
         v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
     }
 
     fn annotation(&self, id: &Digest) -> Result<Option<Annotation>> {
         // By its primary key, so an annotation without subjects is found too.
-        Ok(self.annotation_rows("SELECT id, kind, subjects, payload, checker, checker_version, status, inputs FROM t_annotation WHERE id = $1", id.as_bytes().as_slice())?.pop())
+        Ok(self
+            .annotation_rows(
+                "SELECT id, kind, subjects, payload, checker, checker_version, status, inputs FROM t_annotation WHERE id = $1",
+                id.as_bytes().as_slice(),
+            )?
+            .pop())
     }
 
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>> {
@@ -696,10 +688,7 @@ impl ReadTx for DuckTx<'_> {
     }
 
     fn meta_prefix(&self, prefix: &str) -> Result<Vec<(String, Vec<u8>)>> {
-        let mut st = self
-            .tx
-            .prepare_cached("SELECT key, value FROM t_meta WHERE starts_with(key, $1) ORDER BY key")
-            .map_err(be)?;
+        let mut st = self.tx.prepare_cached("SELECT key, value FROM t_meta WHERE starts_with(key, $1) ORDER BY key").map_err(be)?;
         let v: Vec<_> = st.query_map([prefix], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
         v.into_iter().map(|r| r.map_err(be)).collect()
     }
@@ -719,13 +708,23 @@ impl ReadTx for DuckTx<'_> {
     fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
         let mut st = self.tx.prepare_cached("SELECT id, kind FROM t_definition").map_err(be)?;
         let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, String>(1)?))).map_err(be)?.collect();
-        v.into_iter().map(|r| { let (i, k) = r.map_err(be)?; Ok((dg(i)?, k)) }).collect()
+        v.into_iter()
+            .map(|r| {
+                let (i, k) = r.map_err(be)?;
+                Ok((dg(i)?, k))
+            })
+            .collect()
     }
 
     fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
         let mut st = self.tx.prepare_cached("SELECT src, dst FROM t_ref").map_err(be)?;
         let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
-        v.into_iter().map(|r| { let (a, b) = r.map_err(be)?; Ok((dg(a)?, dg(b)?)) }).collect()
+        v.into_iter()
+            .map(|r| {
+                let (a, b) = r.map_err(be)?;
+                Ok((dg(a)?, dg(b)?))
+            })
+            .collect()
     }
 }
 
@@ -825,7 +824,12 @@ impl WriteTx for DuckTx<'_> {
                  ON CONFLICT(nominal, member) DO UPDATE SET added_seq = excluded.added_seq, removed_seq = excluded.removed_seq",
             )
             .map_err(be)?
-            .execute(params![e.nominal.as_bytes().as_slice(), e.member.as_bytes().as_slice(), e.added_seq as i64, e.removed_seq.map(|s| s as i64)])
+            .execute(params![
+                e.nominal.as_bytes().as_slice(),
+                e.member.as_bytes().as_slice(),
+                e.added_seq as i64,
+                e.removed_seq.map(|s| s as i64)
+            ])
             .map_err(be)?;
         Ok(())
     }
@@ -866,7 +870,8 @@ impl WriteTx for DuckTx<'_> {
     }
 
     fn remove_record(&mut self, id: &Digest) -> Result<()> {
-        for q in ["DELETE FROM t_ref WHERE src = $1", "DELETE FROM t_nominal_ref WHERE src = $1", "DELETE FROM t_definition WHERE id = $1"] {
+        for q in ["DELETE FROM t_ref WHERE src = $1", "DELETE FROM t_nominal_ref WHERE src = $1", "DELETE FROM t_definition WHERE id = $1"]
+        {
             self.tx.prepare_cached(q).map_err(be)?.execute(params![id.as_bytes().as_slice()]).map_err(be)?;
         }
         Ok(())

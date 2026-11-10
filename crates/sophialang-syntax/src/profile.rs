@@ -34,27 +34,13 @@ pub const BUILT_IN: [&str; 4] = ["julia", "rust", "python", "core"];
 impl Profile {
     pub fn built_in(name: &str) -> Option<Profile> {
         let kv: &[(&str, &str)] = match name {
-            "julia" => &[
-                ("kw.function", "function"),
-                ("blocks", "end"),
-                ("type.annotation", "::"),
-                ("operators", "ascii"),
-                ("index.base", "1"),
-            ],
-            "rust" => &[
-                ("kw.function", "fn"),
-                ("blocks", "braces"),
-                ("type.annotation", ":"),
-                ("operators", "ascii"),
-                ("index.base", "0"),
-            ],
-            "python" => &[
-                ("kw.function", "def"),
-                ("blocks", "indent"),
-                ("type.annotation", ":"),
-                ("operators", "ascii"),
-                ("index.base", "0"),
-            ],
+            "julia" => {
+                &[("kw.function", "function"), ("blocks", "end"), ("type.annotation", "::"), ("operators", "ascii"), ("index.base", "1")]
+            }
+            "rust" => &[("kw.function", "fn"), ("blocks", "braces"), ("type.annotation", ":"), ("operators", "ascii"), ("index.base", "0")],
+            "python" => {
+                &[("kw.function", "def"), ("blocks", "indent"), ("type.annotation", ":"), ("operators", "ascii"), ("index.base", "0")]
+            }
             "core" => &[("view", "core")],
             _ => return None,
         };

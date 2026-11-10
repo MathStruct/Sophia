@@ -192,11 +192,7 @@ impl<B: Backend> Store<B> {
     /// stored members are not exactly indices 0 to `component_size` − 1.
     /// Every size a record claims is checked, so two records of one
     /// component that disagree on its size are refused too.
-    pub(crate) fn check_components<'r>(
-        &self,
-        tx: &mut dyn WriteTx,
-        records: impl IntoIterator<Item = &'r Record>,
-    ) -> Result<()> {
+    pub(crate) fn check_components<'r>(&self, tx: &mut dyn WriteTx, records: impl IntoIterator<Item = &'r Record>) -> Result<()> {
         let mut seen = BTreeSet::new();
         for r in records {
             if !seen.insert((r.component, r.component_size)) {
@@ -204,7 +200,10 @@ impl<B: Backend> Store<B> {
             }
             let members = tx.component(&r.component)?;
             let indices: BTreeSet<u32> = members.iter().map(|m| m.index).collect();
-            if members.len() as u32 != r.component_size || indices.len() != members.len() || indices.last().is_some_and(|i| *i >= r.component_size) {
+            if members.len() as u32 != r.component_size
+                || indices.len() != members.len()
+                || indices.last().is_some_and(|i| *i >= r.component_size)
+            {
                 return Err(StoreError::IncompleteComponent {
                     component: r.component.to_hex(),
                     size: r.component_size,
@@ -263,13 +262,7 @@ impl<B: Backend> Store<B> {
                 return Err(StoreError::Conflict { path: path.into(), expected, found: name.seq });
             }
             if name.target == Target::Content(new) {
-                return Ok(UpdateReport {
-                    old: name.target,
-                    new,
-                    seq: name.seq,
-                    unchanged: true,
-                    dependants_of_old: Vec::new(),
-                });
+                return Ok(UpdateReport { old: name.target, new, seq: name.seq, unchanged: true, dependants_of_old: Vec::new() });
             }
             self.put_new(tx, records)?;
             self.check_components(tx, records)?;
@@ -595,16 +588,21 @@ impl<B: Backend> Store<B> {
 
     /// The members a nominal entity had in a world snapshot.
     pub fn world_members(&self, world: &Digest, nominal: &NominalId) -> Result<Vec<Digest>> {
-        let bytes = self.meta(&format!("world/{}", world.to_hex()))?.ok_or_else(|| StoreError::NotFound(format!("world {}", world.to_hex())))?;
+        let bytes =
+            self.meta(&format!("world/{}", world.to_hex()))?.ok_or_else(|| StoreError::NotFound(format!("world {}", world.to_hex())))?;
         let mut r = sophia_hash::canonical::Reader::new(&bytes);
         r.expect_str("sophia").map_err(|e| StoreError::Codec(e.to_string()))?;
         while !r.is_empty() {
             let mut n = r.enter("nominal").map_err(|e| StoreError::Codec(e.to_string()))?;
-            let id = Digest::from_slice(n.expect("id").map_err(|e| StoreError::Codec(e.to_string()))?).ok_or_else(|| StoreError::Codec("world".into()))?;
+            let id = Digest::from_slice(n.expect("id").map_err(|e| StoreError::Codec(e.to_string()))?)
+                .ok_or_else(|| StoreError::Codec("world".into()))?;
             if id == *nominal {
                 let mut out = Vec::new();
                 while !n.is_empty() {
-                    out.push(Digest::from_slice(n.expect("m").map_err(|e| StoreError::Codec(e.to_string()))?).ok_or_else(|| StoreError::Codec("world".into()))?);
+                    out.push(
+                        Digest::from_slice(n.expect("m").map_err(|e| StoreError::Codec(e.to_string()))?)
+                            .ok_or_else(|| StoreError::Codec("world".into()))?,
+                    );
                 }
                 return Ok(out);
             }

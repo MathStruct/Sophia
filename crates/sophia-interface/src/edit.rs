@@ -86,7 +86,14 @@ impl<B: Backend + Sync> Interface<B> {
     /// Stores parsed items. `edited` is the name being edited and the
     /// version it was read at; `group` the other names that may be updated
     /// (members of the printed recursive group).
-    fn apply(&self, ns: &str, items: Vec<Item>, warnings: Vec<Diagnostic>, edited: Option<(&str, u64)>, group: &HashSet<String>) -> R<Written> {
+    fn apply(
+        &self,
+        ns: &str,
+        items: Vec<Item>,
+        warnings: Vec<Diagnostic>,
+        edited: Option<(&str, u64)>,
+        group: &HashSet<String>,
+    ) -> R<Written> {
         if let Some((path, expected)) = edited {
             let n = self.store.resolve(path)?.ok_or_else(|| StoreError::NoSuchName(path.into()))?;
             if n.seq != expected {
@@ -109,9 +116,7 @@ impl<B: Backend + Sync> Interface<B> {
                 // Every name the text would update, not only the edited one:
                 // a group's other names may be laid out (SPEC-010 §2).
                 self.refuse_if_laid_out(&p)?;
-                let ok = is_edited
-                    || group.contains(&p)
-                    || matches!((it, existing.target), (Item::Relation { .. }, Target::Nominal(_)));
+                let ok = is_edited || group.contains(&p) || matches!((it, existing.target), (Item::Relation { .. }, Target::Nominal(_)));
                 if !ok {
                     return Err(EditError::Refused(format!("`{p}` already exists; edit it through its own name")));
                 }
@@ -138,16 +143,12 @@ impl<B: Backend + Sync> Interface<B> {
             },
             t => t,
         };
-        let mut defs: Vec<Definition> =
-            def_index.iter().map(|&i| items[i].definition().clone().map_terms(&mut { renumber })).collect();
-        let sigs: Vec<(usize, Definition)> = nominal_of
-            .keys()
-            .map(|&i| (i, items[i].definition().clone().map_terms(&mut { renumber })))
-            .collect();
+        let mut defs: Vec<Definition> = def_index.iter().map(|&i| items[i].definition().clone().map_terms(&mut { renumber })).collect();
+        let sigs: Vec<(usize, Definition)> =
+            nominal_of.keys().map(|&i| (i, items[i].definition().clone().map_terms(&mut { renumber }))).collect();
         let n_defs = defs.len();
         defs.extend(sigs.iter().map(|(_, d)| d.clone()));
-        let records = sophialang_core::normalise_batch(&defs, &mut Default::default())
-            .map_err(|e| EditError::Refused(e.to_string()))?;
+        let records = sophialang_core::normalise_batch(&defs, &mut Default::default()).map_err(|e| EditError::Refused(e.to_string()))?;
 
         // Names: new ones are added, existing ones updated.
         let mut new_names = Vec::new();
@@ -366,7 +367,10 @@ impl<B: Backend + Sync> Interface<B> {
             let p = parse_query(text)?;
             sophia_query::save(&self.store, &p, Some(&full)).map_err(query_error)?;
             let version = self.text_token(&full)?;
-            return Ok((Key::name(&full), Written { version, targets: vec![(full, p.id)], warnings: Vec::new(), stale_dependants: Vec::new() }));
+            return Ok((
+                Key::name(&full),
+                Written { version, targets: vec![(full, p.id)], warnings: Vec::new(), stale_dependants: Vec::new() },
+            ));
         }
         let (items, warnings) = self.parse(&ns, text)?;
         if items.is_empty() {
@@ -449,8 +453,7 @@ impl<B: Backend + Sync> Interface<B> {
     pub fn load_sample(&self) -> Result<(), StoreError> {
         use sophialang_core::samples;
         let (names, defs): (Vec<_>, Vec<Definition>) = samples::program().into_iter().unzip();
-        let records = sophialang_core::normalise_batch(&defs, &mut Default::default())
-            .map_err(|e| StoreError::Backend(e.to_string()))?;
+        let records = sophialang_core::normalise_batch(&defs, &mut Default::default()).map_err(|e| StoreError::Backend(e.to_string()))?;
         let new: Vec<(String, usize, Visibility)> = names
             .iter()
             .enumerate()

@@ -16,7 +16,6 @@ pub const LANG: &str = "sophia-query";
 pub const NORMALISER: &str = "sophia-query@0";
 pub const KIND: &str = "Query";
 
-
 fn term(w: &mut Writer, t: &Term) {
     match t {
         Term::Var(v) => w.u32("v", *v),
@@ -136,9 +135,7 @@ fn read_literal(tag: &str, p: &[u8]) -> Result<Literal, Error> {
     let atom = |r: &mut Reader| -> Result<Atom, Error> {
         let (t, p) = r.next().map_err(rd)?;
         let pred = match t {
-            "base" => Pred::Base(
-                std::str::from_utf8(p).ok().and_then(Base::parse).ok_or_else(|| Error::Codec("base relation".into()))?,
-            ),
+            "base" => Pred::Base(std::str::from_utf8(p).ok().and_then(Base::parse).ok_or_else(|| Error::Codec("base relation".into()))?),
             "local" => Pred::Local(p.try_into().map(u32::from_le_bytes).map_err(|_| Error::Codec("u32".into()))?),
             _ => return Err(Error::Codec("predicate".into())),
         };
@@ -172,7 +169,12 @@ pub fn decode(bytes: &[u8]) -> Result<Query, Error> {
     if r.expect_str("schema").map_err(rd)? != Base::SCHEMA {
         return Err(Error::Codec("unknown base schema".into()));
     }
-    let mut q = Query { params: Vec::new(), preds: Vec::new(), rules: Vec::new(), select: Select { outputs: Vec::new(), body: Vec::new(), vars: 0 } };
+    let mut q = Query {
+        params: Vec::new(),
+        preds: Vec::new(),
+        rules: Vec::new(),
+        select: Select { outputs: Vec::new(), body: Vec::new(), vars: 0 },
+    };
     while r.peek_tag().map_err(rd)? == "param" {
         q.params.push(Sort::from_code(r.expect_u32("param").map_err(rd)?).ok_or_else(|| Error::Codec("sort".into()))?);
     }
@@ -356,7 +358,10 @@ impl Search<'_> {
             .collect();
         let mut select = self.q.select.clone();
         map_preds(&mut select.body, num);
-        (Query { params: self.q.params.clone(), preds: order.iter().map(|&o| self.q.preds[o as usize]).collect(), rules, select }, seq.to_vec())
+        (
+            Query { params: self.q.params.clone(), preds: order.iter().map(|&o| self.q.preds[o as usize]).collect(), rules, select },
+            seq.to_vec(),
+        )
     }
 }
 
@@ -424,8 +429,7 @@ pub fn canonicalise(q: &Query, names: &Names) -> Result<(Query, Names), Error> {
         for (i, r) in q.rules.iter_mut().enumerate() {
             let (n, old) = renumber_vars(&mut r.args, &mut r.body, &[]);
             r.vars = n;
-            names.rule_vars[i] =
-                old.iter().map(|&o| names.rule_vars[i].get(o as usize).cloned().unwrap_or_default()).collect();
+            names.rule_vars[i] = old.iter().map(|&o| names.rule_vars[i].get(o as usize).cloned().unwrap_or_default()).collect();
         }
     }
 

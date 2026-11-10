@@ -62,5 +62,4 @@ pub trait ReadOnlyQuery {
 }
 
 /// The views a read-only `sql` query may use (SPEC-001 §11).
-pub const VIEWS: [&str; 9] =
-    ["definitions", "names", "refs", "nominals", "relation", "lineage", "annotations", "facts", "log"];
+pub const VIEWS: [&str; 9] = ["definitions", "names", "refs", "nominals", "relation", "lineage", "annotations", "facts", "log"];

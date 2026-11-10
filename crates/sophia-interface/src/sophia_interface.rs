@@ -251,9 +251,7 @@ impl<B: Backend + Sync> Interface<B> {
     }
 
     fn namespace_exists(&self, tx: &dyn ReadTx, path: &str) -> Result<bool> {
-        Ok(path.is_empty()
-            || tx.meta(&format!("ns/{path}"))?.is_some()
-            || !tx.names_under(path, 2)?.iter().all(|n| n.path == path))
+        Ok(path.is_empty() || tx.meta(&format!("ns/{path}"))?.is_some() || !tx.names_under(path, 2)?.iter().all(|n| n.path == path))
     }
 
     pub fn node(&self, key: &Key) -> Result<Option<NodeView>> {

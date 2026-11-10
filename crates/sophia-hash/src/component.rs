@@ -138,12 +138,7 @@ pub struct Ordered {
 ///   references (indices into `0..n`).
 /// - `encode(m, index)` writes member `m`'s canonical bytes, with every
 ///   reference to a member `k` written as `index[k]`.
-pub fn canonical_order<R, E>(
-    n: usize,
-    refs: R,
-    encode: E,
-    budget: &mut Budget,
-) -> Result<Ordered, OrderError>
+pub fn canonical_order<R, E>(n: usize, refs: R, encode: E, budget: &mut Budget) -> Result<Ordered, OrderError>
 where
     R: Fn(usize) -> Vec<usize>,
     E: Fn(usize, &[u32]) -> Vec<u8>,

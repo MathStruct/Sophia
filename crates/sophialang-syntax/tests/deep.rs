@@ -84,7 +84,8 @@ fn probe_print_parse_costs() {
             let def = Definition::test(t);
             let id = normalise_one(&def).unwrap().id;
             let t0 = std::time::Instant::now();
-            let text = print(&EmptyEnv, "", &Profile::julia(), &[ToPrint { name: "t", def: &def, id: Some(id), index: 0, relation: false }]);
+            let text =
+                print(&EmptyEnv, "", &Profile::julia(), &[ToPrint { name: "t", def: &def, id: Some(id), index: 0, relation: false }]);
             let t1 = t0.elapsed();
             let t0 = std::time::Instant::now();
             let ok = parse_text(&EmptyEnv, "", &text, big).is_ok();

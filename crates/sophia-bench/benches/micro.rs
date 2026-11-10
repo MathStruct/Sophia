@@ -58,17 +58,39 @@ fn b04_lookup(c: &mut Criterion) {
     macro_rules! per_backend {
         ($label:literal, $s:expr) => {
             g.bench_function(concat!($label, "/record by id"), |b| {
-                b.iter(|| $s.read(|tx| { for d in &probe { black_box(tx.record(d)?); } Ok(()) }).unwrap())
+                b.iter(|| {
+                    $s.read(|tx| {
+                        for d in &probe {
+                            black_box(tx.record(d)?);
+                        }
+                        Ok(())
+                    })
+                    .unwrap()
+                })
             });
             g.bench_function(concat!($label, "/name"), |b| {
-                b.iter(|| $s.read(|tx| { for n in &names { black_box(tx.name(n)?); } Ok(()) }).unwrap())
+                b.iter(|| {
+                    $s.read(|tx| {
+                        for n in &names {
+                            black_box(tx.name(n)?);
+                        }
+                        Ok(())
+                    })
+                    .unwrap()
+                })
             });
             g.bench_function(concat!($label, "/dependants"), |b| {
-                b.iter(|| $s.read(|tx| { for d in &probe { black_box(tx.dependants(d)?); } Ok(()) }).unwrap())
+                b.iter(|| {
+                    $s.read(|tx| {
+                        for d in &probe {
+                            black_box(tx.dependants(d)?);
+                        }
+                        Ok(())
+                    })
+                    .unwrap()
+                })
             });
-            g.bench_function(concat!($label, "/closure of last"), |b| {
-                b.iter(|| $s.read(|tx| closure(tx, &root)).unwrap())
-            });
+            g.bench_function(concat!($label, "/closure of last"), |b| b.iter(|| $s.read(|tx| closure(tx, &root)).unwrap()));
         };
     }
     per_backend!("sqlite", sqlite);

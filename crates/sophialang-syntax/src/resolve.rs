@@ -39,8 +39,8 @@ impl Env for EmptyEnv {
 
 /// Built-in nominal entities with intrinsic names (types and operators).
 pub const BUILTINS: [&str; 22] = [
-    "Int64", "UInt64", "Float64", "Bool", "Char", "String", "Ptr", "Any", "Nothing", "+", "-", "*", "/", "==", "!=",
-    "<", "<=", ">", ">=", "getindex", "length", "map",
+    "Int64", "UInt64", "Float64", "Bool", "Char", "String", "Ptr", "Any", "Nothing", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=",
+    "getindex", "length", "map",
 ];
 
 /// Infix operators and their precedence (higher binds tighter).
@@ -91,6 +91,24 @@ pub fn spellings(abs: &str) -> Vec<String> {
 }
 
 pub const KEYWORDS: [&str; 20] = [
-    "function", "fn", "def", "end", "const", "data", "layout", "relation", "rule", "test", "postulate", "let", "in",
-    "match", "true", "false", "Type", "Prop", "NaN", "Inf",
+    "function",
+    "fn",
+    "def",
+    "end",
+    "const",
+    "data",
+    "layout",
+    "relation",
+    "rule",
+    "test",
+    "postulate",
+    "let",
+    "in",
+    "match",
+    "true",
+    "false",
+    "Type",
+    "Prop",
+    "NaN",
+    "Inf",
 ];

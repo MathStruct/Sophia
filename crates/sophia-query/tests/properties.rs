@@ -84,20 +84,13 @@ fn random_query(rng: &mut Rng) -> (Query, Names) {
     }
     let target = if rng.chance(50) { Term::Param(0) } else { Term::Const(Val::Id(id(rng.below(NODES)))) };
     let a0 = preds[0];
-    let args = if a0 == 2 {
-        if rng.chance(50) { vec![Term::Var(0), target] } else { vec![target, Term::Var(0)] }
-    } else {
-        vec![Term::Var(0)]
-    };
+    let args =
+        if a0 == 2 { if rng.chance(50) { vec![Term::Var(0), target] } else { vec![target, Term::Var(0)] } } else { vec![Term::Var(0)] };
     let mut sbody = vec![Literal::Pos(Atom { pred: Pred::Local(0), args })];
     if rng.chance(20) {
         sbody.push(Literal::Pos(Atom { pred: Pred::Base(Base::Def), args: vec![Term::Var(0), Term::Var(1)] }));
     }
-    let outputs = if sbody.len() == 2 && rng.chance(50) {
-        vec![Output::Var(1), Output::Count(0)]
-    } else {
-        vec![Output::Var(0)]
-    };
+    let outputs = if sbody.len() == 2 && rng.chance(50) { vec![Output::Var(1), Output::Count(0)] } else { vec![Output::Var(0)] };
     let q = Query { params: vec![Sort::Id], preds, rules, select: Select { outputs, body: sbody, vars: 2 } };
     let names = Names {
         query: "q".into(),
@@ -124,8 +117,12 @@ fn scramble(q: &Query, n: &Names, rng: &mut Rng) -> (Query, Names) {
     let map_body = |b: &[Literal]| -> Vec<Literal> {
         b.iter()
             .map(|l| match l {
-                Literal::Pos(Atom { pred: Pred::Local(p), args }) => Literal::Pos(Atom { pred: Pred::Local(perm[*p as usize]), args: args.clone() }),
-                Literal::Neg(Atom { pred: Pred::Local(p), args }) => Literal::Neg(Atom { pred: Pred::Local(perm[*p as usize]), args: args.clone() }),
+                Literal::Pos(Atom { pred: Pred::Local(p), args }) => {
+                    Literal::Pos(Atom { pred: Pred::Local(perm[*p as usize]), args: args.clone() })
+                }
+                Literal::Neg(Atom { pred: Pred::Local(p), args }) => {
+                    Literal::Neg(Atom { pred: Pred::Local(perm[*p as usize]), args: args.clone() })
+                }
                 l => l.clone(),
             })
             .collect()
@@ -134,11 +131,8 @@ fn scramble(q: &Query, n: &Names, rng: &mut Rng) -> (Query, Names) {
     for p in 0..np {
         preds[perm[p] as usize] = q.preds[p];
     }
-    let mut rules: Vec<Rule> = q
-        .rules
-        .iter()
-        .map(|r| Rule { head: perm[r.head as usize], args: r.args.clone(), body: map_body(&r.body), vars: r.vars })
-        .collect();
+    let mut rules: Vec<Rule> =
+        q.rules.iter().map(|r| Rule { head: perm[r.head as usize], args: r.args.clone(), body: map_body(&r.body), vars: r.vars }).collect();
     let dup = rules[rng.below(rules.len() as u64) as usize].clone();
     rules.push(dup);
     for i in (1..rules.len()).rev() {
@@ -226,7 +220,8 @@ fn populate<B: Backend>(s: &Store<B>, seed: u64) {
             }
         })
         .collect();
-    let names: Vec<(String, usize, Visibility)> = (0..NODES as usize).step_by(4).map(|i| (format!("n.n{i}"), i, Visibility::Public)).collect();
+    let names: Vec<(String, usize, Visibility)> =
+        (0..NODES as usize).step_by(4).map(|i| (format!("n.n{i}"), i, Visibility::Public)).collect();
     s.add(&records, &names).unwrap();
 }
 
@@ -246,25 +241,23 @@ fn magic_sets_preserve_meaning_on_random_programs() {
         rewritten += p.magic.is_some() as u64;
         for t in [0, 7, 21] {
             let params = [Val::Id(id(t))];
-            let plain: BTreeSet<Vec<Val>> = s
-                .read(|tx| Ok(p.run(tx, &params, limits, Strategy::Plain).unwrap()))
-                .unwrap()
-                .rows
-                .into_iter()
-                .collect();
-            let magic: BTreeSet<Vec<Val>> = s
-                .read(|tx| Ok(p.run(tx, &params, limits, Strategy::Auto).unwrap()))
-                .unwrap()
-                .rows
-                .into_iter()
-                .collect();
+            let plain: BTreeSet<Vec<Val>> =
+                s.read(|tx| Ok(p.run(tx, &params, limits, Strategy::Plain).unwrap())).unwrap().rows.into_iter().collect();
+            let magic: BTreeSet<Vec<Val>> =
+                s.read(|tx| Ok(p.run(tx, &params, limits, Strategy::Auto).unwrap())).unwrap().rows.into_iter().collect();
             assert_eq!(plain, magic, "seed {seed}, t {t}\n{}\n{}", p.print(sophia_query::Profile::Julia), p.explain(Strategy::Auto));
             for st in [Strategy::Plain, Strategy::Auto] {
                 match sophia_query::run_sql(s.backend(), &p, &params, limits, st) {
                     Ok(r) => {
                         via_sql += 1;
                         let sql: BTreeSet<Vec<Val>> = r.rows.into_iter().collect();
-                        assert_eq!(sql, plain, "seed {seed}, t {t}, {st:?}\n{}\n{}", p.print(sophia_query::Profile::Julia), p.to_sql(&params, st).unwrap());
+                        assert_eq!(
+                            sql,
+                            plain,
+                            "seed {seed}, t {t}, {st:?}\n{}\n{}",
+                            p.print(sophia_query::Profile::Julia),
+                            p.to_sql(&params, st).unwrap()
+                        );
                     }
                     Err(Error::Unsupported(_)) => {}
                     Err(e) => panic!("seed {seed}: {e}\n{}", p.to_sql(&params, st).unwrap_or_default()),

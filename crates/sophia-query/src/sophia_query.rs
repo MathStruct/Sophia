@@ -242,7 +242,13 @@ impl Prepared {
     fn run_inner(&self, mut exec: eval::Exec, strategy: Strategy) -> Result<Rows> {
         let p = self.program(strategy);
         let out = eval::run(&mut exec, &p.query, &p.strata)?;
-        Ok(Rows { columns: self.columns(), sorts: self.checked.columns.clone(), rows: out.rows, truncated: out.truncated, stats: exec.stats })
+        Ok(Rows {
+            columns: self.columns(),
+            sorts: self.checked.columns.clone(),
+            rows: out.rows,
+            truncated: out.truncated,
+            stats: exec.stats,
+        })
     }
 
     /// The SQL translation (SPEC-007 §7).
@@ -296,13 +302,7 @@ impl Prepared {
 
 /// A run with SQLite executing the SQL translation.
 #[cfg(feature = "sqlite")]
-pub fn run_sql(
-    db: &sophia_store::sqlite::Sqlite,
-    p: &Prepared,
-    params: &[Val],
-    limits: Limits,
-    strategy: Strategy,
-) -> Result<Rows> {
+pub fn run_sql(db: &sophia_store::sqlite::Sqlite, p: &Prepared, params: &[Val], limits: Limits, strategy: Strategy) -> Result<Rows> {
     use sophia_store::query::{QueryLimits, Value};
     let sql = p.to_sql(params, strategy)?;
     let ql = QueryLimits {
@@ -382,12 +382,7 @@ pub enum Cache {
 ///   snapshot — old-layout `query-result/<result id>` keys have no snapshot
 ///   segment and go too — in the same write transaction, so only the current
 ///   snapshot's results stay (SP-014, option 2).
-pub fn run_cached<B: Backend>(
-    store: &Store<B>,
-    p: &Prepared,
-    params: &[Val],
-    limits: Limits,
-) -> Result<(Rows, Digest, Cache)> {
+pub fn run_cached<B: Backend>(store: &Store<B>, p: &Prepared, params: &[Val], limits: Limits) -> Result<(Rows, Digest, Cache)> {
     ensure_store_id(store)?;
     let mut failure: Option<Error> = None;
     let outcome = store.read(|tx| {

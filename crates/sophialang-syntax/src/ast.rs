@@ -40,7 +40,11 @@ pub enum SKind {
     Lam(SBinder, Box<SExpr>),
     Pi(SBinder, Box<SExpr>),
     Let(SBinder, Box<SExpr>, Box<SExpr>),
-    Match { scrutinee: Box<SExpr>, data: Option<Box<SExpr>>, cases: Vec<SCase> },
+    Match {
+        scrutinee: Box<SExpr>,
+        data: Option<Box<SExpr>>,
+        cases: Vec<SCase>,
+    },
     /// `(x::T)` and friends: only meaningful as a binder before `->`/`-->`.
     Annot(Box<SExpr>, Box<SExpr>),
     /// `{…}`: implicit binder.
@@ -140,7 +144,12 @@ impl SExpr {
                 data: data.as_ref().map(|_| p()),
                 cases: cases
                     .iter()
-                    .map(|c| SCase { pattern: c.pattern.clone(), binders: c.binders.iter().map(b).collect(), body: SExpr::default(), span: c.span })
+                    .map(|c| SCase {
+                        pattern: c.pattern.clone(),
+                        binders: c.binders.iter().map(b).collect(),
+                        body: SExpr::default(),
+                        span: c.span,
+                    })
                     .collect(),
             },
             SKind::Annot(_, _) => SKind::Annot(p(), p()),
@@ -163,7 +172,9 @@ impl SExpr {
                 (SKind::Usage(a, _), SKind::Usage(b, _)) => a == b,
                 (SKind::Call(_, a), SKind::Call(_, b)) => a.len() == b.len(),
                 (SKind::BinOp(a, ..), SKind::BinOp(b, ..)) => a == b,
-                (SKind::Lam(a, _), SKind::Lam(b, _)) | (SKind::Pi(a, _), SKind::Pi(b, _)) | (SKind::Let(a, ..), SKind::Let(b, ..)) => sb(a, b),
+                (SKind::Lam(a, _), SKind::Lam(b, _)) | (SKind::Pi(a, _), SKind::Pi(b, _)) | (SKind::Let(a, ..), SKind::Let(b, ..)) => {
+                    sb(a, b)
+                }
                 (SKind::Match { data: da, cases: ca, .. }, SKind::Match { data: db, cases: cb, .. }) => {
                     da.is_some() == db.is_some()
                         && ca.len() == cb.len()
@@ -284,7 +295,13 @@ impl std::fmt::Debug for SExpr {
             let l = |v: &dyn std::fmt::Debug| DNode::Leaf(if alt { format!("{v:#?}") } else { format!("{v:?}") });
             DNode::Struct(
                 "SBinder",
-                vec![("name", l(&b.name)), ("ty", opt(b.ty.as_deref())), ("usage", l(&b.usage)), ("implicit", l(&b.implicit)), ("span", l(&b.span))],
+                vec![
+                    ("name", l(&b.name)),
+                    ("ty", opt(b.ty.as_deref())),
+                    ("usage", l(&b.usage)),
+                    ("implicit", l(&b.implicit)),
+                    ("span", l(&b.span)),
+                ],
             )
         }
         fn one(e: &SExpr, alt: bool) -> DNode<'_, SExpr> {
@@ -367,16 +384,42 @@ pub struct SCase {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SBody {
     /// `function f(params)::R body end`
-    Sugar { params: Vec<SBinder>, ret: SExpr, body: SExpr },
+    Sugar {
+        params: Vec<SBinder>,
+        ret: SExpr,
+        body: SExpr,
+    },
     /// `function f :: T body end`
-    Typed { ty: SExpr, body: SExpr },
-    Constant { ty: SExpr, value: SExpr },
-    Data { ty: SExpr, constructors: Vec<(String, SExpr)> },
-    Layout { fields: Vec<(String, SExpr)> },
-    Relation { ty: SExpr },
-    Rule { vars: Vec<SBinder>, weight: Option<SExpr>, head: SExpr, premises: Vec<SExpr> },
-    Test { body: SExpr },
-    Postulate { ty: SExpr },
+    Typed {
+        ty: SExpr,
+        body: SExpr,
+    },
+    Constant {
+        ty: SExpr,
+        value: SExpr,
+    },
+    Data {
+        ty: SExpr,
+        constructors: Vec<(String, SExpr)>,
+    },
+    Layout {
+        fields: Vec<(String, SExpr)>,
+    },
+    Relation {
+        ty: SExpr,
+    },
+    Rule {
+        vars: Vec<SBinder>,
+        weight: Option<SExpr>,
+        head: SExpr,
+        premises: Vec<SExpr>,
+    },
+    Test {
+        body: SExpr,
+    },
+    Postulate {
+        ty: SExpr,
+    },
 }
 
 /// One top-level definition in a text.

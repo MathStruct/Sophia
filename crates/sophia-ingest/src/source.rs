@@ -150,19 +150,14 @@ impl Manifest {
 
 /// The name of a package's current manifest: `ingest.<prefix>.<package>`.
 pub fn manifest_name(prefix: &str, package: &str) -> String {
-    let plain = package.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
-        && package.chars().all(|c| c.is_alphanumeric() || c == '_');
+    let plain =
+        package.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && package.chars().all(|c| c.is_alphanumeric() || c == '_');
     if plain { format!("ingest.{prefix}.{package}") } else { format!("ingest.{prefix}.`{package}`") }
 }
 
 /// Stores the sources and the manifest, and points `name` at the manifest.
 /// Returns the manifest's id.
-pub fn store_manifest<B: Backend>(
-    store: &Store<B>,
-    name: &str,
-    manifest: &Manifest,
-    texts: &[&str],
-) -> Result<Digest, StoreError> {
+pub fn store_manifest<B: Backend>(store: &Store<B>, name: &str, manifest: &Manifest, texts: &[&str]) -> Result<Digest, StoreError> {
     let mut records: Vec<Record> = manifest.files.iter().zip(texts).map(|(f, t)| source_record(&f.path, t)).collect();
     let m = manifest.record();
     let id = m.id;

@@ -104,8 +104,7 @@ pub enum Base {
 }
 
 impl Base {
-    pub const ALL: [Base; 8] =
-        [Base::Def, Base::Refs, Base::Name, Base::Member, Base::Nominal, Base::Uses, Base::Annotation, Base::Fact];
+    pub const ALL: [Base; 8] = [Base::Def, Base::Refs, Base::Name, Base::Member, Base::Nominal, Base::Uses, Base::Annotation, Base::Fact];
 
     /// The schema version: part of every query's identity, so a change to
     /// the base relations gives new query ids.

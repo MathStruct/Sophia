@@ -135,10 +135,8 @@ fn usage_and_unsafe_marks_are_hashed() {
 
 #[test]
 fn the_declared_type_is_hashed() {
-    let id_int = Definition::method(
-        Term::arrow(Term::Nominal(builtin("Int64")), Term::Nominal(builtin("Int64"))),
-        Term::lam("x", Term::Var(0)),
-    );
+    let id_int =
+        Definition::method(Term::arrow(Term::Nominal(builtin("Int64")), Term::Nominal(builtin("Int64"))), Term::lam("x", Term::Var(0)));
     let id_poly = Definition::method(
         Term::Pi {
             binder: Binder::implicit("A"),
@@ -170,10 +168,7 @@ fn stored_records_decode_and_rehash_to_the_same_id() {
 #[test]
 fn dangling_drafts_are_rejected() {
     let d = Definition::constant(Term::Type(0), Term::Draft(5));
-    assert!(matches!(
-        normalise_batch(&[d], &mut Budget::default()),
-        Err(NormaliseError::DanglingDraft { from: 0, to: 5 })
-    ));
+    assert!(matches!(normalise_batch(&[d], &mut Budget::default()), Err(NormaliseError::DanglingDraft { from: 0, to: 5 })));
 }
 
 // ---- properties over random terms ----
@@ -207,18 +202,23 @@ fn arb_term() -> impl Strategy<Value = Term> {
     ];
     leaf.prop_recursive(5, 48, 4, |inner| {
         prop_oneof![
-            (arb_binder(), prop::option::of(inner.clone()), inner.clone())
-                .prop_map(|(binder, dom, body)| Term::Lam { binder, domain: dom.map(Box::new), body: Box::new(body) }),
-            (inner.clone(), prop::collection::vec(inner.clone(), 0..3))
-                .prop_map(|(h, a)| Term::App(Box::new(h), a)),
+            (arb_binder(), prop::option::of(inner.clone()), inner.clone()).prop_map(|(binder, dom, body)| Term::Lam {
+                binder,
+                domain: dom.map(Box::new),
+                body: Box::new(body)
+            }),
+            (inner.clone(), prop::collection::vec(inner.clone(), 0..3)).prop_map(|(h, a)| Term::App(Box::new(h), a)),
             (arb_binder(), inner.clone(), inner.clone()).prop_map(|(binder, d, c)| Term::Pi {
                 binder,
                 domain: Box::new(d),
                 codomain: Box::new(c)
             }),
-            (arb_binder(), prop::option::of(inner.clone()), inner.clone(), inner.clone()).prop_map(
-                |(binder, ty, v, b)| Term::Let { binder, ty: ty.map(Box::new), value: Box::new(v), body: Box::new(b) }
-            ),
+            (arb_binder(), prop::option::of(inner.clone()), inner.clone(), inner.clone()).prop_map(|(binder, ty, v, b)| Term::Let {
+                binder,
+                ty: ty.map(Box::new),
+                value: Box::new(v),
+                body: Box::new(b)
+            }),
             (
                 inner.clone(),
                 prop::option::of(inner.clone()),

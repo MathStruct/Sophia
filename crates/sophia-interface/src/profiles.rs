@@ -34,11 +34,7 @@ pub fn ensure_built_ins<B: Backend>(store: &Store<B>) -> Result<()> {
 /// A profile's own settings rows (without inheritance).
 pub fn own_settings<B: Backend>(store: &Store<B>, name: &str) -> Result<BTreeMap<String, String>> {
     let prefix = format!("profile/{name}/");
-    Ok(store
-        .meta_prefix(&prefix)?
-        .into_iter()
-        .map(|(k, v)| (k[prefix.len()..].to_string(), utf8(v)))
-        .collect())
+    Ok(store.meta_prefix(&prefix)?.into_iter().map(|(k, v)| (k[prefix.len()..].to_string(), utf8(v))).collect())
 }
 
 /// A profile's settings with inheritance through `based_on` resolved.

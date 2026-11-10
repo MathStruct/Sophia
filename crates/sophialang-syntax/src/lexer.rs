@@ -52,8 +52,8 @@ pub struct Token {
 }
 
 const SYMS: [&str; 30] = [
-    "-->", "::", "->", "=>", ":-", "==", "!=", "<=", ">=", "→", "↦", "≤", "≥", "≠", "(", ")", "{", "}", "[", "]",
-    ",", ";", ":", "=", "+", "-", "*", "/", "<", ">",
+    "-->", "::", "->", "=>", ":-", "==", "!=", "<=", ">=", "→", "↦", "≤", "≥", "≠", "(", ")", "{", "}", "[", "]", ",", ";", ":", "=", "+",
+    "-", "*", "/", "<", ">",
 ];
 
 /// Resource limits for a parse (SR-50: bounded parsers). Size, never
@@ -191,7 +191,8 @@ pub fn is_ident_char(c: char) -> bool {
 }
 
 fn is_hex_run(s: &str, n: usize) -> bool {
-    s.len() >= n && s.as_bytes()[..n].iter().all(|c| c.is_ascii_hexdigit())
+    s.len() >= n
+        && s.as_bytes()[..n].iter().all(|c| c.is_ascii_hexdigit())
         && !s.as_bytes().get(n).is_some_and(|c| c.is_ascii_alphanumeric())
 }
 
@@ -202,8 +203,8 @@ fn number(src: &str, i: usize) -> Result<(Tok, usize), Diagnostic> {
         while j < b.len() && b[j].is_ascii_hexdigit() {
             j += 1;
         }
-        let v = u64::from_str_radix(&src[i + 2..j], 16)
-            .map_err(|_| Diagnostic::error(Span::new(i, j), "hexadecimal literal out of range"))?;
+        let v =
+            u64::from_str_radix(&src[i + 2..j], 16).map_err(|_| Diagnostic::error(Span::new(i, j), "hexadecimal literal out of range"))?;
         return Ok((Tok::UInt(v), j));
     }
     let mut j = i;

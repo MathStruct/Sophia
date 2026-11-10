@@ -270,9 +270,18 @@ enum Step<'t> {
     Indent(isize),
     /// Pop `children` texts, join them with `pieces`, parenthesise if
     /// `level < min`, push the result.
-    Combine { pieces: Vec<Piece>, children: usize, level: u8, min: u8 },
+    Combine {
+        pieces: Vec<Piece>,
+        children: usize,
+        level: u8,
+        min: u8,
+    },
     /// Pop a type's text and push the constructor `j` of that type.
-    Con { names: Option<Vec<String>>, j: u32, min: u8 },
+    Con {
+        names: Option<Vec<String>>,
+        j: u32,
+        min: u8,
+    },
 }
 
 impl Printer<'_> {
@@ -299,11 +308,8 @@ impl Printer<'_> {
         } else {
             "x".to_string()
         };
-        let taken = |n: &str| {
-            self.scope.contains(n)
-                || self.group.iter().any(|g| g.name == n)
-                || crate::resolve::builtin_named(n).is_some()
-        };
+        let taken =
+            |n: &str| self.scope.contains(n) || self.group.iter().any(|g| g.name == n) || crate::resolve::builtin_named(n).is_some();
         if !taken(&base) {
             return base;
         }

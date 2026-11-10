@@ -179,16 +179,7 @@ fn clock() -> Option<Instant> {
 
 impl<'a> Exec<'a> {
     pub fn new(tx: &'a dyn ReadTx, params: &'a [Val], limits: Limits) -> Self {
-        Exec {
-            tx,
-            params,
-            limits,
-            memo: HashMap::new(),
-            full: HashMap::new(),
-            started: clock(),
-            cancel: None,
-            stats: Stats::default(),
-        }
+        Exec { tx, params, limits, memo: HashMap::new(), full: HashMap::new(), started: clock(), cancel: None, stats: Stats::default() }
     }
 
     /// A run that stops with [`Error::Limit`] once `flag` is set, from any
@@ -414,14 +405,7 @@ impl<'a> Exec<'a> {
     }
 
     /// Candidate tuples for an atom given the bound columns.
-    fn candidates(
-        &mut self,
-        a: &Atom,
-        cols: &[usize],
-        env: &[Option<Val>],
-        rels: &Rels,
-        delta_lit: bool,
-    ) -> Result<Cand, Error> {
+    fn candidates(&mut self, a: &Atom, cols: &[usize], env: &[Option<Val>], rels: &Rels, delta_lit: bool) -> Result<Cand, Error> {
         match a.pred {
             Pred::Base(b) => {
                 for &c in access_columns(b) {
@@ -598,10 +582,14 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
         let in_s = |p: u32| stratum.contains(&p);
         let rules: Vec<usize> = (0..q.rules.len()).filter(|&i| in_s(q.rules[i].head)).collect();
         let recursive = |r: &Rule| {
-            r.body.iter().enumerate().filter_map(|(i, l)| match l {
-                Literal::Pos(Atom { pred: Pred::Local(p), .. }) if in_s(*p) => Some(i),
-                _ => None,
-            }).collect::<Vec<_>>()
+            r.body
+                .iter()
+                .enumerate()
+                .filter_map(|(i, l)| match l {
+                    Literal::Pos(Atom { pred: Pred::Local(p), .. }) if in_s(*p) => Some(i),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         };
         // Variants: each rule once in the first round; each recursive
         // literal as the delta in later rounds.
@@ -627,7 +615,9 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
             for v in variants {
                 let r = &q.rules[v.rule];
                 for s in &v.steps {
-                    if let Literal::Pos(Atom { pred: Pred::Local(p), .. }) | Literal::Neg(Atom { pred: Pred::Local(p), .. }) = &r.body[s.lit] {
+                    if let Literal::Pos(Atom { pred: Pred::Local(p), .. }) | Literal::Neg(Atom { pred: Pred::Local(p), .. }) =
+                        &r.body[s.lit]
+                    {
                         let b = rels.full[*p as usize].ensure_index(&s.bound_cols);
                         exec.charge(b)?;
                         if v.delta == Some(s.lit) {
@@ -689,7 +679,13 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
 
     // The select.
     let s = &q.select;
-    let out_terms: Vec<Term> = s.outputs.iter().map(|o| match o { Output::Var(v) | Output::Count(v) => Term::Var(*v) }).collect();
+    let out_terms: Vec<Term> = s
+        .outputs
+        .iter()
+        .map(|o| match o {
+            Output::Var(v) | Output::Count(v) => Term::Var(*v),
+        })
+        .collect();
     let mut bound = vec![false; s.vars as usize];
     let order = plan::order(&out_terms, &s.body, &mut bound, None).expect("checked");
     let st = steps(&s.body, &order, s.vars, &[]);

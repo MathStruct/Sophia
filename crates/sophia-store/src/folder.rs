@@ -570,7 +570,14 @@ impl<B: Backend> Store<B> {
                 None if ms.values().any(|d| *d > 0) => {
                     let id = sophia_hash::merkle::nominal_id(&lang, "generic", &crate::logic::fresh_nonce());
                     let seq = self.log(tx, LogOp::NewNominal, g.clone(), None, Some(id))?;
-                    tx.put_nominal(&Nominal { id, lang: lang.clone(), kind: "generic".into(), label: g.clone(), created_seq: seq, version: seq })?;
+                    tx.put_nominal(&Nominal {
+                        id,
+                        lang: lang.clone(),
+                        kind: "generic".into(),
+                        label: g.clone(),
+                        created_seq: seq,
+                        version: seq,
+                    })?;
                     tx.set_meta(&format!("nominal-index/{}", id.to_hex()), b"")?;
                     let seq = self.log(tx, LogOp::AddName, g.clone(), None, Some(id))?;
                     tx.put_name(&NameEntry { path: g.clone(), target: Target::Nominal(id), visibility: Visibility::Public, seq })?;
@@ -943,7 +950,10 @@ fn validate_batch<'a>(files: &[&'a FileIngest]) -> Result<BTreeSet<&'a str>> {
         for (i, a, b) in &f.spans {
             let len = f.text.as_ref().map_or(0, String::len) as u32;
             if *i >= n || a > b || *b > len {
-                return Err(StoreError::InvalidBatch { path: f.path.clone(), reason: format!("span {a}..{b} of record {i} is out of range") });
+                return Err(StoreError::InvalidBatch {
+                    path: f.path.clone(),
+                    reason: format!("span {a}..{b} of record {i} is out of range"),
+                });
             }
         }
         // Every record must be reached from what the manifest references
@@ -967,8 +977,7 @@ fn validate_batch<'a>(files: &[&'a FileIngest]) -> Result<BTreeSet<&'a str>> {
     // Claims within the batch: a name belongs to one file.
     let mut claims: HashMap<&str, &str> = HashMap::new();
     for f in files {
-        let mine: BTreeSet<&str> =
-            f.names.iter().map(|(n, _)| n.as_str()).chain(f.generics.iter().map(|g| g.path.as_str())).collect();
+        let mine: BTreeSet<&str> = f.names.iter().map(|(n, _)| n.as_str()).chain(f.generics.iter().map(|g| g.path.as_str())).collect();
         for n in mine {
             let generic = f.generics.iter().any(|g| g.path == n);
             if let Some(other) = claims.get(n) {
@@ -1060,9 +1069,8 @@ fn adjust(tx: &mut dyn WriteTx, key: &str, delta: i64) -> Result<(i64, i64)> {
 /// either side.
 pub fn has_word(text: &str, word: &str) -> bool {
     let ident = |c: char| c.is_alphanumeric() || c == '_' || c == '!';
-    text.match_indices(word).any(|(i, _)| {
-        !text[..i].chars().next_back().is_some_and(ident) && !text[i + word.len()..].chars().next().is_some_and(ident)
-    })
+    text.match_indices(word)
+        .any(|(i, _)| !text[..i].chars().next_back().is_some_and(ident) && !text[i + word.len()..].chars().next().is_some_and(ident))
 }
 
 /// The file that lays out `name`: its owner, or for a generic function

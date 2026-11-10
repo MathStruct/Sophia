@@ -51,8 +51,7 @@ fn populate<B: Backend>(s: &Store<B>, seed: u64, n: u64) {
             fake(i, kinds[rng.below(3) as usize], refs)
         })
         .collect();
-    let names: Vec<(String, usize, Visibility)> =
-        (0..n as usize).step_by(3).map(|i| (format!("g.n{i}"), i, Visibility::Public)).collect();
+    let names: Vec<(String, usize, Visibility)> = (0..n as usize).step_by(3).map(|i| (format!("g.n{i}"), i, Visibility::Public)).collect();
     s.add(&records, &names).unwrap();
     let f = s.new_nominal("test", "generic", "g.f").unwrap();
     for i in (0..n).step_by(5) {
@@ -110,8 +109,7 @@ fn plain_and_magic_agree<B: Backend>(s: Store<B>) {
                 let magic = run(p, tx, id(t), Strategy::Auto);
                 assert_eq!(plain, magic, "query {qi}, target {t}\n{}", p.explain(Strategy::Auto));
                 if qi == 0 {
-                    let expect: BTreeSet<Vec<Val>> =
-                        transitive_dependants(tx, &id(t)).into_iter().map(|d| vec![Val::Id(d)]).collect();
+                    let expect: BTreeSet<Vec<Val>> = transitive_dependants(tx, &id(t)).into_iter().map(|d| vec![Val::Id(d)]).collect();
                     assert_eq!(magic, expect, "reach matches a graph walk");
                 }
                 Ok(())
@@ -211,20 +209,23 @@ fn limits_stop_runaway_queries<B: Backend>(s: Store<B>) {
     // Memory is bounded too: the closure of the whole store, without magic
     // sets, stops at the derived-tuple cap.
     let reach = prepare_text(QUERIES[0]).unwrap();
-    let r = s
-        .read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_derived: 50, ..Default::default() }, Strategy::Plain)))
-        .unwrap();
+    let r = s.read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_derived: 50, ..Default::default() }, Strategy::Plain))).unwrap();
     assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("derived")), "{r:?}");
     // So is the estimated byte budget, and the stats report the estimate.
-    let r = s
-        .read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_bytes: 4096, ..Default::default() }, Strategy::Plain)))
-        .unwrap();
+    let r = s.read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits { max_bytes: 4096, ..Default::default() }, Strategy::Plain))).unwrap();
     assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("bytes")), "{r:?}");
     let ok = s.read(|tx| Ok(reach.run(tx, &[Val::Id(id(1))], Limits::default(), Strategy::Auto).unwrap())).unwrap();
     assert!(ok.stats.bytes > 0);
     // A deadline and a cancel flag stop long runs.
     let r = s
-        .read(|tx| Ok(p.run(tx, &[], Limits { max_rows: usize::MAX, deadline: Some(std::time::Duration::ZERO), ..Default::default() }, Strategy::Auto)))
+        .read(|tx| {
+            Ok(p.run(
+                tx,
+                &[],
+                Limits { max_rows: usize::MAX, deadline: Some(std::time::Duration::ZERO), ..Default::default() },
+                Strategy::Auto,
+            ))
+        })
         .unwrap();
     assert!(matches!(&r, Err(Error::Limit(m)) if m.contains("deadline")), "{r:?}");
     let cancel = std::sync::atomic::AtomicBool::new(true);

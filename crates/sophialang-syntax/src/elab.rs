@@ -14,10 +14,16 @@ use crate::resolve::{Env, Found, resolve_global};
 /// One parsed definition. `Term::Draft(i)` refers to the i-th item.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    Definition { name: String, def: Definition },
+    Definition {
+        name: String,
+        def: Definition,
+    },
     /// A relation is nominal (S-ADR-0009): the store creates it, and its
     /// signature joins it.
-    Relation { name: String, signature: Definition },
+    Relation {
+        name: String,
+        signature: Definition,
+    },
 }
 
 impl Item {
@@ -138,18 +144,13 @@ impl Elab<'_> {
             }
             SBody::Data { ty, constructors } => {
                 let ty = self.expr(ty)?;
-                let cs = constructors
-                    .iter()
-                    .map(|(n, t)| Ok(Constructor { name: n.clone(), ty: self.expr(t)? }))
-                    .collect::<R<Vec<_>>>()?;
+                let cs = constructors.iter().map(|(n, t)| Ok(Constructor { name: n.clone(), ty: self.expr(t)? })).collect::<R<Vec<_>>>()?;
                 Definition::data(ty, cs)
             }
             SBody::Layout { fields } => Definition {
                 kind: Kind::Layout,
                 ty: None,
-                body: Body::Fields(
-                    fields.iter().map(|(n, t)| Ok(Field { name: n.clone(), ty: self.expr(t)? })).collect::<R<_>>()?,
-                ),
+                body: Body::Fields(fields.iter().map(|(n, t)| Ok(Field { name: n.clone(), ty: self.expr(t)? })).collect::<R<_>>()?),
             },
             SBody::Relation { ty } => {
                 let signature = Definition { kind: Kind::Relation, ty: Some(self.expr(ty)?), body: Body::None };
@@ -277,7 +278,9 @@ impl Elab<'_> {
                 };
                 return leaf(vals, t);
             }
-            SKind::HashRef(h) => return leaf(vals, Term::Ref(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad content id"))?)),
+            SKind::HashRef(h) => {
+                return leaf(vals, Term::Ref(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad content id"))?));
+            }
             SKind::NominalRef(h) => {
                 return leaf(vals, Term::Nominal(h.parse::<Digest>().map_err(|_| Diagnostic::error(e.span, "bad nominal id"))?));
             }
@@ -395,11 +398,8 @@ impl Elab<'_> {
                 bodies.reverse();
                 let data = if has_data { Some(Box::new(pop())) } else { None };
                 let scrutinee = pop();
-                let cases = cases
-                    .into_iter()
-                    .zip(bodies)
-                    .map(|((constructor, binders), body)| Case { constructor, binders, body })
-                    .collect();
+                let cases =
+                    cases.into_iter().zip(bodies).map(|((constructor, binders), body)| Case { constructor, binders, body }).collect();
                 Term::Match { scrutinee: Box::new(scrutinee), data, motive: None, cases }
             }
         }

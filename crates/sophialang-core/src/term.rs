@@ -100,15 +100,36 @@ pub enum Term {
     /// A nominal entity: a generic function, struct, abstract or primitive type.
     Nominal(NominalId),
     /// Constructor `index` of the data type or struct `ty`.
-    Con { ty: Box<Term>, index: u32 },
-    Lam { binder: Binder, domain: Option<Box<Term>>, body: Box<Term> },
+    Con {
+        ty: Box<Term>,
+        index: u32,
+    },
+    Lam {
+        binder: Binder,
+        domain: Option<Box<Term>>,
+        body: Box<Term>,
+    },
     /// n-ary application: dispatch sees all arguments together.
     App(Box<Term>, Vec<Term>),
-    Pi { binder: Binder, domain: Box<Term>, codomain: Box<Term> },
-    Let { binder: Binder, ty: Option<Box<Term>>, value: Box<Term>, body: Box<Term> },
+    Pi {
+        binder: Binder,
+        domain: Box<Term>,
+        codomain: Box<Term>,
+    },
+    Let {
+        binder: Binder,
+        ty: Option<Box<Term>>,
+        value: Box<Term>,
+        body: Box<Term>,
+    },
     /// `data` is the data type being matched, when known: it names the
     /// constructors in printed patterns, and it is hashed.
-    Match { scrutinee: Box<Term>, data: Option<Box<Term>>, motive: Option<Box<Term>>, cases: Vec<Case> },
+    Match {
+        scrutinee: Box<Term>,
+        data: Option<Box<Term>>,
+        motive: Option<Box<Term>>,
+        cases: Vec<Case>,
+    },
     Type(u32),
     Prop,
     Lit(Lit),
@@ -291,7 +312,6 @@ impl Drop for Term {
     }
 }
 
-
 /// The node itself with its subterms replaced by `Prop` placeholders: what
 /// `Clone` copies at each step, and what `PartialEq` and `Hash` compare.
 fn shallow(t: &Term) -> Term {
@@ -377,7 +397,10 @@ impl Clone for Term {
 /// Everything about a node but its subterms, for `PartialEq` and `Hash`.
 fn same_node(a: &Term, b: &Term) -> bool {
     match (a, b) {
-        (Term::Var(x), Term::Var(y)) | (Term::Member(x), Term::Member(y)) | (Term::Draft(x), Term::Draft(y)) | (Term::Type(x), Term::Type(y)) => x == y,
+        (Term::Var(x), Term::Var(y))
+        | (Term::Member(x), Term::Member(y))
+        | (Term::Draft(x), Term::Draft(y))
+        | (Term::Type(x), Term::Type(y)) => x == y,
         (Term::Ref(x), Term::Ref(y)) | (Term::Nominal(x), Term::Nominal(y)) => x == y,
         (Term::Con { index: x, .. }, Term::Con { index: y, .. }) => x == y,
         (Term::Lam { binder: x, domain: dx, .. }, Term::Lam { binder: y, domain: dy, .. }) => x == y && dx.is_some() == dy.is_some(),
@@ -470,10 +493,9 @@ impl std::fmt::Debug for Term {
                 Term::Pi { binder, domain, codomain } => {
                     DNode::Struct("Pi", vec![("binder", l(binder)), ("domain", c(domain)), ("codomain", c(codomain))])
                 }
-                Term::Let { binder, ty, value, body } => DNode::Struct(
-                    "Let",
-                    vec![("binder", l(binder)), ("ty", ob(ty)), ("value", c(value)), ("body", c(body))],
-                ),
+                Term::Let { binder, ty, value, body } => {
+                    DNode::Struct("Let", vec![("binder", l(binder)), ("ty", ob(ty)), ("value", c(value)), ("body", c(body))])
+                }
                 Term::Match { scrutinee, data, motive, cases } => DNode::Struct(
                     "Match",
                     vec![

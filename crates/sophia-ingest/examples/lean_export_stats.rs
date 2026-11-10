@@ -165,8 +165,5 @@ fn main() {
     println!("reachable from proofs:             {} ({:.1} %)", count(&p), pct(count(&p)));
     println!("only proofs need:                  {proof_only} ({:.1} %)", pct(proof_only));
     println!("only definition values need:       {program_only} ({:.1} %)", pct(program_only));
-    println!(
-        "theorems sharing their statement expression with another: {repeated} of {} ({groups} groups)",
-        thm_types.len()
-    );
+    println!("theorems sharing their statement expression with another: {repeated} of {} ({groups} groups)", thm_types.len());
 }

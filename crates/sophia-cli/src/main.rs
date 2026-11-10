@@ -27,8 +27,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use sophia_hash::Digest;
-use sophia_store::query::{QueryLimits, Value};
 use sophia_interface::{EditError, Interface, Key};
+use sophia_store::query::{QueryLimits, Value};
 use sophia_store::{Backend, Store, Target};
 
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -62,9 +62,7 @@ fn main() -> ExitCode {
         eprintln!("{}", usage());
         return ExitCode::from(2);
     };
-    let path = store_path.unwrap_or_else(|| {
-        PathBuf::from(".sophia").join(format!("store.{backend}"))
-    });
+    let path = store_path.unwrap_or_else(|| PathBuf::from(".sophia").join(format!("store.{backend}")));
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -164,10 +162,18 @@ fn query<B: Backend + Sync>(store: &Store<B>, args: &[String]) -> AnyResult<()> 
         return Ok(());
     }
     let t0 = std::time::Instant::now();
-    let rows = store.read(|tx| p.run(tx, &params, Limits::default(), strategy).map_err(|e| sophia_store::StoreError::QueryRefused(e.to_string())))?;
+    let rows = store
+        .read(|tx| p.run(tx, &params, Limits::default(), strategy).map_err(|e| sophia_store::StoreError::QueryRefused(e.to_string())))?;
     let took = t0.elapsed();
     print_table(&rows.to_table());
-    eprintln!("({} rows, {:.2?}; {} lookups, {} scans, {} derived)", rows.rows.len(), took, rows.stats.lookups, rows.stats.scans, rows.stats.derived);
+    eprintln!(
+        "({} rows, {:.2?}; {} lookups, {} scans, {} derived)",
+        rows.rows.len(),
+        took,
+        rows.stats.lookups,
+        rows.stats.scans,
+        rows.stats.derived
+    );
     Ok(())
 }
 
@@ -203,9 +209,8 @@ fn lookup<B: Backend>(store: &Store<B>, what: &str) -> AnyResult<Target> {
         return Ok(Target::Content(d));
     }
     // A short hex prefix: search names' targets and recent definitions.
-    let hits: Vec<Digest> = store.read(|tx| {
-        Ok(tx.records_of_kind(None, usize::MAX)?.into_iter().filter(|d| d.to_hex().starts_with(what)).collect())
-    })?;
+    let hits: Vec<Digest> =
+        store.read(|tx| Ok(tx.records_of_kind(None, usize::MAX)?.into_iter().filter(|d| d.to_hex().starts_with(what)).collect()))?;
     match hits.as_slice() {
         [d] => Ok(Target::Content(*d)),
         [] => Err(format!("no name or id {what:?}").into()),
@@ -228,12 +233,7 @@ fn edit_error(e: EditError, text: &str) -> Box<dyn std::error::Error> {
     }
 }
 
-fn run<B: Backend + Sync>(
-    i: &Interface<B>,
-    cmd: &str,
-    args: &[String],
-    sql: impl Fn(&Store<B>, &str) -> AnyResult<()>,
-) -> AnyResult<()> {
+fn run<B: Backend + Sync>(i: &Interface<B>, cmd: &str, args: &[String], sql: impl Fn(&Store<B>, &str) -> AnyResult<()>) -> AnyResult<()> {
     let store = i.store();
     match cmd {
         "text" => {
@@ -374,8 +374,7 @@ fn run<B: Backend + Sync>(
             }
         }
         "stats" => {
-            let (n, names, seq) =
-                store.read(|tx| Ok((tx.record_count()?, tx.names_under("", usize::MAX)?.len(), tx.last_seq()?)))?;
+            let (n, names, seq) = store.read(|tx| Ok((tx.record_count()?, tx.names_under("", usize::MAX)?.len(), tx.last_seq()?)))?;
             println!("backend      {}", store.backend().name());
             println!("definitions  {n}");
             println!("names        {names}");
@@ -424,7 +423,14 @@ fn run<B: Backend + Sync>(
             };
             println!(
                 "{pkg}: {} files, {} definitions, {} new records, {} generic functions ({} extending other modules) with {} methods, {} resolved references; {:.2?}",
-                r.files, r.definitions, r.new_records, r.generics, r.extended, r.methods, r.references, t.elapsed()
+                r.files,
+                r.definitions,
+                r.new_records,
+                r.generics,
+                r.extended,
+                r.methods,
+                r.references,
+                t.elapsed()
             );
             for (f, e) in &r.refused {
                 println!("  refused file {f}: {e}");

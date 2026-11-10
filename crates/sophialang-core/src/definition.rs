@@ -25,16 +25,8 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 8] = [
-        Kind::Method,
-        Kind::Constant,
-        Kind::Data,
-        Kind::Layout,
-        Kind::Relation,
-        Kind::Rule,
-        Kind::Test,
-        Kind::Postulate,
-    ];
+    pub const ALL: [Kind; 8] =
+        [Kind::Method, Kind::Constant, Kind::Data, Kind::Layout, Kind::Relation, Kind::Rule, Kind::Test, Kind::Postulate];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -158,16 +150,11 @@ impl Definition {
         let body = match self.body {
             Body::None => Body::None,
             Body::Term(t) => Body::Term(t.map(f)),
-            Body::Constructors(cs) => {
-                Body::Constructors(cs.into_iter().map(|c| Constructor { ty: c.ty.map(f), ..c }).collect())
-            }
+            Body::Constructors(cs) => Body::Constructors(cs.into_iter().map(|c| Constructor { ty: c.ty.map(f), ..c }).collect()),
             Body::Fields(fs) => Body::Fields(fs.into_iter().map(|x| Field { ty: x.ty.map(f), ..x }).collect()),
-            Body::Rule { vars, head, premises, weight } => Body::Rule {
-                vars,
-                head: head.map(f),
-                premises: premises.into_iter().map(|p| p.map(f)).collect(),
-                weight,
-            },
+            Body::Rule { vars, head, premises, weight } => {
+                Body::Rule { vars, head: head.map(f), premises: premises.into_iter().map(|p| p.map(f)).collect(), weight }
+            }
         };
         Definition { kind: self.kind, ty, body }
     }

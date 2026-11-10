@@ -53,8 +53,6 @@ fn name_node<'t>(lang: &str, n: Syntax<'t>) -> Option<Syntax<'t>> {
     }
 }
 
-
-
 /// Every definition the normal form covers, in source order (nested ones,
 /// such as methods in a Python class or items in a module, included).
 pub fn definitions<'t>(lang: &str, root: Syntax<'t>, src: &str) -> Vec<(Def, Syntax<'t>)> {
@@ -218,9 +216,21 @@ pub fn identify(
 /// (some only in some languages), from Moonkale's `normalize.rs`. Used only
 /// to explain refusals; the normaliser's own error is authoritative.
 const REFUSED: [&str; 15] = [
-    "named_argument", "global_statement", "macro_definition", "function_definition", "lambda", "class_definition",
-    "match_statement", "delete_statement", "augmented_assignment", "named_expression", "import_statement",
-    "import_from_statement", "use_declaration", "nonlocal_statement", "with_statement",
+    "named_argument",
+    "global_statement",
+    "macro_definition",
+    "function_definition",
+    "lambda",
+    "class_definition",
+    "match_statement",
+    "delete_statement",
+    "augmented_assignment",
+    "named_expression",
+    "import_statement",
+    "import_from_statement",
+    "use_declaration",
+    "nonlocal_statement",
+    "with_statement",
 ];
 
 /// Why a definition was refused: the first refused construct inside it, or

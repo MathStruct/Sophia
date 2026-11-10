@@ -107,11 +107,7 @@ pub trait ReadTx {
 
     /// Every nominal entity's id.
     fn nominal_ids(&self) -> Result<Vec<NominalId>> {
-        Ok(self
-            .meta_prefix("nominal-index/")?
-            .into_iter()
-            .filter_map(|(k, _)| k["nominal-index/".len()..].parse().ok())
-            .collect())
+        Ok(self.meta_prefix("nominal-index/")?.into_iter().filter_map(|(k, _)| k["nominal-index/".len()..].parse().ok()).collect())
     }
 }
 

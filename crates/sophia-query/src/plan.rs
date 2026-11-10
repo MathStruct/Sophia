@@ -93,11 +93,7 @@ fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
                 }
             }
         }),
-        Literal::Neg(a) => a
-            .args
-            .iter()
-            .all(|t| is_bound(t, bound) || matches!(t, Term::Var(v) if local.contains(v)))
-            .then_some(95),
+        Literal::Neg(a) => a.args.iter().all(|t| is_bound(t, bound) || matches!(t, Term::Var(v) if local.contains(v))).then_some(95),
         Literal::Eq(x, y) => match (is_bound(x, bound), is_bound(y, bound)) {
             (true, true) => Some(100),
             (true, false) | (false, true) => Some(90),
@@ -122,12 +118,7 @@ pub(crate) fn bind(l: &Literal, bound: &mut [bool]) {
 /// Orders a body. `bound` says which variables are bound on entry and is
 /// updated; `first` forces one positive literal to run first (the delta in
 /// semi-naive evaluation). Fails with a variable that no literal can bind.
-pub fn order(
-    head: &[Term],
-    body: &[Literal],
-    bound: &mut [bool],
-    first: Option<usize>,
-) -> Result<Vec<usize>, u32> {
+pub fn order(head: &[Term], body: &[Literal], bound: &mut [bool], first: Option<usize>) -> Result<Vec<usize>, u32> {
     let local = local_only(head, body, bound.len() as u32);
     let mut done = vec![false; body.len()];
     let mut out = Vec::with_capacity(body.len());

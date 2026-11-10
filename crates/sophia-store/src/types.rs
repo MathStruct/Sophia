@@ -168,12 +168,7 @@ pub struct Annotation {
 }
 
 impl Annotation {
-    pub fn new(
-        kind: &str,
-        subjects: Vec<Digest>,
-        payload: Vec<u8>,
-        checker: Option<(&str, &str)>,
-    ) -> Self {
+    pub fn new(kind: &str, subjects: Vec<Digest>, payload: Vec<u8>, checker: Option<(&str, &str)>) -> Self {
         let mut w = Writer::new();
         w.str("sophia", "annotation-v0");
         w.str("kind", kind);
@@ -222,14 +217,7 @@ pub struct Fact {
 }
 
 impl Fact {
-    pub fn new(
-        kind: &str,
-        subject: Digest,
-        value: Vec<u8>,
-        by: (&str, &str),
-        inputs: Vec<Input>,
-        derived_at: u64,
-    ) -> Self {
+    pub fn new(kind: &str, subject: Digest, value: Vec<u8>, by: (&str, &str), inputs: Vec<Input>, derived_at: u64) -> Self {
         let mut w = Writer::new();
         w.str("sophia", "fact-v0");
         w.str("kind", kind);

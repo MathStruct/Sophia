@@ -135,9 +135,7 @@ fn lex(text: &str) -> Result<Vec<(Tok, usize)>, Error> {
                 while i < b.len() && b[i].is_ascii_hexdigit() {
                     i += 1;
                 }
-                let d: Digest = text[s..i]
-                    .parse()
-                    .map_err(|_| Error::parse(at, "an id literal is 0x followed by 64 hex digits"))?;
+                let d: Digest = text[s..i].parse().map_err(|_| Error::parse(at, "an id literal is 0x followed by 64 hex digits"))?;
                 out.push((Tok::Hex(d), at));
             }
             c if c.is_ascii_digit() || (c == '-' && b.get(i + 1).is_some_and(u8::is_ascii_digit)) => {
@@ -327,8 +325,7 @@ impl Parser {
             self.pos += 1;
             let at = self.at();
             let args = self.args(scope)?;
-            let [a, b]: [Term; 2] =
-                args.try_into().map_err(|_| Error::parse(at, "startswith takes two arguments"))?;
+            let [a, b]: [Term; 2] = args.try_into().map_err(|_| Error::parse(at, "startswith takes two arguments"))?;
             return Ok(Literal::StartsWith(a, b));
         }
         if matches!(self.peek(), Some(Tok::Ident(_))) && self.peek2() == Some(&Tok::LParen) {
@@ -625,20 +622,12 @@ impl Printer<'_> {
         let mut out = String::new();
         match self.profile {
             Profile::Julia => {
-                let sel = format!(
-                    "select {} where {}",
-                    self.outputs(),
-                    self.body(&self.n.select_vars, &q.select.body)
-                );
+                let sel = format!("select {} where {}", self.outputs(), self.body(&self.n.select_vars, &q.select.body));
                 if q.params.is_empty() && q.rules.is_empty() && self.n.query.is_empty() {
                     return sel + "\n";
                 }
-                let params: Vec<String> = q
-                    .params
-                    .iter()
-                    .enumerate()
-                    .map(|(i, s)| format!("{}::{}", self.param(i as u32), s.as_str()))
-                    .collect();
+                let params: Vec<String> =
+                    q.params.iter().enumerate().map(|(i, s)| format!("{}::{}", self.param(i as u32), s.as_str())).collect();
                 let name = if self.n.query.is_empty() { "q" } else { &self.n.query };
                 if params.is_empty() {
                     out.push_str(&format!("query {name}\n"));
@@ -648,12 +637,7 @@ impl Printer<'_> {
                 for (i, r) in q.rules.iter().enumerate() {
                     let names = self.n.rule_vars.get(i).unwrap_or(&empty);
                     let args: Vec<String> = r.args.iter().map(|t| self.term(names, t)).collect();
-                    out.push_str(&format!(
-                        "    {}({}) = {}\n",
-                        self.pred(Pred::Local(r.head)),
-                        args.join(", "),
-                        self.body(names, &r.body)
-                    ));
+                    out.push_str(&format!("    {}({}) = {}\n", self.pred(Pred::Local(r.head)), args.join(", "), self.body(names, &r.body)));
                 }
                 out.push_str(&format!("    {sel}\nend\n"));
             }
@@ -673,11 +657,7 @@ impl Printer<'_> {
                         out.push_str(&format!("{head} :- {}.\n", self.body(names, &r.body)));
                     }
                 }
-                out.push_str(&format!(
-                    "?- select({}) :- {}.\n",
-                    self.outputs(),
-                    self.body(&self.n.select_vars, &q.select.body)
-                ));
+                out.push_str(&format!("?- select({}) :- {}.\n", self.outputs(), self.body(&self.n.select_vars, &q.select.body)));
             }
         }
         out

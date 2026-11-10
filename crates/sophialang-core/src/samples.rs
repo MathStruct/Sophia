@@ -71,10 +71,7 @@ pub fn program() -> Vec<(&'static str, Definition)> {
             "sample.Nat",
             Definition::data(
                 Term::Type(0),
-                vec![
-                    Constructor { name: "zero".into(), ty: nat() },
-                    Constructor { name: "succ".into(), ty: Term::pi("n", nat(), nat()) },
-                ],
+                vec![Constructor { name: "zero".into(), ty: nat() }, Constructor { name: "succ".into(), ty: Term::pi("n", nat(), nat()) }],
             ),
         ),
         // 1: add(a, b) = match a { zero => b; succ(k) => succ(add(k, b)) }
@@ -137,19 +134,11 @@ pub fn program() -> Vec<(&'static str, Definition)> {
         // 6, 7: the relations' signatures (the relations themselves are nominal)
         (
             "sample.parent_sig",
-            Definition {
-                kind: Kind::Relation,
-                ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))),
-                body: Body::None,
-            },
+            Definition { kind: Kind::Relation, ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))), body: Body::None },
         ),
         (
             "sample.ancestor_sig",
-            Definition {
-                kind: Kind::Relation,
-                ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))),
-                body: Body::None,
-            },
+            Definition { kind: Kind::Relation, ty: Some(Term::arrow(nat(), Term::arrow(nat(), Term::Prop))), body: Body::None },
         ),
         // 8: ancestor(X, Y) :- parent(X, Y)
         (
@@ -185,13 +174,7 @@ pub fn program() -> Vec<(&'static str, Definition)> {
         // 10: a test
         (
             "sample.add_test",
-            Definition::test(Term::app(
-                Term::Nominal(builtin("==")),
-                [
-                    Term::app(d(1), [con(nat(), 0), con(nat(), 0)]),
-                    con(nat(), 0),
-                ],
-            )),
+            Definition::test(Term::app(Term::Nominal(builtin("==")), [Term::app(d(1), [con(nat(), 0), con(nat(), 0)]), con(nat(), 0)])),
         ),
         // 11: a method on a machine type: double(x::Int64)::Int64 = x + x
         (

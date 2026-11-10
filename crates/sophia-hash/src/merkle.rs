@@ -100,9 +100,7 @@ impl Record {
             ser.extend_from_slice(&r.bytes);
         }
         let c = component_digest(&first.lang, &first.normaliser, &ser);
-        members_in_canonical_order
-            .iter()
-            .all(|r| r.component == c && r.id == member_digest(&c, r.index))
+        members_in_canonical_order.iter().all(|r| r.component == c && r.id == member_digest(&c, r.index))
     }
 }
 

@@ -151,11 +151,7 @@ impl<'a> Reader<'a> {
 
     pub fn expect_u32(&mut self, tag: &str) -> Result<u32, ReadError> {
         let p = self.expect(tag)?;
-        let a: [u8; 4] = p.try_into().map_err(|_| ReadError::BadLength {
-            tag: tag.into(),
-            expected: 4,
-            found: p.len(),
-        })?;
+        let a: [u8; 4] = p.try_into().map_err(|_| ReadError::BadLength { tag: tag.into(), expected: 4, found: p.len() })?;
         Ok(u32::from_le_bytes(a))
     }
 
@@ -231,4 +227,3 @@ mod tests {
         }
     }
 }
-

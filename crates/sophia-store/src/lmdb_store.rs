@@ -41,10 +41,8 @@ impl Lmdb {
         // SAFETY: heed requires that the same environment is not opened twice
         // in one process with different options, and that the file is not
         // modified by other means while mapped. The store owns its directory.
-        let env = unsafe {
-            EnvOpenOptions::new().map_size(map_size).max_dbs(Table::ALL.len() as u32 + 4).open(path.as_ref())
-        }
-        .map_err(be)?;
+        let env =
+            unsafe { EnvOpenOptions::new().map_size(map_size).max_dbs(Table::ALL.len() as u32 + 4).open(path.as_ref()) }.map_err(be)?;
         let mut w = env.write_txn().map_err(be)?;
         let mut dbs = Vec::new();
         for t in Table::ALL {

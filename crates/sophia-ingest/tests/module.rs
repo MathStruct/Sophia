@@ -69,7 +69,8 @@ fn sophia_reproduces_moonkale_module_ids() {
             assert_eq!(deps, want, "{root}: depends_on of {}", row[2]);
             let refs: BTreeSet<String> =
                 x.references.iter().map(|(s, t)| format!("{}:{}>{}:{}:{}", s.0, s.1, fname(t.0), t.1, t.2)).collect();
-            let want: BTreeSet<String> = row.get(6).map(|c| c.split(',').filter(|s| !s.is_empty()).map(String::from).collect()).unwrap_or_default();
+            let want: BTreeSet<String> =
+                row.get(6).map(|c| c.split(',').filter(|s| !s.is_empty()).map(String::from).collect()).unwrap_or_default();
             assert_eq!(refs, want, "{root}: references of {}", row[2]);
             if x.identity.is_ok() {
                 assert_eq!(stored[&(row[1].clone(), row[3].clone())], row[4], "{root}: stored record id of {}", row[2]);
