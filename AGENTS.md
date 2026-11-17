@@ -20,6 +20,18 @@ Not all of it has been reviewed by a person.
 Nobody uses Sophia yet: large breaking changes are fine when they make the design right (SR-118).
 Do not commit, push or merge unless you are asked to. `master` is the working branch.
 
+**Helper worktrees.** Claude keeps the main checkout (`~/Code/CategoryTheory/Sophia`). A helper
+agent that implements a work package works in its own worktree beside it, `../Sophia-<agent>`,
+on a branch `<agent>/<topic>` made from `master`: Codex (GPT) in `../Sophia-codex`
+(`git worktree add ../Sophia-codex -b codex/<topic> master`), Mistral in `../Sophia-mistral`. It
+does not commit unless its brief says so, and never pushes; Claude reads the branch and merges it.
+
+**Clean `target/`.** Every agent, Claude and Codex included, cleans up after itself: cargo never
+removes old build states, and the main checkout's `target/` held 131 GB on 2026-11-17. At the end
+of a session that compiled, run `du -sh target` in your own checkout or worktree; over **30 GB**,
+`cargo clean` and say so in your report. Clean only your own, never another worktree's, and not
+while a build of yours is running.
+
 ## What Sophia is
 
 A content-addressed store for code in every language, with its own language (sophialang) and its
@@ -72,6 +84,13 @@ accepts them. Problems go in `vault/Problems/` (SP-nnn) and the Problem Log. Sel
 questions that come up while implementing or discussing the theory go in
 `vault/Research Questions/` (RQ-nnn, from the template), stated so they can be worked on alone.
 Keep `vault/Status.md` current.
+
+**One task per session.** Sessions are kept short to save tokens. Start by reading the "Next
+session" section at the top of `vault/Status.md`; it names the task (a `B-nnn` row of
+`vault/Backlog/Backlog.md`) and what to read for it. When the task is finished, close it as
+`vault/Backlog/Backlog.md` describes: the row moves to the month's `Backlog Done <yyyy-mm>.md`,
+the "Next session" section is **overwritten** with the next task, and you report to Daniel and
+suggest a fresh session.
 
 **Vault notes.** A tag line, a summary in a blockquote, then `> Sources:` (papers, then `code:`).
 Wikilinks resolve by note name, so note names are unique across folders (language pages carry

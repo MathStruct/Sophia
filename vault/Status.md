@@ -2,6 +2,10 @@
 
 > What exists, what is being decided, and what is waiting. Check the date. Where the repository disagrees with this page, the repository wins, so fix this page.
 
+## Next session
+
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-17.** The backlog starts today in `vault/Backlog/`. **Next task:** B-001, fill the backlog from [[Milestones]], the "waiting" items below, the open problems and requirements; then name the next task here.
+
 **As of 2026-11-09.**
 
 - **Direction:** Sophia is the **store**; sophialang is its **language** (S-ADR-0007). The first priority is the **Moonkale interface** ([[SPEC-004 Moonkale Interface]]). The plan is [[Milestones]] M0 to M7.
