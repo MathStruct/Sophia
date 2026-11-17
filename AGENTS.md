@@ -87,10 +87,11 @@ Keep `vault/Status.md` current.
 
 **One task per session.** Sessions are kept short to save tokens. Start by reading the "Next
 session" section at the top of `vault/Status.md`; it names the task (a `B-nnn` row of
-`vault/Backlog/Backlog.md`) and what to read for it. When the task is finished, close it as
+`vault/Backlog/Backlog.md`) and what to read for it; then read `HANDOFF-from-moonkale.md` in the
+main checkout's root if it exists (see "Moonkale" below). When the task is finished, close it as
 `vault/Backlog/Backlog.md` describes: the row moves to the month's `Backlog Done <yyyy-mm>.md`,
-the "Next session" section is **overwritten** with the next task, and you report to Daniel and
-suggest a fresh session.
+the "Next session" section is **overwritten** with the next task, Moonkale gets a handoff entry if
+the change reaches it, and you report to Daniel and suggest a fresh session.
 
 **Vault notes.** A tag line, a summary in a blockquote, then `> Sources:` (papers, then `code:`).
 Wikilinks resolve by note name, so note names are unique across folders (language pages carry
@@ -120,3 +121,16 @@ revision in `crates/sophia-ingest/Cargo.toml`, so a definition has the same id i
 
 Findings about the shared normaliser go to the Moonkale agent (or as an issue on
 MathStruct/Moonkale), not into Sophia-side workarounds.
+
+**Handoffs between Sophia and Moonkale** follow Moonkale's convention: untracked
+`*-from-<agent>.md` files in the receiver's main checkout root, read when a session starts.
+
+- **Sophia → Moonkale:** when a change reaches Moonkale, append an entry to
+  `~/Code/Moonkale/Moonkale/HANDOFF-from-sophia.md`. That covers a change to the interface or the
+  store API Moonkale calls, a new tag, a changed behaviour or error, a moved normaliser pin or a
+  changed id, and a fix Moonkale should check with its replay. Each entry gives the date, the
+  Sophia tag or commit, what changed, what Moonkale has to do, and the spec or backlog row behind
+  it. Moonkale's agent removes an entry once it has acted on it; Sophia never edits other entries.
+- **Moonkale → Sophia:** Moonkale writes to `HANDOFF-from-moonkale.md` in this checkout's root.
+  Read it at the start of a session; when an entry is acted on, record it where it belongs (a
+  backlog row, a requirement, a triage note) and remove it from the file.
