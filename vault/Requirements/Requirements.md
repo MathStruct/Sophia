@@ -110,7 +110,7 @@ An external review (ChatGPT) of commit `27cb3a7`, passed on by Daniel, who asked
 | SR-86 | Macro hygiene, phases and quotation are specified, not assumed from de Bruijn indices. | Rev §8.1 | with macros | open |
 | SR-87 | A closed-world contract governs standalone binaries: reflection, dynamic loading, foreign calls and generated code. | Rev §8.2 | M5 | specified (SPEC-006 §3) |
 | SR-88 | Migrations separate canonical identity (normaliser, hash) from physical encoding. | Rev §8.7 | later | specified (SPEC-006 §6) |
-| SR-89 | **P0 gate:** foundational invariants count as settled only after the three acceptance demonstrations pass: symmetric recursion, two-view editing, reproducible dispatch. | Rev §9, §10 | now | Sophia side: demonstrations 1 and 3 (store level) pass; 2 passes on Sophia's side, Moonkale's client side open |
+| SR-89 | **P0 gate:** foundational invariants count as settled only after the three acceptance demonstrations pass: symmetric recursion, two-view editing, reproducible dispatch. | Rev §9, §10 | now | demonstrations 1 and 2 pass (2 through Moonkale's `Source` with two clients, Moonkale `46a06b65`, [[Milestones]]); 3 passes at the store level, end to end waits for M4 (B-038) |
 
 ## From Daniel's query-language proposal, 2026-10-20
 
