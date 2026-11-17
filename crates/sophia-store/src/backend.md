@@ -26,3 +26,5 @@
 **`remove_fact(id)`** (2026-10-24): takes a fact out of current reads. Only the folder writer calls it, when the last file contributing the fact drops it ([[folder]]).
 
 **`remove_record(id)`** (2026-10-24, SR-146): deletes a record with its reference, component and kind rows. Only folder-store collection calls it, after checking that nothing reaches the record ([[folder]]).
+
+`annotation_ids` (2026-11-17, B-002) lists every stored annotation id, sorted, so `give_truth` can check that Moonkale exported each one (SPEC-010 §7). It is required, not a default: the SQL backends read `t_annotation`, the key-value backends scan the `annotation` table.

@@ -67,6 +67,10 @@ pub enum StoreError {
     /// fresh build of the files would not have it (SPEC-010 §3).
     #[error("name {name:?} is in no file: export or remove it first")]
     NotInFiles { name: String },
+    /// `give_truth`: stored annotations that Moonkale did not export to its
+    /// jsonl (the first few ids). The files would not hold them (SPEC-010 §7).
+    #[error("{} stored annotation(s) not exported, first: {}", ids.len(), ids.iter().map(|d| d.to_hex()).collect::<Vec<_>>().join(", "))]
+    AnnotationsNotExported { ids: Vec<sophia_hash::Digest> },
     /// `replace_files` and its relatives: a malformed batch (a file twice,
     /// an index or a span out of range, a name bound twice in one file).
     /// It used to be `NotFound`, which read as a missing file (Fable's

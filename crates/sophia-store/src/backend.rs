@@ -50,6 +50,9 @@ pub trait ReadTx {
     /// An annotation by its id (an access path for `annotation(a, _, _)`
     /// with `a` bound, SPEC-007 §2).
     fn annotation(&self, id: &Digest) -> Result<Option<Annotation>>;
+    /// Every stored annotation's id, sorted (SPEC-010 §7: `give_truth`
+    /// checks that Moonkale exported each one).
+    fn annotation_ids(&self) -> Result<Vec<Digest>>;
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>>;
 
     fn meta(&self, key: &str) -> Result<Option<Vec<u8>>>;

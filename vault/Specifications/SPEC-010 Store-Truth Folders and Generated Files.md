@@ -84,7 +84,7 @@ A file's token also covers the version of each generic function the file contrib
 
 ## 7. Annotations when the truth moves (proposal, 2026-10-30)
 
-**A proposal by Claude (Sophia), asked for by the Moonkale agent for its ADR-0031 (Moonkale master `fcb159ab`). Accepted by Daniel on 2026-10-30, with ADR-0031 (SR-151). Not built.**
+**A proposal by Claude (Sophia), asked for by the Moonkale agent for its ADR-0031 (Moonkale master `fcb159ab`). Accepted by Daniel on 2026-10-30, with ADR-0031 (SR-151). Built 2026-11-17 (B-002), tested on all four backends by `annotations_move_with_the_truth` in `crates/sophia-store/tests/folder.rs`.** One reading was settled while building it: `annotate_many` skips an annotation stored *exactly* as given (same id, status and inputs); a changed status or inputs is stored and logged, so the status update below keeps working.
 
 ADR-0031 puts a folder's annotations (SPEC-001 §8) where its truth is:
 - in Sophia for a store-truth folder;

@@ -595,6 +595,12 @@ impl ReadTx for SqliteTx<'_> {
             .pop())
     }
 
+    fn annotation_ids(&self) -> Result<Vec<Digest>> {
+        let mut st = self.tx.prepare_cached("SELECT id FROM t_annotation ORDER BY id").map_err(be)?;
+        let v: Vec<_> = st.query_map([], |r| r.get::<_, Vec<u8>>(0)).map_err(be)?.collect();
+        v.into_iter().map(|b| dg(b.map_err(be)?)).collect()
+    }
+
     fn annotations_of(&self, subject: &Digest) -> Result<Vec<Annotation>> {
         self.annotation_rows(
             "SELECT a.id, a.kind, a.subjects, a.payload, a.checker, a.checker_version, a.status, a.inputs

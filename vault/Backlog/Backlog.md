@@ -20,7 +20,6 @@ The order below is a proposal (2026-11-17, B-001), following SR-125 (Moonkale fi
 
 | id | task | status | needs | size | source | done when |
 |---|---|---|---|---|---|---|
-| B-002 | Annotations move with the truth: `give_truth(…, exported_annotations)` refuses with `AnnotationsNotExported`; `take_truth(…, annotations)` stores them in the same transaction; `annotate_many` skips an annotation already stored | planned | — | M | SR-151; [[SPEC-010 Store-Truth Folders and Generated Files]] §7 (accepted 2026-10-30) | tests on all four backends for each of the three rules; a re-sync logs nothing; Moonkale told the calls exist |
 | B-003 | `Interface::propose_text(path, text, token)` for sophialang files, returning a `Proposal` | planned | — | M | SPEC-010 §5, acceptance 3 | SPEC-010 acceptance 3 passes on all four backends |
 | B-004 | Specify sharing a store-truth folder: the text export committed beside the generated files and the rebuild from it (option b); the pointer-file idea as a later option | planned | — | S | SR-149 | a SPEC-011 draft Daniel can accept; SR-149's status points to it |
 | B-005 | B-15, the rest of the edit loop: the change feed (Moonkale polls every 500 ms), the workspace's re-fetch, paint on Daniel's desktop | planned | Moonkale | M | SR-83, SR-125; [[Milestones]] order item 2 | a measured edit-to-paint latency in [[Benchmark Results]], with Moonkale's revision |

@@ -805,9 +805,11 @@ impl<B: Backend> Store<B> {
 
     /// Moves the truth from the files into the store (SPEC-010 §3), in
     /// place: replaces `files` (the folder's current files, normally the
-    /// stale ones), then ends the derived mode, in one transaction. From
-    /// then on nothing is collected; history before it stays in git.
-    pub fn take_truth(&self, files: &[FileIngest]) -> Result<FileReport> {
+    /// stale ones), stores `annotations` (the folder's jsonl, SPEC-010 §7;
+    /// one already stored as given is skipped), then ends the derived
+    /// mode, in one transaction. From then on nothing is collected; history
+    /// before it stays in git.
+    pub fn take_truth(&self, files: &[FileIngest], annotations: &[Annotation]) -> Result<FileReport> {
         let ingests: Vec<&FileIngest> = files.iter().collect();
         let batch_paths = validate_batch(&ingests)?;
         self.backend().write(|tx| {
@@ -815,6 +817,7 @@ impl<B: Backend> Store<B> {
                 return Err(StoreError::NotDerived);
             }
             let report = self.replace_in(tx, &ingests, &batch_paths)?;
+            self.annotate_in(tx, annotations)?;
             tx.remove_meta(MODE_KEY)?;
             let seq = self.log(tx, LogOp::Setting, "store/truth=store".into(), None, None)?;
             tx.set_meta(TRUTH_SINCE_KEY, seq.to_string().as_bytes())?;
@@ -825,10 +828,15 @@ impl<B: Backend> Store<B> {
     /// Gives the truth back to the files (SPEC-010 §3): `exported` is every
     /// file Moonkale wrote, as (path, source id of the text written). Each
     /// must be a current file with exactly that stored text, and every
-    /// current file must be listed ([`StoreError::ExportMismatch`]). Then
-    /// the store is derived again and collected, in one transaction: **the
-    /// store's version history is discarded**. Returns the records removed.
-    pub fn give_truth(&self, exported: &[(String, Digest)]) -> Result<usize> {
+    /// current file must be listed ([`StoreError::ExportMismatch`]).
+    /// `exported_annotations` is every annotation id Moonkale wrote to the
+    /// folder's jsonl; a stored annotation not among them refuses the switch
+    /// ([`StoreError::AnnotationsNotExported`], SPEC-010 §7). Annotations
+    /// stay stored: the store keeps a loaded copy of the jsonl, and one
+    /// whose records are collected dangles. Then the store is derived again
+    /// and collected, in one transaction: **the store's version history is
+    /// discarded**. Returns the records removed.
+    pub fn give_truth(&self, exported: &[(String, Digest)], exported_annotations: &[Digest]) -> Result<usize> {
         self.backend().write(|tx| {
             if tx.meta(MODE_KEY)?.as_deref() == Some(MODE_DERIVED) {
                 return Err(StoreError::Derived);
@@ -862,6 +870,11 @@ impl<B: Backend> Store<B> {
                     (Target::Nominal(_), None) if generics.contains(&n.path) => {}
                     _ => return Err(StoreError::NotInFiles { name: n.path }),
                 }
+            }
+            let written: HashSet<&Digest> = exported_annotations.iter().collect();
+            let missing: Vec<Digest> = tx.annotation_ids()?.into_iter().filter(|d| !written.contains(d)).take(8).collect();
+            if !missing.is_empty() {
+                return Err(StoreError::AnnotationsNotExported { ids: missing });
             }
             tx.set_meta(MODE_KEY, MODE_DERIVED)?;
             tx.remove_meta(TRUTH_SINCE_KEY)?;

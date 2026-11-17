@@ -26,7 +26,7 @@
 
 Garbage collection, branches, update propagation, the overlap check that would let a new method make only *affected* facts stale (SP-006; today any change to a relation makes all its facts stale), and migration.
 
-**Batches** (2026-10-20): `add_members` adds many members to one nominal entity in a single transaction, checking membership once. `add_method` checks it per call, which was quadratic for set.mm's 48 000 proofs. `annotate_many` adds many annotations in one transaction.
+**Batches** (2026-10-20): `add_members` adds many members to one nominal entity in a single transaction, checking membership once. `add_method` checks it per call, which was quadratic for set.mm's 48 000 proofs. `annotate_many` adds many annotations in one transaction. Since B-002 (2026-11-17, SPEC-010 §7) it skips an annotation stored exactly as given, so reloading a derived store's jsonl logs nothing; one whose `status` or `inputs` changed (the id does not cover them) is stored over the old one and logged, which keeps the status update that `put_annotation` already allowed. `take_truth` uses the same rule.
 
 **`record_facts(facts)`** (2026-10-21): several facts in one transaction, skipping (and not logging) facts already stored. Ingests use it for `source-span` facts: one transaction for a package instead of one per definition.
 

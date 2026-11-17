@@ -521,7 +521,7 @@ fn a_proposal_writes_nothing_and_accepting_it_equals_replacing<B: Backend>(s: St
 /// every later version, and giving the truth back leaves a fresh build.
 fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl Fn() -> (Store<B>, tempfile::TempDir)) {
     s.set_derived().unwrap();
-    assert!(matches!(s.give_truth(&[]), Err(StoreError::Derived)));
+    assert!(matches!(s.give_truth(&[], &[]), Err(StoreError::Derived)));
     let mut tree = Tree::new();
     let commits = history();
     let apply = |tree: &mut Tree, c: &[FileIngest]| {
@@ -536,11 +536,11 @@ fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl 
     s.replace_files(&commits[0]).unwrap();
     apply(&mut tree, &commits[0]);
     // Into the store, with the files as they are now.
-    s.take_truth(&commits[1]).unwrap();
+    s.take_truth(&commits[1], &[]).unwrap();
     apply(&mut tree, &commits[1]);
     assert!(!s.is_derived().unwrap());
     assert!(s.meta(sophia_store::folder::TRUTH_SINCE_KEY).unwrap().is_some());
-    assert!(matches!(s.take_truth(&[]), Err(StoreError::NotDerived)));
+    assert!(matches!(s.take_truth(&[], &[]), Err(StoreError::NotDerived)));
     // Store-truth edits keep every version.
     let mut seen = std::collections::BTreeSet::new();
     for c in &commits[2..4] {
@@ -554,11 +554,11 @@ fn the_truth_moves_into_the_store_and_back<B: Backend>(s: Store<B>, fresh: impl 
     // Back to the files: every current file, with the text written.
     let exported: Vec<(String, Digest)> =
         tree.values().map(|f| (f.path.clone(), source_record(&f.path, f.text.as_ref().unwrap()).id)).collect();
-    assert!(matches!(s.give_truth(&exported[1..]), Err(StoreError::ExportMismatch { .. })), "a file not exported");
+    assert!(matches!(s.give_truth(&exported[1..], &[]), Err(StoreError::ExportMismatch { .. })), "a file not exported");
     let mut wrong = exported.clone();
     wrong[0].1 = source_record(&wrong[0].0, "edited elsewhere").id;
-    assert!(matches!(s.give_truth(&wrong), Err(StoreError::ExportMismatch { .. })), "a text not as stored");
-    assert!(s.give_truth(&exported).unwrap() > 0);
+    assert!(matches!(s.give_truth(&wrong, &[]), Err(StoreError::ExportMismatch { .. })), "a text not as stored");
+    assert!(s.give_truth(&exported, &[]).unwrap() > 0);
     assert!(s.is_derived().unwrap());
     let (t, _d) = fresh();
     t.set_derived().unwrap();
@@ -580,10 +580,10 @@ fn give_truth_refuses_names_no_file_has<B: Backend>(s: Store<B>) {
     s.set_derived().unwrap();
     let a = file("a.jl", &[("a", "1"), ("g:1", "g(x) = 0")]);
     s.replace_files(std::slice::from_ref(&a)).unwrap();
-    s.take_truth(&[]).unwrap();
+    s.take_truth(&[], &[]).unwrap();
     s.alias("jl.P.extra", Target::Content(rec("1", "const_statement").id), Visibility::Public).unwrap();
     let exported = vec![("a.jl".to_string(), source_record("a.jl", a.text.as_ref().unwrap()).id)];
-    match s.give_truth(&exported) {
+    match s.give_truth(&exported, &[]) {
         Err(StoreError::NotInFiles { name }) => assert_eq!(name, "jl.P.extra"),
         other => panic!("expected NotInFiles: {other:?}"),
     }
@@ -593,10 +593,83 @@ fn give_truth_refuses_names_no_file_has<B: Backend>(s: Store<B>) {
     // Codex review).
     let seq = s.resolve("jl.P.a").unwrap().unwrap().seq;
     s.update("jl.P.a", &[rec("9", "const_statement")], 0, seq).unwrap();
-    assert!(matches!(s.give_truth(&exported), Err(StoreError::ExportMismatch { path }) if path == "a.jl"));
+    assert!(matches!(s.give_truth(&exported, &[]), Err(StoreError::ExportMismatch { path }) if path == "a.jl"));
     let seq = s.resolve("jl.P.a").unwrap().unwrap().seq;
     s.update("jl.P.a", &[rec("1", "const_statement")], 0, seq).unwrap();
-    assert!(s.give_truth(&exported).is_ok());
+    assert!(s.give_truth(&exported, &[]).is_ok());
+}
+
+/// The annotations logged after `seq`.
+fn annotate_entries<B: Backend>(s: &Store<B>, seq: u64) -> Vec<Digest> {
+    s.changes_since(seq, usize::MAX).unwrap().entries.into_iter().filter(|e| e.op == LogOp::Annotate).filter_map(|e| e.new).collect()
+}
+
+/// SPEC-010 §7 (SR-151): annotations move with the truth. Loading them
+/// again logs nothing; `take_truth` stores the jsonl's annotations with the
+/// switch; `give_truth` refuses while a stored annotation was not exported.
+fn annotations_move_with_the_truth<B: Backend>(s: Store<B>) {
+    s.set_derived().unwrap();
+    let a = file("a.jl", &[("a", "1")]);
+    s.replace_files(std::slice::from_ref(&a)).unwrap();
+    let subject = rec("1", "const_statement").id;
+    let doc = Annotation::new("doc", vec![subject], b"one".to_vec(), None);
+    let proof = Annotation::new("proof", vec![subject], b"two".to_vec(), Some(("checker", "1")));
+    let bare = Annotation::new("note", Vec::new(), b"no subject".to_vec(), None);
+    // A derived store loads the jsonl on every sync: the second load logs
+    // nothing and stores nothing new.
+    s.annotate_many(std::slice::from_ref(&doc)).unwrap();
+    let seq = s.last_seq().unwrap();
+    s.annotate_many(std::slice::from_ref(&doc)).unwrap();
+    assert_eq!(s.last_seq().unwrap(), seq, "a re-sync logs nothing");
+    // A changed status is stored over the old one, and logged.
+    let mut checked = doc.clone();
+    checked.status = "checked".into();
+    s.annotate_many(&[checked.clone(), doc.clone()]).unwrap();
+    assert_eq!(annotate_entries(&s, seq), vec![doc.id, doc.id], "the status went to checked and back");
+    assert_eq!(s.read(|tx| tx.annotation(&doc.id)).unwrap(), Some(doc.clone()));
+    // A switch whose files fail stores no annotation (Mistral's review).
+    let mut hidden = file("c.jl", &[("c", "3")]);
+    hidden.records.push(rec("hidden", "const_statement"));
+    assert!(matches!(s.take_truth(&[hidden], std::slice::from_ref(&proof)), Err(StoreError::UnreachedRecord { .. })));
+    assert_eq!(s.read(|tx| tx.annotation(&proof.id)).unwrap(), None);
+    assert!(s.is_derived().unwrap());
+    // Into the store: the jsonl's annotations with the switch, the stored
+    // one not again.
+    let seq = s.last_seq().unwrap();
+    s.take_truth(&[], &[doc.clone(), proof.clone(), bare.clone()]).unwrap();
+    assert!(!s.is_derived().unwrap());
+    let mut want = vec![proof.id, bare.id];
+    let mut got = annotate_entries(&s, seq);
+    want.sort();
+    got.sort();
+    assert_eq!(got, want);
+    for x in [&doc, &proof, &bare] {
+        assert_eq!(s.read(|tx| tx.annotation(&x.id)).unwrap().as_ref(), Some(x));
+    }
+    // A refused switch stores nothing.
+    let late = Annotation::new("doc", vec![subject], b"late".to_vec(), None);
+    assert!(matches!(s.take_truth(&[], std::slice::from_ref(&late)), Err(StoreError::NotDerived)));
+    assert_eq!(s.read(|tx| tx.annotation(&late.id)).unwrap(), None);
+    // Back to the files: every stored annotation must have been exported.
+    let exported = vec![("a.jl".to_string(), source_record("a.jl", a.text.as_ref().unwrap()).id)];
+    let mut stored = vec![doc.id, proof.id, bare.id];
+    stored.sort();
+    assert_eq!(s.read(|tx| tx.annotation_ids()).unwrap(), stored);
+    match s.give_truth(&exported, &[doc.id, proof.id]) {
+        Err(StoreError::AnnotationsNotExported { ids }) => assert_eq!(ids, vec![bare.id]),
+        other => panic!("expected AnnotationsNotExported: {other:?}"),
+    }
+    assert!(!s.is_derived().unwrap(), "nothing changed");
+    assert!(matches!(s.give_truth(&exported, &[]), Err(StoreError::AnnotationsNotExported { ids }) if ids.len() == 3));
+    // An id exported that the store does not hold is no error: the jsonl
+    // may hold more than the store.
+    s.give_truth(&exported, &[doc.id, proof.id, bare.id, late.id]).unwrap();
+    assert!(s.is_derived().unwrap());
+    // The store keeps its loaded copy, and the next sync logs nothing.
+    assert_eq!(s.read(|tx| tx.annotation_ids()).unwrap(), stored);
+    let seq = s.last_seq().unwrap();
+    s.annotate_many(&[doc, proof, bare]).unwrap();
+    assert_eq!(s.last_seq().unwrap(), seq, "a re-sync after give_truth logs nothing");
 }
 
 /// Codex review of SPEC-010: a proposal names the generic functions an
@@ -782,6 +855,11 @@ macro_rules! suite {
             fn give_truth_refuses_names_no_file_has() {
                 let (s, _d) = store();
                 super::give_truth_refuses_names_no_file_has(s);
+            }
+            #[test]
+            fn annotations_move_with_the_truth() {
+                let (s, _d) = store();
+                super::annotations_move_with_the_truth(s);
             }
             #[test]
             fn proposals_name_generic_functions_created_and_removed() {

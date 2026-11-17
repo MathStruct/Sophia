@@ -255,6 +255,10 @@ impl<X: Kv> ReadTx for X {
         self.get(Table::Ann, id.as_bytes())?.map(|b| decode_annotation(&b)).transpose()
     }
 
+    fn annotation_ids(&self) -> Result<Vec<Digest>> {
+        self.scan(Table::Ann, &[], &[], ALL_ROWS)?.iter().map(|(k, _)| tail_digest(k)).collect()
+    }
+
     fn facts_of(&self, subject: &Digest) -> Result<Vec<Fact>> {
         let mut out = Vec::new();
         for (k, _) in self.scan(Table::FactSub, subject.as_bytes(), subject.as_bytes(), ALL_ROWS)? {

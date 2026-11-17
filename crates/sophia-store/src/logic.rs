@@ -464,17 +464,27 @@ impl<B: Backend> Store<B> {
         })
     }
 
-    /// Adds many annotations in one transaction, logged one by one. Returns
-    /// the last seq.
+    /// Adds many annotations in one transaction, logged one by one. An
+    /// annotation stored exactly as given (same id, status and inputs) is
+    /// neither stored nor logged again, so loading a derived store's
+    /// annotations again logs nothing (SPEC-010 §7); one whose status or
+    /// inputs changed is stored over the old one and logged. Returns the
+    /// last seq.
     pub fn annotate_many(&self, annotations: &[Annotation]) -> Result<u64> {
-        self.backend.write(|tx| {
-            let mut seq = tx.last_seq()?;
-            for a in annotations {
-                seq = self.log(tx, LogOp::Annotate, a.kind.clone(), None, Some(a.id))?;
-                tx.put_annotation(a)?;
+        self.backend.write(|tx| self.annotate_in(tx, annotations))
+    }
+
+    /// [`Store::annotate_many`] inside a transaction.
+    pub(crate) fn annotate_in(&self, tx: &mut dyn WriteTx, annotations: &[Annotation]) -> Result<u64> {
+        let mut seq = tx.last_seq()?;
+        for a in annotations {
+            if tx.annotation(&a.id)?.as_ref() == Some(a) {
+                continue;
             }
-            Ok(seq)
-        })
+            seq = self.log(tx, LogOp::Annotate, a.kind.clone(), None, Some(a.id))?;
+            tx.put_annotation(a)?;
+        }
+        Ok(seq)
     }
 
     pub fn record_fact(&self, f: &Fact) -> Result<u64> {

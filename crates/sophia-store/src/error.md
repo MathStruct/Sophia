@@ -13,3 +13,5 @@
 **`IncompleteComponent { component, size, stored }`** (Gemini's review, 2026-11-07 ([[Review 2026-11-07 Gemini (external)]]); fixed 2026-11-08): a write would leave a recursive component with other than `size` distinct members. It is a frontend bug (Moonkale's normaliser before `06fd112c`); see [[logic]].
 
 `InvalidBatch` and `NotASetting` were added on 2026-11-10 (Fable's review, [[Review 2026-11-10 Fable (external)]], S-12 and S-7).
+
+**`AnnotationsNotExported { ids }`** (2026-11-17, B-002, SPEC-010 §7): `give_truth` while a stored annotation is not among the ids Moonkale exported to its jsonl; `ids` holds the first eight.
