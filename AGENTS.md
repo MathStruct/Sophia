@@ -18,13 +18,16 @@ Not all of it has been reviewed by a person.
   verified: `vault/Languages/Languages.md`), never as "percent of definitions with ids".
 
 Nobody uses Sophia yet: large breaking changes are fine when they make the design right (SR-118).
-Do not commit, push or merge unless you are asked to. `master` is the working branch.
+Do not commit, push or merge unless you are asked to. **`dev-danielb` is the implementation
+branch:** work is committed there, and `master` only receives merges of it when Daniel asks (tags
+are made on `master`).
 
 **Helper worktrees.** Claude keeps the main checkout (`~/Code/CategoryTheory/Sophia`). A helper
 agent that implements a work package works in its own worktree beside it, `../Sophia-<agent>`,
-on a branch `<agent>/<topic>` made from `master`: Codex (GPT) in `../Sophia-codex`
-(`git worktree add ../Sophia-codex -b codex/<topic> master`), Mistral in `../Sophia-mistral`. It
-does not commit unless its brief says so, and never pushes; Claude reads the branch and merges it.
+on a branch `<agent>/<topic>` made from `dev-danielb`: Codex (GPT) in `../Sophia-codex`
+(`git worktree add ../Sophia-codex -b codex/<topic> dev-danielb`), Mistral in `../Sophia-mistral`. It
+does not commit unless its brief says so, and never pushes; Claude reads the branch and merges it
+into `dev-danielb`.
 
 **Clean `target/`.** Every agent, Claude and Codex included, cleans up after itself: cargo never
 removes old build states, and the main checkout's `target/` held 131 GB on 2026-11-17. At the end
