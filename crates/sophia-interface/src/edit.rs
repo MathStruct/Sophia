@@ -63,11 +63,11 @@ fn query_error(e: sophia_query::Error) -> EditError {
     }
 }
 
-fn abs(ns: &str, name: &str) -> String {
+pub(crate) fn abs(ns: &str, name: &str) -> String {
     if ns.is_empty() { name.to_string() } else { format!("{ns}.{name}") }
 }
 
-fn head_relation(def: &Definition) -> Option<Digest> {
+pub(crate) fn head_relation(def: &Definition) -> Option<Digest> {
     match &def.body {
         Body::Rule { head: Term::App(h, _), .. } => match h.as_ref() {
             Term::Nominal(n) => Some(*n),
@@ -75,6 +75,41 @@ fn head_relation(def: &Definition) -> Option<Digest> {
         },
         _ => None,
     }
+}
+
+/// Parsed items normalised as one batch, so that recursive groups re-hash
+/// together. Definitions come first (`records[..n_defs]`, item
+/// `def_index[k]`), then the relations' signatures (`sigs`, by item).
+pub(crate) struct Normalised {
+    pub def_index: Vec<usize>,
+    pub defs: Vec<Definition>,
+    pub sigs: Vec<(usize, Definition)>,
+    pub n_defs: usize,
+    pub records: Vec<sophia_hash::Record>,
+}
+
+/// Normalises `items`, with a relation item `i` standing for the nominal
+/// entity `nominal_of[i]`. Shared by `apply` and `propose_text`, so that a
+/// proposal computes the ids an edit would store.
+pub(crate) fn normalise_items(
+    items: &[Item],
+    nominal_of: &BTreeMap<usize, Digest>,
+) -> Result<Normalised, sophialang_core::normalise::NormaliseError> {
+    let def_index: Vec<usize> = (0..items.len()).filter(|i| !nominal_of.contains_key(i)).collect();
+    let renumber = |t: Term| match t {
+        Term::Draft(i) => match nominal_of.get(&(i as usize)) {
+            Some(n) => Term::Nominal(*n),
+            None => Term::Draft(def_index.iter().position(|&j| j == i as usize).expect("definition item") as u32),
+        },
+        t => t,
+    };
+    let mut defs: Vec<Definition> = def_index.iter().map(|&i| items[i].definition().clone().map_terms(&mut { renumber })).collect();
+    let sigs: Vec<(usize, Definition)> =
+        nominal_of.keys().map(|&i| (i, items[i].definition().clone().map_terms(&mut { renumber }))).collect();
+    let n_defs = defs.len();
+    defs.extend(sigs.iter().map(|(_, d)| d.clone()));
+    let records = sophialang_core::normalise_batch(&defs, &mut Default::default())?;
+    Ok(Normalised { def_index, defs, sigs, n_defs, records })
 }
 
 impl<B: Backend + Sync> Interface<B> {
@@ -135,20 +170,8 @@ impl<B: Backend + Sync> Interface<B> {
                 nominal_of.insert(i, id);
             }
         }
-        let def_index: Vec<usize> = (0..items.len()).filter(|i| !nominal_of.contains_key(i)).collect();
-        let renumber = |t: Term| match t {
-            Term::Draft(i) => match nominal_of.get(&(i as usize)) {
-                Some(n) => Term::Nominal(*n),
-                None => Term::Draft(def_index.iter().position(|&j| j == i as usize).expect("definition item") as u32),
-            },
-            t => t,
-        };
-        let mut defs: Vec<Definition> = def_index.iter().map(|&i| items[i].definition().clone().map_terms(&mut { renumber })).collect();
-        let sigs: Vec<(usize, Definition)> =
-            nominal_of.keys().map(|&i| (i, items[i].definition().clone().map_terms(&mut { renumber }))).collect();
-        let n_defs = defs.len();
-        defs.extend(sigs.iter().map(|(_, d)| d.clone()));
-        let records = sophialang_core::normalise_batch(&defs, &mut Default::default()).map_err(|e| EditError::Refused(e.to_string()))?;
+        let Normalised { def_index, defs, sigs, n_defs, records } =
+            normalise_items(&items, &nominal_of).map_err(|e| EditError::Refused(e.to_string()))?;
 
         // Names: new ones are added, existing ones updated.
         let mut new_names = Vec::new();

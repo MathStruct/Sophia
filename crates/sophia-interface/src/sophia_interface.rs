@@ -9,6 +9,7 @@
 
 mod edit;
 pub mod profiles;
+mod propose;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -18,6 +19,7 @@ use sophialang_core::{Body, definition_of};
 use sophialang_syntax::{Env, Found, Profile, ToPrint};
 
 pub use edit::{EditError, Written};
+pub use propose::TextProposal;
 pub use sophialang_syntax::{Diagnostic, Severity, Span};
 
 /// A node's identity, as Moonkale derives it.
@@ -632,8 +634,10 @@ impl<B: Backend + Sync> Interface<B> {
         // reference, the profile). Export again until nothing at all was
         // written while printing: the log position is unchanged.
         for _ in 0..8 {
-            let (names, token, seq) = self.export_snapshot(namespace)?;
-            let file = self.export_names(namespace, names, token)?;
+            let (names, signatures, token, seq) = self.export_snapshot(namespace)?;
+            let mut file = self.export_names(namespace, names, token)?;
+            file.aliases.extend(signatures);
+            file.aliases.sort();
             if self.store.last_seq()? == seq {
                 return Ok(file);
             }
@@ -644,30 +648,50 @@ impl<B: Backend + Sync> Interface<B> {
     /// The names `export` prints, with each one's recursive component (if
     /// it has more than one member), the export token and the log
     /// position, in one read.
-    fn export_snapshot(&self, namespace: &str) -> Result<(Vec<ExportName>, u64, u64)> {
+    fn export_snapshot(&self, namespace: &str) -> Result<ExportSnapshot> {
         self.store.read(|tx| {
             let seq = tx.last_seq()?;
             let mut names: Vec<NameEntry> =
                 tx.names_under(namespace, usize::MAX)?.into_iter().filter(|n| parent_ns(&n.path) == namespace).collect();
             names.sort_by(|a, b| a.path.cmp(&b.path));
             let mut out = Vec::new();
+            let mut signatures = Vec::new();
             let mut h = blake3::Hasher::new();
             h.update(b"sophia-export-token-v1");
             for n in names {
                 let lang = match n.target {
-                    Target::Content(d) => tx.record(&d)?.map(|r| (r.lang, (r.component_size > 1).then_some(r.component))),
-                    Target::Nominal(id) => tx.nominal(&id)?.map(|x| (x.lang, None)),
+                    Target::Content(d) => {
+                        tx.record(&d)?.map(|r| (r.lang, (r.component_size > 1).then_some(r.component), r.kind == "relation"))
+                    }
+                    Target::Nominal(id) => tx.nominal(&id)?.map(|x| (x.lang, None, false)),
                 };
-                let Some((lang, component)) = lang else { continue };
+                let Some((lang, component, signature)) = lang else { continue };
                 if lang != sophialang_core::normalise::LANG || sophia_store::folder::laid_out_in(tx, &n.path)?.is_some() {
                     continue;
                 }
                 h.update(n.path.as_bytes());
                 h.update(&text_token_in(tx, &n.path)?.to_le_bytes());
+                // A name of a relation's current signature: the relation's
+                // own name in this namespace prints it, and the text cannot
+                // define it a second time under this name.
+                if signature {
+                    let mut relation = None;
+                    for rel in tx.memberships_of(&n.target.digest())? {
+                        for r in tx.names_of(&rel)? {
+                            if parent_ns(&r.path) == namespace && relation.as_ref().is_none_or(|x: &String| r.path < *x) {
+                                relation = Some(r.path);
+                            }
+                        }
+                    }
+                    if let Some(r) = relation {
+                        signatures.push((n.path, r));
+                        continue;
+                    }
+                }
                 out.push((n, component));
             }
             let token = u64::from_le_bytes(h.finalize().as_bytes()[..8].try_into().expect("8 bytes"));
-            Ok((out, token, seq))
+            Ok((out, signatures, token, seq))
         })
     }
 
@@ -1042,6 +1066,10 @@ impl<B: Backend + Sync> Env for StoreEnv<'_, B> {
 /// A name `export` prints, with its recursive component when it has more
 /// than one member.
 type ExportName = (NameEntry, Option<Digest>);
+
+/// The names `export` prints, the names of relation signatures it lists as
+/// aliases, the export token and the log position.
+type ExportSnapshot = (Vec<ExportName>, Vec<(String, String)>, u64, u64);
 /// A printed recursive group: its span, and the name each member was
 /// printed under.
 type PrintedGroup = ((u32, u32), HashMap<Digest, String>);

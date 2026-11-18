@@ -477,7 +477,12 @@ fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
     let even = i.store().resolve("sample.even").unwrap().unwrap().target;
     i.store().alias("sample.also_even", even, sophia_store::Visibility::Public).unwrap();
     let e = i.export("sample").unwrap();
-    assert_eq!(e.aliases, vec![("sample.even".to_string(), "sample.also_even".to_string())]);
+    // A relation's signature with a name of its own prints as the relation:
+    // listed as an alias of the relation's name, not printed twice. Both
+    // sample signatures are `Nat --> Nat --> Prop`, one record in both
+    // relations, so both alias the smaller relation name.
+    let pairs = [("sample.ancestor_sig", "sample.ancestor"), ("sample.even", "sample.also_even"), ("sample.parent_sig", "sample.ancestor")];
+    assert_eq!(e.aliases, pairs.map(|(a, b)| (a.to_string(), b.to_string())).to_vec());
     assert_eq!(e.namespace, "sample");
     let names: Vec<&str> = e.spans.iter().map(|(n, _, _)| n.as_str()).collect();
     let mut sorted = names.clone();
@@ -501,7 +506,80 @@ fn a_namespace_exports_as_one_file<B: Backend + Sync>(i: Interface<B>) {
     assert_ne!(i.export("sample").unwrap().token, e.token);
 }
 
+/// SPEC-010 §5 and acceptance 3: an exported file proposed back unchanged
+/// changes nothing; an outside edit is reported as names and memberships,
+/// with the ids an edit through the interface stores, and nothing is written.
+fn an_exported_file_proposes_back<B: Backend + Sync>(i: Interface<B>) {
+    let even = i.store().resolve("sample.even").unwrap().unwrap().target;
+    i.store().alias("sample.also_even", even, sophia_store::Visibility::Public).unwrap();
+    let e = i.export("sample").unwrap();
+    let seq = i.store().last_seq().unwrap();
+
+    // Acceptance 3: the export, proposed back, changes no name.
+    let p = i.propose_text("sample", &e.text, e.token).unwrap();
+    assert!(p.changes_nothing(), "{p:?}");
+    assert!(!p.proposal.files[0].text_changed);
+    assert_eq!(p.proposal.files[0].path, "sample");
+
+    // An edit, a removal and an addition.
+    let (n, a, b) = e.spans.iter().find(|(n, _, _)| n == "sample.double").unwrap().clone();
+    let double = &e.text[a as usize..b as usize];
+    assert!(double.contains("x + x"), "{double}");
+    let (dn, da, db) = e.spans.iter().find(|(n, _, _)| n == "sample.add_test").unwrap().clone();
+    let mut edited = e.text.replacen(double, &double.replace("x + x", "2 * x"), 1);
+    let removed = &e.text[da as usize..db as usize];
+    edited = edited.replacen(removed, "", 1);
+    edited.push_str("\nfunction triple(x::Nat)::Nat\n    x + x + x\nend\n");
+    let p = i.propose_text("sample", &edited, e.token).unwrap();
+    assert!(p.proposal.error.is_none() && p.proposal.conflicts.is_empty(), "{p:?}");
+    let f = &p.proposal.files[0];
+    assert!(f.text_changed);
+    assert_eq!(f.names_retargeted.iter().map(|(n, _, _)| n.as_str()).collect::<Vec<_>>(), vec!["sample.double"], "{f:?}");
+    assert_eq!(f.names_removed.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), vec![dn.as_str()], "{f:?}");
+    assert_eq!(f.names_added.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), vec!["sample.triple"], "{f:?}");
+    assert!(!p.changes_nothing());
+    let report = p.proposal.report.as_ref().unwrap();
+    assert_eq!((report.names_added, report.names_moved, report.names_removed), (1, 1, 1));
+    assert_eq!(i.store().last_seq().unwrap(), seq, "a proposal writes nothing");
+
+    // The proposed ids are the ones an edit stores.
+    let (t, v) = i.fetch_text(&Key::name(&n)).unwrap();
+    let w = i.write_text(&Key::name(&n), v, &t.replace("x + x", "2 * x")).unwrap();
+    let stored = w.targets.iter().find(|(p, _)| *p == n).unwrap().1;
+    assert_eq!(f.names_retargeted[0].2, stored);
+    let (_, w) = i.create_text(&Key::ns("sample"), "triple", "function triple(x::Nat)::Nat\n    x + x + x\nend\n").unwrap();
+    assert_eq!(f.names_added[0].1, w.targets[0].1);
+
+    // The store moved on: the old token conflicts, the new one does not.
+    let p = i.propose_text("sample", &e.text, e.token).unwrap();
+    let now = i.export("sample").unwrap();
+    assert_eq!(p.proposal.conflicts, vec![("sample".to_string(), e.token, now.token)]);
+    assert!(!p.changes_nothing());
+    assert!(i.propose_text("sample", &now.text, now.token).unwrap().changes_nothing());
+
+    // A parse error is reported as diagnostics, with no file.
+    let p = i.propose_text("sample", "function broken(\n", now.token).unwrap();
+    assert!(p.proposal.files.is_empty());
+    assert!(p.diagnostics.iter().any(|d| d.severity == Severity::Error), "{p:?}");
+    assert!(!p.changes_nothing());
+}
+
+/// A name the file does not hold is refused as an edit would refuse it:
+/// a query in the namespace is not part of its export.
+fn a_proposal_refuses_names_outside_the_file<B: Backend + Sync>(i: Interface<B>) {
+    let q = "query users\n    select p where name(p, a)\nend";
+    i.create_text(&Key::ns("sample"), "users", q).unwrap();
+    let e = i.export("sample").unwrap();
+    assert!(!e.spans.iter().any(|(n, _, _)| n == "sample.users"));
+    let text = format!("{}\nfunction users(x::Nat)::Nat\n    x\nend\n", e.text);
+    let p = i.propose_text("sample", &text, e.token).unwrap();
+    assert!(matches!(&p.proposal.error, Some(sophia_store::StoreError::NameClaimed { name, .. }) if name == "sample.users"), "{p:?}");
+    assert!(!p.changes_nothing());
+}
+
 both!(
+    an_exported_file_proposes_back,
+    a_proposal_refuses_names_outside_the_file,
     a_moved_reference_warns_on_save,
     store_truth_folder_routes_laid_out_names_through_files,
     generic_and_group_names_route_through_files,

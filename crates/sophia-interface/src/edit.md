@@ -14,6 +14,8 @@
 6. Attach relation signatures (replacing the old one) and rules (by their head's relation; an edited rule replaces its old version) to their relations.
 7. Report warnings and the definitions still using replaced content.
 
+Steps 3 and 4 (renumbering the parsed items and normalising them as one batch) are `normalise_items`, shared with `propose_text` ([[propose]]) so that a proposal computes the ids an edit stores.
+
 ## The rest
 
 - **Store-truth folders (2026-10-28, SPEC-010 §2):** `write_text`, `rename` and `delete` on a name that a file lays out (`Store::laid_out`) return `EditError::Store(StoreError::LaidOut { path, token })`. Moonkale edits it through the file. In a store without files no name is laid out, so nothing changes there. **Every name an edit would update is checked** (Codex review, 2026-10-28): the text of a recursive group may change the group's other names too, and one of those may be laid out though the edited name is not. `apply` refuses before writing anything. A generic function's name is laid out by its contributing files ([[folder]]). Tested by `generic_and_group_names_route_through_files`, which fails without the check. **A rule whose head is a laid-out generic function is refused too** (second Codex review, 2026-10-29): it would add a method to that generic function. The same test creates such a rule and fails without the check.
