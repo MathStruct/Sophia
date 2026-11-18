@@ -436,8 +436,17 @@ impl<B: Backend + Sync> Interface<B> {
             return Ok(());
         }
         if let Some(p) = s.strip_prefix("ns:") {
-            if self.store.read(|tx| tx.names_under(p, 1))?.is_empty() {
-                self.store.set_settings(&format!("ns/{p}"), &[(format!("ns/{p}"), None)])?;
+            if p.is_empty() {
+                return Err(EditError::Refused("the root namespace cannot be deleted".into()));
+            }
+            // `names_under` includes the name equal to `p`, which is not inside it.
+            if self.store.read(|tx| tx.names_under(p, 2))?.iter().all(|n| n.path == p) {
+                // Its empty sub-namespaces go with it (Fable S-9).
+                let mut rows = vec![(format!("ns/{p}"), None)];
+                for (k, _) in self.store.read(|tx| tx.meta_prefix(&format!("ns/{p}.")))? {
+                    rows.push((k, None));
+                }
+                self.store.set_settings(&format!("ns/{p}"), &rows)?;
                 return Ok(());
             }
             return Err(EditError::Refused("a namespace with names cannot be deleted".into()));

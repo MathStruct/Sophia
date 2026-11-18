@@ -577,7 +577,93 @@ fn a_proposal_refuses_names_outside_the_file<B: Backend + Sync>(i: Interface<B>)
     assert!(!p.changes_nothing());
 }
 
+/// Fable S-9: deleting a namespace removes its empty sub-namespaces too, and
+/// a name equal to the namespace's path does not block the deletion.
+fn deleting_a_namespace_removes_sub_namespaces<B: Backend + Sync>(i: Interface<B>) {
+    let a = i.create_dir(&i.root(), "a").unwrap();
+    let ab = i.create_dir(&a, "b").unwrap();
+    i.create_dir(&ab, "c").unwrap();
+    i.delete(&a).unwrap();
+    assert!(i.node(&Key::ns("a.b")).unwrap().is_none(), "a.b outlived its parent");
+    assert!(i.node(&Key::ns("a.b.c")).unwrap().is_none(), "a.b.c outlived its parent");
+    assert!(!i.all(1000).unwrap().nodes.iter().any(|n| n.key == ab), "all() still lists a.b");
+    // A namespace `sample.add` beside the name `sample.add`.
+    let d = i.create_dir(&Key::ns("sample"), "add").unwrap();
+    i.delete(&d).unwrap();
+    assert!(i.store().resolve("sample.add").unwrap().is_some(), "the name stays");
+    // A namespace holding names is still refused, also when a name equals its path.
+    assert!(matches!(i.delete(&Key::ns("sample")), Err(EditError::Refused(_))));
+    i.create_text(&i.root(), "e", "const e::Int64 = 1\n").unwrap();
+    let e = i.create_dir(&i.root(), "e").unwrap();
+    i.create_text(&e, "f", "const f::Int64 = 2\n").unwrap();
+    assert!(matches!(i.delete(&e), Err(EditError::Refused(_))), "e.f lies inside e");
+    // A sibling whose path starts with the same letters survives; a backquoted
+    // segment with a dot inside is removed with its parent.
+    let g = i.create_dir(&i.root(), "g").unwrap();
+    let gh = i.create_dir(&i.root(), "gh").unwrap();
+    let quoted = i.create_dir(&g, "`h.i`").unwrap();
+    i.create_dir(&quoted, "j").unwrap();
+    i.delete(&g).unwrap();
+    assert!(i.node(&gh).unwrap().is_some(), "gh is not inside g");
+    assert!(i.node(&quoted).unwrap().is_none(), "{quoted:?} outlived its parent");
+    // The root is not deleted.
+    assert!(matches!(i.delete(&i.root()), Err(EditError::Refused(_))));
+}
+
+/// Fable S-9 (Codex's review): the root of a store without names is not deleted.
+#[test]
+fn the_root_namespace_is_not_deleted() {
+    let d = tempfile::tempdir().unwrap();
+    let i = Interface::open(sophia_store::sqlite::Sqlite::open(d.path().join("s")).unwrap(), "daniel").unwrap();
+    let a = i.create_dir(&i.root(), "a").unwrap();
+    assert!(matches!(i.delete(&i.root()), Err(EditError::Refused(_))));
+    assert!(i.node(&a).unwrap().is_some());
+}
+
+/// Fable S-11: a fact removed by `replace_files` reaches the change feed
+/// with its id, as an added fact does.
+fn a_removed_fact_reaches_the_feed_with_its_key<B: Backend + Sync>(i: Interface<B>) {
+    use sophia_hash::merkle::{component_digest, member_digest};
+    let text = "struct P\n    x::Int\nend\n";
+    let component = component_digest("julia", "moonkale-wp66@7", b"struct-x");
+    let r = sophia_hash::Record {
+        id: member_digest(&component, 0),
+        lang: "julia".into(),
+        normaliser: "moonkale-wp66@7".into(),
+        kind: "struct_definition".into(),
+        component,
+        index: 0,
+        component_size: 1,
+        bytes: b"struct-x".to_vec(),
+        display: b"P".to_vec(),
+        status: sophia_hash::Status::Complete,
+        refs: vec![],
+        nominal_refs: vec![],
+    };
+    let fact = sophia_store::Fact::new("test-fact", r.id, b"1".to_vec(), ("test", "0"), vec![], 0);
+    let file = |facts: Vec<sophia_store::Fact>| sophia_store::FileIngest {
+        path: "src/P.jl".into(),
+        text: Some(text.into()),
+        normaliser: "moonkale-wp66@7".into(),
+        records: vec![r.clone()],
+        spans: vec![(0, 0, text.len() as u32 - 1)],
+        names: vec![("jl.Pkg.P".into(), 0)],
+        facts,
+        ..Default::default()
+    };
+    i.store().set_derived().unwrap();
+    i.store().replace_files(&[file(vec![fact.clone()])]).unwrap();
+    let start = i.store().last_seq().unwrap();
+    let report = i.store().replace_files(&[file(vec![])]).unwrap();
+    assert_eq!(report.facts_removed, 1);
+    let (changes, _, _) = i.changes_since(start, 100).unwrap();
+    let removed = changes.iter().find(|c| c.op == "fact").expect("a fact change");
+    assert_eq!(removed.keys, vec![Key::Content(fact.id)]);
+}
+
 both!(
+    deleting_a_namespace_removes_sub_namespaces,
+    a_removed_fact_reaches_the_feed_with_its_key,
     an_exported_file_proposes_back,
     a_proposal_refuses_names_outside_the_file,
     a_moved_reference_warns_on_save,

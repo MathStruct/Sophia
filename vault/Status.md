@@ -4,13 +4,7 @@
 
 ## Next session
 
-*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** **B-003 and B-004 are done**, committed on `dev-danielb` (`809b7a9`, `e461b94`); no tag. B-003 is `Interface::propose_text` ([[propose]]), with 364 tests passing. Its accept is specified in SPEC-010 §8 and is B-060. B-060 waits on Daniel's choice whether to build it with B-010 (SP-008). B-004 is the draft [[SPEC-011 Sharing a Store-Truth Folder]], a proposal for SR-149. It covers:
-- the text export of a store-truth store, one envelope file per component, with maps as sorted line files;
-- git merge behaviour: union for grow-only sets, a three-way merge for maps, and import checks for what a merge can break;
-- `Store::export_text` and `Store::import_text`;
-- the pointer file as a later option.
-
-Mistral checked the draft against the code ([[Review 2026-11-18 Mistral SPEC-011 (external)]]). Of its 12 findings, 11 are right and 1 partly; all are folded in. Five questions wait for Daniel, and question 5 is Moonkale's. Moonkale has a handoff entry asking for a review. Nothing is built: SPEC-011 waits for acceptance. **Next task:** B-011. Check Fable's findings S-9 (deleting a namespace leaves sub-namespace markers) and S-11 (a removed fact reaches subscribers with no keys). Each gets a test that fails before its fix, or is recorded as not reproduced. Read [[Review 2026-11-10 Fable (external)]] S-9 and S-11, `crates/sophia-interface/src/edit.rs` (namespace delete, `ns/` markers), and `changes_since` in `sophia_interface.rs`. The Mistral worktree `../Sophia-mistral` still holds the B-003 review state, which can be dropped.
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** **B-011 is done** on `dev-danielb`; no tag. Fable's S-9 and S-11 were both right and are fixed, each with a test that failed before its fix ([[Review 2026-11-10 Fable (external)]]). Deleting a namespace now removes its empty sub-namespaces, a name equal to its path no longer blocks it, and the root is refused (found by Codex's review of the fix). A fact removed by `replace_files` reaches the change feed with its id. 373 tests pass. Moonkale has a handoff entry (changed feed and delete behaviour). Still waiting from earlier: B-060 on Daniel's choice about B-010 (SP-008); SPEC-011's five questions. **Next task:** B-012, run the wasm tests in CI (today run by hand under Node). Read `.github/workflows/ci.yml`, the wasm tests in `crates/sophia-interface/tests/wasm_*.rs` and their notes, and how they are run by hand (grep the vault for "wasm-bindgen-test" or "Node"). Done when the CI workflow runs them and passes. The Mistral worktree `../Sophia-mistral` still holds the B-003 review state, which can be dropped.
 
 **As of 2026-11-09.**
 

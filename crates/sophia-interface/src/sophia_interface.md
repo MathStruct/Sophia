@@ -29,7 +29,7 @@ None of them is a Moonkale, driver or async type.
 | `apply(CreateDir)` | `create_dir(ns, name)` |
 | `apply(Rename)` | `rename(key, to)` (`/` ↔ `.`) |
 | `apply(Delete)` | `delete(key)` |
-| `changes_since` | `changes_since(seq, limit)`, with the keys affected and `reprint_all` for profile changes; a collected record (`remove-definition`, SR-146) affects its content key |
+| `changes_since` | `changes_since(seq, limit)`, with the keys affected and `reprint_all` for profile changes; a collected record (`remove-definition`, SR-146) affects its content key; a removed fact (`fact` with only an old id) affects the fact's id, as an added one does (Fable S-11, 2026-11-18; `a_removed_fact_reaches_the_feed_with_its_key`) |
 | `classify` | `Interface::classify(dialect)` |
 
 ## Edit tokens

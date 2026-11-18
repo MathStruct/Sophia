@@ -958,7 +958,9 @@ impl<B: Backend + Sync> Interface<B> {
                         keys.push(Key::name(&e.subject));
                         keys.push(Key::ns(parent_ns(&e.subject)));
                     }
-                    AddDefinition | Annotate | Fact => keys.extend(e.new.map(Key::Content)),
+                    AddDefinition | Annotate => keys.extend(e.new.map(Key::Content)),
+                    // A removed fact is logged with only its old id (Fable S-11).
+                    Fact => keys.extend(e.new.or(e.old).map(Key::Content)),
                     NewNominal => keys.extend(e.new.map(Key::Content)),
                     RemoveDefinition => keys.extend(e.old.map(Key::Content)),
                     AddMethod | RemoveMethod => {
