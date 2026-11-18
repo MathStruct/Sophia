@@ -4,7 +4,7 @@
 
 ## Next session
 
-*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** **B-003 and B-004 are done, and neither is committed** (branch `dev-danielb`, working tree). B-003 is `Interface::propose_text` ([[propose]]), with 364 tests passing. Its accept is specified in SPEC-010 §8 and is B-060. B-060 waits on Daniel's choice whether to build it with B-010 (SP-008). B-004 is the draft [[SPEC-011 Sharing a Store-Truth Folder]], a proposal for SR-149. It covers:
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** **B-003 and B-004 are done**, committed on `dev-danielb` (`809b7a9`, `e461b94`); no tag. B-003 is `Interface::propose_text` ([[propose]]), with 364 tests passing. Its accept is specified in SPEC-010 §8 and is B-060. B-060 waits on Daniel's choice whether to build it with B-010 (SP-008). B-004 is the draft [[SPEC-011 Sharing a Store-Truth Folder]], a proposal for SR-149. It covers:
 - the text export of a store-truth store, one envelope file per component, with maps as sorted line files;
 - git merge behaviour: union for grow-only sets, a three-way merge for maps, and import checks for what a merge can break;
 - `Store::export_text` and `Store::import_text`;
