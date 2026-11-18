@@ -133,6 +133,78 @@ fn magic_sets_read_less<B: Backend>(s: Store<B>) {
     .unwrap();
 }
 
+fn snap_of<B: Backend>(s: &Store<B>, p: &Prepared) -> Digest {
+    s.read(|tx| sophia_query::snapshot(tx, &p.reads()).map_err(|e| sophia_store::StoreError::Backend(e.to_string()))).unwrap()
+}
+
+/// SP-010, step 1: a query's snapshot covers only the base relations it
+/// reads, so a logged change to another relation keeps its cached result,
+/// and a change to one it reads does not.
+fn changes_elsewhere_keep_cached_results<B: Backend>(s: Store<B>) {
+    populate(&s, 7, 40);
+    let refs = prepare_text("select a, b where refs(a, b)").unwrap();
+    let names = prepare_text("select p, d where name(p, d)").unwrap();
+    let notes = prepare_text("select a, d where annotation(a, \"note\", d)").unwrap();
+    let members = prepare_text("select n, d where member(n, d)").unwrap();
+    let run = |p: &Prepared| sophia_query::run_cached(&s, p, &[], Limits::default()).unwrap();
+    let cached = |p: &Prepared| run(p).2;
+    for p in [&refs, &names, &notes, &members] {
+        assert_eq!(cached(p), Cache::Miss);
+        assert_eq!(cached(p), Cache::Hit);
+    }
+    // A setting changes no base relation.
+    s.set_settings("profile", &[("profile/julia".into(), Some("x".into()))]).unwrap();
+    for p in [&refs, &names, &notes, &members] {
+        assert_eq!(cached(p), Cache::Hit, "{}", p.print(sophia_query::Profile::Julia));
+    }
+    // A name: only `name` readers miss, and see it.
+    s.alias("sp010.alias", sophia_store::Target::Content(id(3)), Visibility::Public).unwrap();
+    assert_eq!(cached(&refs), Cache::Hit);
+    assert_eq!(cached(&notes), Cache::Hit);
+    assert_eq!(cached(&members), Cache::Hit);
+    let (rows, _, c) = run(&names);
+    assert_eq!(c, Cache::Miss);
+    assert!(rows.rows.contains(&vec![Val::Text("sp010.alias".into()), Val::Id(id(3))]));
+    // A new generic function and a method: `nominal` and `name`, then `member`.
+    let g = s.new_nominal("test", "generic", "sp010.f").unwrap();
+    assert_eq!(cached(&refs), Cache::Hit);
+    assert_eq!(cached(&members), Cache::Hit);
+    assert_eq!(cached(&names), Cache::Miss);
+    // An annotation scan enumerates subjects through `nominal`, so it misses.
+    assert_eq!(cached(&notes), Cache::Miss);
+    s.add_method(&g, &id(4)).unwrap();
+    assert_eq!(cached(&refs), Cache::Hit);
+    assert_eq!(cached(&names), Cache::Hit);
+    assert_eq!(cached(&notes), Cache::Hit);
+    let (rows, _, c) = run(&members);
+    assert_eq!(c, Cache::Miss);
+    assert!(rows.rows.contains(&vec![Val::Id(g), Val::Id(id(4))]));
+    // An annotation: only `annotation` readers.
+    let a = sophia_store::Annotation::new("note", vec![id(5)], b"hi".to_vec(), None);
+    s.annotate(&a).unwrap();
+    assert_eq!(cached(&refs), Cache::Hit);
+    assert_eq!(cached(&names), Cache::Hit);
+    assert_eq!(cached(&members), Cache::Hit);
+    let (rows, _, c) = run(&notes);
+    assert_eq!(c, Cache::Miss);
+    assert!(rows.rows.contains(&vec![Val::Id(a.id), Val::Id(id(5))]));
+    // A definition: `refs` and the annotation scan miss; names and members do not.
+    s.add(&[fake(2000, "method", vec![id(6)])], &[]).unwrap();
+    assert_eq!(cached(&names), Cache::Hit);
+    assert_eq!(cached(&members), Cache::Hit);
+    assert_eq!(cached(&notes), Cache::Miss);
+    let (rows, _, c) = run(&refs);
+    assert_eq!(c, Cache::Miss);
+    assert!(rows.rows.contains(&vec![Val::Id(id(2000)), Val::Id(id(6))]));
+    // Eviction keeps every read set's current entry: one per query here.
+    assert_eq!(s.meta_prefix("query-result/").unwrap().len(), 4);
+    // Every result still equals a fresh evaluation.
+    for p in [&refs, &names, &notes, &members] {
+        let fresh = s.read(|tx| Ok(p.run(tx, &[], Limits::default(), Strategy::Auto).unwrap())).unwrap();
+        assert_eq!(run(p).0.sorted().rows, fresh.sorted().rows);
+    }
+}
+
 fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     populate(&s, 3, 60);
     let p = prepare_text(QUERIES[0]).unwrap();
@@ -155,10 +227,10 @@ fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     // Eviction (SP-014 option 2): that miss stored its result under the new
     // snapshot and removed every other snapshot's entries, so exactly one
     // `query-result/` row remains.
-    let snap = s.read(|tx| sophia_query::snapshot(tx).map_err(|e| sophia_store::StoreError::Backend(e.to_string()))).unwrap();
+    let snap = snap_of(&s, &p);
     let entries = s.meta_prefix("query-result/").unwrap();
     assert_eq!(entries.len(), 1, "{:?}", entries.iter().map(|(k, _)| k).collect::<Vec<_>>());
-    assert_eq!(entries[0].0, format!("query-result/{}/{}", snap.to_hex(), rid4.to_hex()));
+    assert_eq!(entries[0].0, format!("query-result/{}/{}/{}", sophia_query::read_set_tag(&p.reads()), snap.to_hex(), rid4.to_hex()));
     // A cached complete result honours the next caller's row cap.
     let all = prepare_text("select a, b where refs(a, b)").unwrap();
     let (full, _, m) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: usize::MAX, ..Default::default() }).unwrap();
@@ -173,14 +245,18 @@ fn results_are_cached_per_snapshot<B: Backend>(s: Store<B>) {
     let (_, _, m1) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
     let (_, _, m2) = sophia_query::run_cached(&s, &all, &[], Limits { max_rows: 3, ..Default::default() }).unwrap();
     assert_eq!((m1, m2), (Cache::Miss, Cache::Miss));
-    // An old-layout key (no snapshot segment) is removed on the next miss too.
+    // Old-layout keys (no read-set segment, no snapshot segment) are removed on the next miss too.
     s.set_meta("query-result/0000000000000000000000000000000000000000000000000000000000000000", b"legacy").unwrap();
+    s.set_meta(&format!("query-result/{}/{}", snap.to_hex(), rid4.to_hex()), b"legacy").unwrap();
+    // So is a key in this layout under a malformed read set.
+    s.set_meta(&format!("query-result/zz/{}/{}", snap.to_hex(), rid4.to_hex()), b"legacy").unwrap();
+    // `all` reads what `p` reads, so the change above made its entry stale.
     let (_, rid5, c5) = sophia_query::run_cached(&s, &p, &[Val::Id(id(7))], Limits::default()).unwrap();
     assert_eq!(c5, Cache::Miss);
-    let snap = s.read(|tx| sophia_query::snapshot(tx).map_err(|e| sophia_store::StoreError::Backend(e.to_string()))).unwrap();
+    let snap = snap_of(&s, &p);
     let entries = s.meta_prefix("query-result/").unwrap();
     assert_eq!(entries.len(), 1, "{:?}", entries.iter().map(|(k, _)| k).collect::<Vec<_>>());
-    assert_eq!(entries[0].0, format!("query-result/{}/{}", snap.to_hex(), rid5.to_hex()));
+    assert_eq!(entries[0].0, format!("query-result/{}/{}/{}", sophia_query::read_set_tag(&p.reads()), snap.to_hex(), rid5.to_hex()));
 }
 
 fn queries_are_stored_as_definitions<B: Backend>(s: Store<B>) {
@@ -249,7 +325,7 @@ macro_rules! suite {
                 let make = $make;
                 (Store::new(make(dir.path())), dir)
             }
-            suite!(@tests plain_and_magic_agree, magic_sets_read_less, results_are_cached_per_snapshot,
+            suite!(@tests plain_and_magic_agree, magic_sets_read_less, results_are_cached_per_snapshot, changes_elsewhere_keep_cached_results,
                 queries_are_stored_as_definitions, limits_stop_runaway_queries);
         }
     };
@@ -299,4 +375,40 @@ fn compiled_sql_cannot_write() {
     assert!(db.query_compiled("DELETE FROM t_ref", l).is_err());
     assert!(db.query_compiled("SELECT * FROM sqlite_master", l).is_err());
     assert!(db.query_compiled("SELECT count(*) FROM t_ref", l).is_ok());
+}
+
+/// The store's relation names are the query language's, and every base
+/// relation has an op that changes it.
+#[test]
+fn epochs_name_every_base_relation() {
+    let names: Vec<&str> = sophia_query::ir::Base::ALL.iter().map(|b| b.name()).collect();
+    assert_eq!(names, sophia_store::BASE_RELATIONS);
+    for r in sophia_store::BASE_RELATIONS {
+        assert!(sophia_store::LogOp::ALL.iter().any(|o| o.relations().contains(&r)), "{r}");
+    }
+}
+
+/// A store that logged changes before epochs existed (no `relation-epoch/`
+/// keys) gets its last seq for every relation, which is coarse but never
+/// stale; its next logged change sets every epoch to the seq before it.
+#[test]
+fn stores_without_epochs_are_coarse_not_stale() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = Store::new(sophia_store::sqlite::Sqlite::open(dir.path().join("store.sqlite")).unwrap());
+    populate(&s, 2, 20);
+    let epoch = |r: &str| s.read(|tx| sophia_store::logic::relation_epoch(tx, r)).unwrap();
+    let before = s.last_seq().unwrap();
+    assert!(before > 0);
+    for (k, _) in s.meta_prefix(sophia_store::logic::EPOCH_PREFIX).unwrap() {
+        s.backend().write(|tx| tx.remove_meta(&k)).unwrap();
+    }
+    for r in sophia_store::BASE_RELATIONS {
+        assert_eq!(epoch(r), before, "{r}");
+    }
+    let a = sophia_store::Annotation::new("note", vec![id(1)], Vec::new(), None);
+    let seq = s.annotate(&a).unwrap();
+    assert_eq!(seq, before + 1);
+    for r in sophia_store::BASE_RELATIONS {
+        assert_eq!(epoch(r), if r == "annotation" { seq } else { before }, "{r}");
+    }
 }

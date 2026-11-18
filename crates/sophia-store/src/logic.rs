@@ -55,6 +55,30 @@ impl Verification {
 /// (`store/`, `file/`, `owner/`, counters, …) are not among them.
 pub const SETTINGS_PREFIXES: &[&str] = &["profile/", "reader/", "ns/", "settings-version/"];
 
+/// The meta key prefix of the relation epochs (SP-010, step 1):
+/// `relation-epoch/<relation>` holds, as decimal text, a log seq at or
+/// after the last logged change to that base relation and at or before the
+/// store's last seq. So a relation's contents are a function of its epoch.
+pub const EPOCH_PREFIX: &str = "relation-epoch/";
+
+fn epoch_key(relation: &str) -> String {
+    format!("{EPOCH_PREFIX}{relation}")
+}
+
+/// The epoch of a base relation ([`BASE_RELATIONS`]): a seq after which the
+/// relation has not changed. A store that has logged nothing since epochs
+/// were introduced has none, and gets its last seq, which is coarse but
+/// never stale.
+pub fn relation_epoch(tx: &dyn ReadTx, relation: &str) -> Result<u64> {
+    match tx.meta(&epoch_key(relation))? {
+        Some(v) => std::str::from_utf8(&v)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| StoreError::Backend(format!("bad epoch for {relation}"))),
+        None => tx.last_seq(),
+    }
+}
+
 fn check_settings(rows: &[(String, Option<String>)]) -> Result<()> {
     match rows.iter().find(|(k, _)| !SETTINGS_PREFIXES.iter().any(|p| k.starts_with(p))) {
         Some((k, _)) => Err(StoreError::NotASetting { key: k.clone() }),
@@ -164,9 +188,23 @@ impl<B: Backend> Store<B> {
         self.backend.read(f)
     }
 
+    /// Appends a log entry and, in the same transaction, sets the epoch of
+    /// every base relation the op changes to its seq (SP-010, step 1). The
+    /// first entry a store logs with epochs sets every epoch to the seq
+    /// before it, which is at least each relation's last change.
     pub(crate) fn log(&self, tx: &mut dyn WriteTx, op: LogOp, subject: String, old: Option<Digest>, new: Option<Digest>) -> Result<u64> {
         let seq = tx.last_seq()? + 1;
         tx.append_log(&LogEntry { seq, op, subject, old, new, actor: self.actor.clone(), at: now() })?;
+        if tx.meta(&epoch_key(BASE_RELATIONS[0]))?.is_none() {
+            let before = (seq - 1).to_string();
+            for r in BASE_RELATIONS {
+                tx.set_meta(&epoch_key(r), before.as_bytes())?;
+            }
+        }
+        let now = seq.to_string();
+        for r in op.relations() {
+            tx.set_meta(&epoch_key(r), now.as_bytes())?;
+        }
         Ok(seq)
     }
 

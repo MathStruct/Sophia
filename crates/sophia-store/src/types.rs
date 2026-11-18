@@ -105,7 +105,26 @@ impl LogOp {
     pub fn parse(s: &str) -> Option<Self> {
         LogOp::ALL.into_iter().find(|o| o.as_str() == s)
     }
+
+    /// The base relations (SPEC-007 §2, [`BASE_RELATIONS`]) an entry of this
+    /// op can change: what bumps their epochs (SP-010, step 1). A setting
+    /// changes none: settings are meta rows, which no base relation reads.
+    pub fn relations(self) -> &'static [&'static str] {
+        match self {
+            LogOp::AddDefinition | LogOp::RemoveDefinition => &["def", "refs", "uses"],
+            LogOp::AddName | LogOp::MoveName | LogOp::RemoveName => &["name"],
+            LogOp::NewNominal => &["nominal"],
+            LogOp::AddMethod | LogOp::RemoveMethod => &["member"],
+            LogOp::Annotate => &["annotation"],
+            LogOp::Fact => &["fact"],
+            LogOp::Setting => &[],
+        }
+    }
 }
+
+/// The names of the base relations the query language reads (SPEC-007 §2),
+/// as `sophia_query::Base` spells them; a test there checks they agree.
+pub const BASE_RELATIONS: [&str; 8] = ["def", "refs", "name", "member", "nominal", "uses", "annotation", "fact"];
 
 /// One row of the append-only log: the history and the change feed.
 #[derive(Debug, Clone, PartialEq, Eq)]

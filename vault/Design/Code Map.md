@@ -53,6 +53,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `check.rs`, `plan.rs`, `magic.rs` | [[check]], [[plan]], [[magic]] | sorts, safety, strata; literal ordering; the magic-set rewrite |
 | | `eval.rs`, `sql.rs` | [[eval]], [[sql]] | the native executor; the SQL translation |
 | | `tests/set_oriented.rs` | [[eval]] | the prefix path and anti-joins against tuple at a time (every backend) and SQL (B-014) |
+| | `tests/review_mistral_b016.rs` | [[sophia_query]] | every op invalidates the cached results that read what it changes, and only those (SP-010 step 1, B-016; Mistral's review probes) |
 | `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs`, `code.rs`, `module.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]], [[code]], [[module]] | frontends for real code (B-16): Metamath into statements, proofs and library collections; Julia, Rust and Python through Moonkale's shared WP-66 normal form; generic functions keyed by (module, name) |
 | | `source.rs` | [[source]] | source files as records and the ingest manifest; `reconstruct` rebuilds and compares every record |
 | | `examples/lean_export_stats.rs` | [[lean_export_stats]] | measures a lean4export file (statements, programs, proofs) |

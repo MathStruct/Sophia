@@ -7,7 +7,7 @@
 The types are:
 - `Target` (content or nominal);
 - `NameEntry`;
-- `LogOp` and `LogEntry` (`remove-definition`, 2026-10-24: a record collected from a derived folder store, its id in `old`);
+- `LogOp` and `LogEntry` (`remove-definition`, 2026-10-24: a record collected from a derived folder store, its id in `old`); `LogOp::relations`, the base relations an op can change (`BASE_RELATIONS`, as `sophia_query::Base` names them; a test in `sophia-query` checks they agree), which drive the relation epochs (SP-010 step 1, see `logic.md`). A setting changes none;
 - `Nominal` (with a relation `version`);
 - `RelationEntry`;
 - `LineageEntry`;

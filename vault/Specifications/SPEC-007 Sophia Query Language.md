@@ -124,7 +124,7 @@ The **query id** is `member_digest(component_digest("sophia-query", "sophia-quer
 
 `ResultId = H("query-result-v0", query id, snapshot, parameter values)`. Two runs with the same result id must return the same rows.
 
-**Snapshot v0** = H(store instance id, last log seq). The instance id is a random nonce kept in meta. This is **coarse**: any logged change gives a new snapshot, even a profile switch. A precise snapshot would cover only the base relations the query reads, and later a content-addressed snapshot of names and worlds (SPEC-006 §2) ([[SP-010 Query snapshots are coarse]]).
+**Snapshot v1** (2026-11-18, B-016) = H(store instance id, the epoch of each base relation the query reads). The instance id is a random nonce kept in meta. A relation's epoch is a log seq at or after its last logged change and at or before the last seq, kept in meta and written in the transaction of the change; a store without epochs reads the last seq. The relations a query reads are those its rules and select mention, plus `def` and `nominal` with `annotation` or `fact` (their scans enumerate subjects through them). So a profile switch moves no snapshot, and an annotation moves only the snapshots of queries that read `annotation`. v0 was H(store instance id, last log seq), which any logged change moved. Still open: read sets of keys rather than relations, and a content-addressed snapshot of names and worlds (SPEC-006 §2) ([[SP-010 Query snapshots are coarse]], steps 2 and 3).
 
 `run_cached` (corrected 2026-10-20 after the M3a review):
 - **One snapshot.** The snapshot id, the cache lookup and, on a miss, the evaluation run inside **one read transaction**. So rows stored under a result id were computed from exactly that snapshot. The first version used two transactions, and could store rows of a newer state under an older snapshot's id.
@@ -290,7 +290,7 @@ Summarised from [[Query Languages for Sophia]]:
 
 ## 11. Open
 
-- **Precise snapshots** (SP-010): per-relation epochs, then content-addressed name and world snapshots.
+- **Precise snapshots** (SP-010): per-relation epochs are done (§4.3, B-016); content-addressed name and world snapshots and key-level read sets are not.
 - **Incremental view maintenance:** semi-naive evaluation is already the delta rule; DBSP or differential dataflow keep results up to date as the change feed arrives.
 - **Cost-based planning** from backend statistics, and a **DuckDB translation**.
 - **Aggregates** beyond `count` (`sum`, `min`, `max`), and arithmetic.
@@ -317,7 +317,7 @@ Tests: 11 identity tests, an execution suite, and property tests.
   - canonical-form invariance on 2000 random queries;
   - a differential test of magic sets on random safe programs (repeated variables, mutual recursion, stratified negation, several bound arguments, `count`): plain, magic and SQL evaluation agree. The default run checks 719 valid programs, 476 of them rewritten, in 3051 SQL runs; a stress run checked 9561 programs.
   - It found one bug: SQLite reports a read of a CTE that a rule uses without reading a column of it, and the compiled-SQL guard refused it. The guard now also allows the translation's CTE names.
-- **Execution suite:** plain and magic programs agree on every backend; SQL agrees with native for both programs; reach matches a graph walk; magic sets do no full scans; caching per snapshot; stored queries are definitions and dependants; step limits.
+- **Execution suite:** plain and magic programs agree on every backend; SQL agrees with native for both programs; reach matches a graph walk; magic sets do no full scans; caching per snapshot; a change outside a query's relations keeps its cached result (`changes_elsewhere_keep_cached_results`); stored queries are definitions and dependants; step limits.
 - **Interface:** an acceptance test on every backend.
 
 Benchmarks: B-17 in [[Benchmark Results]].

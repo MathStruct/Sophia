@@ -18,6 +18,7 @@
   - `ensure_nominal` registers built-ins idempotently;
   - `add_method` and `remove_method` change the relation and bump its `version`.
 - **Facts are stale** when a relation they recorded has a newer version (`is_stale`). Facts about immutable content are otherwise never wrong.
+- **Relation epochs** (`log`, `relation_epoch`, `EPOCH_PREFIX`; SP-010 step 1, B-016): every logged entry also sets, in the same transaction, the meta row `relation-epoch/<relation>` of each base relation its op changes (`LogOp::relations`) to its seq. The first entry a store logs with epochs first sets all eight to the seq before it. The invariant: a relation's epoch is at or after its last change and at or before the last seq, so its contents are a function of its epoch. A missing row reads as the last seq: coarse, never stale (a store written before epochs). Cost: one meta read and up to three meta writes per logged entry, not yet measured (benchmarks are deferred). The query result cache uses them for its snapshots (`sophia_query::snapshot`).
 - **World snapshots** (`snapshot_world`, `world_members`): a content-addressed snapshot of every nominal entity's member set, stored once under `world/<id>` (SPEC-006 §2). Nominal ids are indexed under `nominal-index/` so that every backend can enumerate them.
 - **`changes_since`** pages through the log.
 - **Path rules** (`validate_path`): dotted segments of letters, digits, `_` and `!`, not starting with a digit, or an operator in backquotes.

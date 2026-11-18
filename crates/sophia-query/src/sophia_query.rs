@@ -18,6 +18,8 @@ pub mod plan;
 pub mod sql;
 pub mod syntax;
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use sophia_hash::canonical::{Reader, Writer};
 use sophia_hash::{Digest, Record};
 use sophia_store::{Backend, ReadTx, Store, StoreError, Target, Visibility};
@@ -268,6 +270,28 @@ impl Prepared {
         })
     }
 
+    /// The base relations a run of this query can read: those its rules and
+    /// its select mention (the magic-set rewrite mentions no others). A full
+    /// scan of `annotation` or `fact` enumerates their subjects through
+    /// `def` and `nominal`, so those two count as read with either.
+    pub fn reads(&self) -> BTreeSet<ir::Base> {
+        use ir::{Base, Literal, Pred};
+        let mut out = BTreeSet::new();
+        for body in self.query.rules.iter().map(|r| &r.body).chain([&self.query.select.body]) {
+            for l in body {
+                if let Literal::Pos(a) | Literal::Neg(a) = l {
+                    if let Pred::Base(b) = a.pred {
+                        out.insert(b);
+                    }
+                }
+            }
+        }
+        if out.contains(&Base::Annotation) || out.contains(&Base::Fact) {
+            out.extend([Base::Def, Base::Nominal]);
+        }
+        out
+    }
+
     /// The SQL translation (SPEC-007 §7).
     pub fn to_sql(&self, params: &[Val], strategy: Strategy) -> Result<String> {
         self.check_params(params)?;
@@ -347,18 +371,34 @@ pub fn run_sql(db: &sophia_store::sqlite::Sqlite, p: &Prepared, params: &[Val], 
 /// The meta key under which a store keeps its random instance id.
 const STORE_ID: &str = "store-id";
 
-/// The meta key prefix of the result cache: `query-result/<snapshot hex>/<result id hex>`.
-/// The snapshot segment lets a miss evict every other snapshot's entries (SP-014).
+/// The meta key prefix of the result cache:
+/// `query-result/<read set>/<snapshot hex>/<result id hex>`, the read set as
+/// [`read_set_tag`]. The two segments let a miss evict every entry whose
+/// snapshot is no longer current for its read set (SP-014, SP-010).
 const RESULT_CACHE: &str = "query-result/";
 
+/// A read set as two hex digits: bit `i` is `Base::ALL[i]`.
+pub fn read_set_tag(reads: &BTreeSet<ir::Base>) -> String {
+    let bits = ir::Base::ALL.iter().enumerate().filter(|(_, b)| reads.contains(b)).fold(0u8, |m, (i, _)| m | 1 << i);
+    format!("{bits:02x}")
+}
+
+fn read_set_of_tag(tag: &str) -> Option<BTreeSet<ir::Base>> {
+    let bits = u8::from_str_radix(tag, 16).ok().filter(|_| tag.len() == 2)?;
+    Some(ir::Base::ALL.iter().enumerate().filter(|(i, _)| bits & 1 << i != 0).map(|(_, b)| *b).collect())
+}
+
 /// The snapshot a result is identified against (SPEC-007 §4.3): the store
-/// instance and its log position. v0 is coarse: any logged change, even an
-/// unrelated one, gives a new snapshot (SP-010).
-pub fn snapshot(tx: &dyn ReadTx) -> Result<Digest> {
+/// instance and the epochs of the base relations the query reads
+/// ([`Prepared::reads`]). A logged change to a relation outside `reads`
+/// leaves the snapshot as it was (SP-010, step 1).
+pub fn snapshot(tx: &dyn ReadTx, reads: &BTreeSet<ir::Base>) -> Result<Digest> {
     let mut w = Writer::new();
-    w.str("sophia", "snapshot-v0");
+    w.str("sophia", "snapshot-v1");
     w.field("store", &tx.meta(STORE_ID)?.unwrap_or_default());
-    w.u64("seq", tx.last_seq()?);
+    for b in reads {
+        w.u64(b.name(), sophia_store::logic::relation_epoch(tx, b.name())?);
+    }
     Ok(Digest::of(&w.finish()))
 }
 
@@ -394,19 +434,23 @@ pub enum Cache {
 ///   does not change the snapshot. Writing happens after the read
 ///   transaction; if the store changed meanwhile, the rows still belong to
 ///   the snapshot whose id they are stored under.
-/// - **Entries are keyed by snapshot** (`query-result/<snapshot>/<result
-///   id>`), and a miss that writes first removes every entry of another
-///   snapshot — old-layout `query-result/<result id>` keys have no snapshot
-///   segment and go too — in the same write transaction, so only the current
-///   snapshot's results stay (SP-014, option 2).
+/// - **Entries are keyed by read set and snapshot**
+///   (`query-result/<read set>/<snapshot>/<result id>`). A query's snapshot
+///   covers only the relations it reads, so a change elsewhere keeps its
+///   results (SP-010, step 1). A miss that writes first removes, in the same
+///   write transaction, every entry whose snapshot is not the current one
+///   for its read set, and every key not in this layout (older layouts), so
+///   only current results stay (SP-014, option 2).
 pub fn run_cached<B: Backend>(store: &Store<B>, p: &Prepared, params: &[Val], limits: Limits) -> Result<(Rows, Digest, Cache)> {
     ensure_store_id(store)?;
+    let reads = p.reads();
+    let tag = read_set_tag(&reads);
     let mut failure: Option<Error> = None;
     let outcome = store.read(|tx| {
         let inner = (|| -> Result<(Digest, Digest, Rows, Cache)> {
-            let snap = snapshot(tx)?;
+            let snap = snapshot(tx, &reads)?;
             let rid = canon::result_id(&p.id, &snap, params);
-            if let Some(bytes) = tx.meta(&format!("{RESULT_CACHE}{}/{}", snap.to_hex(), rid.to_hex()))? {
+            if let Some(bytes) = tx.meta(&format!("{RESULT_CACHE}{tag}/{}/{}", snap.to_hex(), rid.to_hex()))? {
                 return Ok((snap, rid, Rows::decode(&bytes)?, Cache::Hit));
             }
             Ok((snap, rid, p.run(tx, params, limits, Strategy::Auto)?, Cache::Miss))
@@ -423,17 +467,40 @@ pub fn run_cached<B: Backend>(store: &Store<B>, p: &Prepared, params: &[Val], li
     };
     if cache == Cache::Miss && !rows.truncated {
         // One write transaction stores the result under its snapshot and
-        // evicts every entry of another snapshot (SP-014, option 2).
-        let current = format!("{RESULT_CACHE}{}/", snap.to_hex());
-        store.backend().write(|tx| -> std::result::Result<(), StoreError> {
+        // evicts every entry that is not current for its read set (SP-014,
+        // option 2). The current snapshots are those of this transaction.
+        let mut failure: Option<Error> = None;
+        let written = store.backend().write(|tx| -> std::result::Result<(), StoreError> {
+            let mut current: BTreeMap<String, Option<String>> = BTreeMap::new();
             for (k, _) in tx.meta_prefix(RESULT_CACHE)? {
-                if !k.starts_with(&current) {
+                let mut seg = k[RESULT_CACHE.len()..].split('/');
+                let keep = match (seg.next(), seg.next(), seg.next(), seg.next()) {
+                    (Some(t), Some(s), Some(_), None) => {
+                        if !current.contains_key(t) {
+                            let now = match read_set_of_tag(t) {
+                                Some(r) => Some(snapshot(&*tx, &r).map_err(|e| {
+                                    let msg = e.to_string();
+                                    failure = Some(e);
+                                    StoreError::Backend(msg)
+                                })?),
+                                None => None,
+                            };
+                            current.insert(t.to_string(), now.map(|d| d.to_hex()));
+                        }
+                        current[t].as_deref() == Some(s)
+                    }
+                    _ => false,
+                };
+                if !keep {
                     tx.remove_meta(&k)?;
                 }
             }
-            tx.set_meta(&format!("{current}{}", rid.to_hex()), &rows.encode())?;
+            tx.set_meta(&format!("{RESULT_CACHE}{tag}/{}/{}", snap.to_hex(), rid.to_hex()), &rows.encode())?;
             Ok(())
-        })?;
+        });
+        if let Err(e) = written {
+            return Err(failure.take().unwrap_or(Error::Store(e)));
+        }
     }
     if rows.rows.len() > limits.max_rows {
         rows.rows.truncate(limits.max_rows);
