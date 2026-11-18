@@ -32,7 +32,6 @@ The order below is a proposal (2026-11-17, B-001), following SR-125 (Moonkale fi
 | B-008 | S-4: a name bound twice in one file: refuse, or keep the last as Julia does | proposed | Daniel | S | Fable S-4 | Daniel's choice implemented and tested in `folder.rs` |
 | B-009 | S-5: `path_from_moonkale` maps `a.b/c` and `a/b/c` to one path: escape `.` in segments, or forbid it | proposed | Daniel, Moonkale | S | Fable S-5 | the mapping is injective and round-trips, with a property test |
 | B-010 | SP-008: an edit in one transaction, with the review's acceptance test (a backend that fails the n-th write) | proposed | Daniel | M | [[SP-008 Edits span several transactions]]; Fable | the failing-backend test passes for every n on four backends |
-| B-012 | wasm tests in CI (today run by hand under Node) | planned | — | S | Fable "not done" | the CI workflow runs the wasm tests and passes |
 | B-013 | The cost points I-1 to I-9: measure the ones a benchmark can show, change nothing unmeasured | proposed | — | M | Fable 03; SR-126 | each point measured or marked "not measurable", in [[Benchmark Results]] |
 
 ### Query engine and agents

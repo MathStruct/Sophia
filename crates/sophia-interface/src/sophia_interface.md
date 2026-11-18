@@ -132,3 +132,5 @@ PATH=$SOPHIA_CORPORA/tools/bin:$PATH CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=
   CC_wasm32_unknown_unknown=clang cargo test -p sophia-interface --no-default-features --features sqlite \
   --target wasm32-unknown-unknown --test wasm_read
 ```
+
+**In CI (2026-11-18, B-012).** The `wasm` job of `.github/workflows/ci.yml` runs `wasm_read` and `wasm_deep` under Node on every CI run, beside the native job. It installs `wasm-bindgen-test-runner` at the version Cargo.lock gives the `wasm-bindgen` crate, and uses the runner image's clang. The browser runs (geckodriver) are still by hand.

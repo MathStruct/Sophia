@@ -74,7 +74,7 @@ Each fix has a test that fails without it, checked by undoing the fix:
 - **D-1, D-2:** the two links and the specification count.
 
 The gates:
-- **CI:** `.github/workflows/ci.yml` runs formatting, clippy with `-D warnings`, and all tests with all features. The wasm tests are not in it yet.
+- **CI:** `.github/workflows/ci.yml` runs formatting, clippy with `-D warnings`, and all tests with all features. Since 2026-11-18 (B-012) a second job runs the wasm tests under Node.
 - **Clippy:** both warnings are fixed.
 - **Formatting:** `rustfmt.toml` (`max_width = 140`, `use_small_heuristics = "Max"`), then one formatting commit.
 - **The consumer test:** `moonkale_fixtures_verify_under_every_moonkale_normaliser`. It fails with `v0.1.10`'s rule.
@@ -88,4 +88,4 @@ Decisions for Daniel:
 - **X-1, X-2:** where the normaliser lives, and a registry of foreign normalisers instead of the `moonkale-wp66` prefix.
 - **SP-008:** with the review's failing-backend acceptance test.
 
-Not done: a heap limit for SQLite (`sqlite3_hard_heap_limit64` is process-wide), the wasm tests in CI, and the cost points (I-1 to I-9: measure first).
+Not done: a heap limit for SQLite (`sqlite3_hard_heap_limit64` is process-wide) and the cost points (I-1 to I-9: measure first).
