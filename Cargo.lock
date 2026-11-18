@@ -2167,8 +2167,11 @@ name = "sophia-bench"
 version = "0.1.12"
 dependencies = [
  "criterion",
+ "serde_json",
  "sophia-hash",
  "sophia-ingest",
+ "sophia-interface",
+ "sophia-mcp",
  "sophia-query",
  "sophia-store",
  "sophialang-core",

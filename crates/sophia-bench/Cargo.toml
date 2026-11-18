@@ -16,6 +16,10 @@ sophialang-core.workspace = true
 sophia-store = { workspace = true, features = ["lmdb", "duckdb"] }
 sophia-query = { workspace = true, features = ["lmdb", "duckdb"] }
 sophia-ingest.workspace = true
+# B-065: the agent server's layers (sophia-bench-mcp).
+sophia-interface = { workspace = true, features = ["lmdb", "duckdb"] }
+sophia-mcp = { path = "../sophia-mcp", features = ["duckdb"] }
+serde_json.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
@@ -28,6 +32,10 @@ harness = false
 [[bin]]
 name = "sophia-bench-report"
 path = "src/bin/sophia-bench-report.rs"
+
+[[bin]]
+name = "sophia-bench-mcp"
+path = "src/bin/sophia-bench-mcp.rs"
 
 [[bin]]
 name = "sophia-mm-check"

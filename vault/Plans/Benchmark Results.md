@@ -2,6 +2,11 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
+## 2026-11-18: B-065, B-11 through `sophia-mcp`: not measured, to be redone
+
+- **No numbers recorded.** The first run of `sophia-bench-mcp` ([[sophia-bench-mcp]]) ran while other sessions held the machine at a load average of about 12 on 8 threads; its results are inconsistent (a store-independent process start took 1.2 to 4.3 ms between backends) and are discarded.
+- **To be redone** (Daniel, 2026-11-18) on an idle machine, when benchmarking is allowed again ([[Backlog]], B-065). The bench prints the load average before and after each backend; record it with the numbers.
+
 ## 2026-11-18: B-014, the set-oriented native executor (B-17 re-run)
 
 - Machine: AMD Ryzen 7 7800X3D, 8 threads, 30 GiB RAM, Linux 7.3.4-arch1-2.

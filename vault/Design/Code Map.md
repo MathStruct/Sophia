@@ -63,7 +63,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | `sophia-interface` | `tests/wasm_deep.rs` | [[sophia_interface]] | every pass at depth 100 000 in wasm (Node, Firefox) |
 | `sophia-interface` | `tests/wasm_fixture.rs`, `tests/fixtures/web.sophia` | [[sophia_interface]] | the fixture store, and `from_bytes` natively |
 | `experiments/b15-edit-loop` | `run.sh` | [[run]] | B-15: Moonkale's `edit_loop` on synthetic stores of 10³–10⁵ definitions |
-| `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs` | [[sophia_bench]], [[sophia-bench-report]] | the benchmark suite |
+| `sophia-bench` | `sophia_bench.rs`, `bin/sophia-bench-report.rs`, `bin/sophia-bench-mcp.rs` | [[sophia_bench]], [[sophia-bench-report]], [[sophia-bench-mcp]] | the benchmark suite |
 | | `bin/sophia-mm-check.rs` | [[sophia-mm-check]] | Metamath dependency answers against metamath.exe |
 | `experiments/ad-materialization` | `ad_costs.jl` | [[ad_costs]] | E-AD-0: cost of producing vs running a derivative (Julia) |
 | | `reactant_persist.jl` | [[reactant_persist]] | E-AD-1: split the first call; restore a compiled derivative in a fresh process |
