@@ -2,7 +2,7 @@
 
 > The agent server (M3b, B-018; B-062 and B-063): Sophia's query language, its read operations and its text edits as Model Context Protocol tools on stdio, built on the official Rust SDK `rmcp` (SR-156). Queries run in a worker process under a hard memory bound ([[bounded]]). Tools are grouped by what they may do to the store; the riskier groups are served only with a startup flag (SR-157, SR-158). Source: `sophia_mcp.rs`.
 >
-> Sources: the Model Context Protocol; `rmcp` 3.11 (github.com/modelcontextprotocol/rust-sdk); [[LLMs and Mixed-Language Code]] §2; [[SPEC-004 Moonkale Interface]] §3; [[SPEC-007 Sophia Query Language]] §8; SR-62, SR-100, SR-108. code: `sophia_mcp.rs`, `bin/sophia-mcp.rs`, `bin/sophia-mcp-worker.rs`, `tests/stdio.rs`
+> Sources: the Model Context Protocol; `rmcp` 3.11 (github.com/modelcontextprotocol/rust-sdk); [[LLMs and Mixed-Language Code]] §2; [[SPEC-004 Moonkale Interface]] §3; [[SPEC-007 Sophia Query Language]] §8; SR-62, SR-100, SR-108. code: `sophia_mcp.rs`, `bin/sophia-mcp.rs`, `bin/sophia-mcp-worker.rs`, `tests/stdio.rs`, `tests/review_mistral.rs`
 
 ## Permission classes
 
@@ -16,7 +16,7 @@ Every tool has a `Class` (the table `TOOLS`). Reading is always allowed; each ri
 
 - A tool whose class is not allowed is **not listed** (`tools/list`) and **cannot be called**: it is removed from the router at startup, and each write method checks the class again (`permit`), so a missing route is not the only lock.
 - The flags are independent: `--allow-removals` does not allow edits, nor the other way round.
-- Without either flag the store is opened **read-only** (`Sqlite::open_read_only`, `Interface::open_read_only`); a session changes no byte of the file (tested). With one, it is opened read-write (`Interface::open`, which writes the built-in rendering profiles if they are missing). The server never creates a store.
+- Without either flag the store is opened **read-only** (`Sqlite::open_read_only`, `Interface::open_read_only`); a session changes no byte of the file (tested). SQLite creates its side files `-shm` and an empty `-wal` beside it, as for every reader of a WAL-mode file; nothing is written to them ([[Review 2026-11-18 sophia-mcp (external)]] 5). With one, it is opened read-write (`Interface::open`, which writes the built-in rendering profiles if they are missing). The server never creates a store.
 - Content is never deleted by any tool: the store is append-only for definitions.
 - The MCP annotations say the same to the client: `read_only_hint` on the read tools, `destructive_hint` on `rename` and `delete`.
 - **New tools must be added to `TOOLS`** with their class; a tool missing from the table is served unconditionally. (A test lists the tools per flag combination and would show it.)
@@ -71,14 +71,10 @@ The real binary on stdio, spoken to in raw JSON-RPC lines (not through `rmcp`'s 
 - **removals:** `rename` moves the name (the old one is gone); `delete` removes it; a second delete is an error; the number of definitions is unchanged;
 - **errors:** six bad read calls are tool errors and the server answers after them; with `--max-memory 0` every query fails with the bound's error while `show` still works; a missing store file exits 1, a missing `--store` exits 2.
 
-`cargo test -p sophia-mcp`: 11 passed (2026-11-18).
+`tests/review_mistral.rs`, Mistral's probes (7): a read-only session writes nothing (only SQLite's side files appear, the log empty); a disallowed tool is not dispatched; flag-like arguments are refused, not honoured; `run` cannot execute a definition that is not a query; `delete` on a namespace path is refused; two edits with one version: exactly one wins; a read-only server runs stored queries without touching the store.
+
+`cargo test -p sophia-mcp`: 18 passed (2026-11-18).
 
 ## Reviews
 
-- **B-062** (Codex, `codex exec review --uncommitted`): `context` with `direction: "in"` started from the name node, whose only incoming edge is `Contains` from its namespace, so it never reached the users. Reproduced by `context_in_finds_the_users`, fixed by walking from the definition the name points to.
-- **B-063** (Codex, `codex exec review --uncommitted`), three findings, all reproduced by `review_findings_b063` and fixed:
-  1. `run` refused a name path to a nominal entity as an `Id` parameter, though its hex id worked (the test failed with "names a nominal entity");
-  2. `add` returned version 0 for code (`create_text` has no edited name), so `edit` with it conflicted (the test failed: 0 against the real token);
-  3. `add` reported `namespace.name` even when the text defined another name (with the old path logic the test failed: "no name sample.foo").
-- Found by the tests before review: `#[tool_handler]` without `router = self.tool_router` served every tool on a read-only server; `permit` still refused the calls.
-- Not reviewed by a second model, though the permission classes are an authorising check (Daniel's review rules ask for a second reviewer there): Mistral is the candidate.
+Triaged in [[Review 2026-11-18 sophia-mcp (external)]]: Codex on B-062 and B-063 (four defects, all fixed), Mistral on the permission check (no defect; one observation documented).
