@@ -1,6 +1,6 @@
 #design #definition
 
-> **Draft, a proposal by Claude (Sophia), 2026-10-26. Accepted by Daniel on 2026-10-26, with questions 1 to 4 answered as the Moonkale agent recommended and question 5 answered with (b).** **Implemented 2026-10-28 (§2, §3, §4 export, §5 `propose_files`)** on all four backends ([[folder]], [[edit]], [[sophia_interface]]). Not built yet: `propose_text` for sophialang files, and the text export of SR-149. Three amendments from implementing it are listed in §6. It specifies what Sophia provides for Moonkale's ADR-0030 (SR-148): moving a folder's source of truth from its files into the store and back, and files generated from a store whose graph is the truth, with outside edits to them taken back as proposals. The split of work follows the Moonkale agent's proposal of 2026-10-26: Moonkale normalises foreign code and hands Sophia finished records, as in SPEC-009.
+> **Draft, a proposal by Claude (Sophia), 2026-10-26. Accepted by Daniel on 2026-10-26, with questions 1 to 4 answered as the Moonkale agent recommended and question 5 answered with (b).** **Implemented 2026-10-28 (§2, §3, §4 export, §5 `propose_files`)** on all four backends ([[folder]], [[edit]], [[sophia_interface]]). `propose_text` for sophialang files built 2026-11-17 (B-003, [[propose]]); its accept is specified in §8 (proposal; removing dropped names decided by Daniel, SR-155), not built (B-060). Not built yet: the text export of SR-149, drafted as [[SPEC-011 Sharing a Store-Truth Folder]]. Three amendments from implementing it are listed in §6. It specifies what Sophia provides for Moonkale's ADR-0030 (SR-148): moving a folder's source of truth from its files into the store and back, and files generated from a store whose graph is the truth, with outside edits to them taken back as proposals. The split of work follows the Moonkale agent's proposal of 2026-10-26: Moonkale normalises foreign code and hands Sophia finished records, as in SPEC-009.
 >
 > Sources: Moonkale `markdown/decisions/ADR-0030 Where the truth lives.md` (master `874d0c2b`), ADR-0028 (the `truth` field), ADR-0029; [[SPEC-009 Moonkale Folder Store]] (the folder store, `replace_files`, the derived mode, §9 collection); [[SPEC-004 Moonkale Interface]] §3b (edit tokens, SR-77); [[SPEC-005 Rendering Profiles]]. code: `crates/sophia-store/src/folder.rs`, `crates/sophia-interface/src/edit.rs` (`refuse_if_derived`), `sophia_interface.rs` (`text_token`).
 
@@ -82,6 +82,8 @@ For sophialang files, Moonkale does not normalise. `Interface::propose_text(path
 
 A file's token also covers the version of each generic function the file contributes to. So another file adding a method to a shared generic function makes this file's token stale: a conservative conflict.
 
+6. **`propose_text` (B-003, 2026-11-17).** It takes the namespace as its path, since `export` makes one file per namespace, and the export token. It returns a `TextProposal`: the `Proposal` (one `FileProposal` whose path is the namespace) and the parser's diagnostics, which a `StoreError` cannot carry. It reads only and takes no lock: unlike `propose_files`, it computes the diff from the parsed items rather than running an edit and rolling it back, because an interface edit spans several transactions (SP-008). Normalising is shared with `apply`, and a test checks that the proposed ids are the ones an edit stores. A relation the text introduces has a provisional id. **There is no accept for a whole sophialang file yet** (B-060). Building it found that `export` did not round-trip. A relation signature record with a name of its own printed a second time as `relation <that name>`, which parses as a new relation. Such a name is now listed in `aliases`. See [[propose]], [[sophia_interface]].
+
 ## 7. Annotations when the truth moves (proposal, 2026-10-30)
 
 **A proposal by Claude (Sophia), asked for by the Moonkale agent for its ADR-0031 (Moonkale master `fcb159ab`). Accepted by Daniel on 2026-10-30, with ADR-0031 (SR-151). Built 2026-11-17 (B-002), tested on all four backends by `annotations_move_with_the_truth` in `crates/sophia-store/tests/folder.rs`.** One reading was settled while building it: `annotate_many` skips an annotation stored *exactly* as given (same id, status and inputs); a changed status or inputs is stored and logged, so the status update below keeps working.
@@ -104,6 +106,31 @@ They belong in SPEC-001 §8 once Daniel schedules WP-19.
 
 A status update half exists. Storing an annotation again under the same id overwrites its `status` and `inputs` on every backend: the SQL backends use `ON CONFLICT(id) DO UPDATE`, and `kv.rs` rewrites the row. This was checked by reading `put_annotation` in `sqlite.rs`, `duckdb_store.rs` and `kv.rs`. It is untested, and it is not a named API.
 
+## 8. Accepting a proposed sophialang file (proposal, 2026-11-18)
+
+**A proposal by Claude (Sophia). Its core rule is Daniel's decision of 2026-11-18 (SR-155): an accept removes the names the text dropped.** It is not built yet (B-060). It completes §5 for sophialang files: `propose_text` reports an outside edit, and accept applies it.
+
+`Interface::accept_text(namespace, text, token)` applies exactly what `propose_text(namespace, text, token)` reports at that moment:
+- **added names** are created; a relation the text introduces gets its real nominal id here;
+- **retargeted names** move to the new definition, as `write_text` moves them;
+- **removed names** (exported names the text no longer defines, aliases excepted) are removed, as `Interface::delete` removes them: the name goes, and the definition and its history stay. A store-truth folder collects nothing (§3). The proposal lists the removals by name. Moonkale shows it before the accept, so that list is the user's confirmation (SR-155);
+- **memberships:** a changed signature replaces its relation's old one, an edited rule replaces its old version, and a rule whose name is removed leaves its relation. `propose_text` reports this last case too;
+- **refusals** are the proposal's: `LaidOut`, `NameClaimed`, `NameExists`, `InvalidPath`, and parse errors.
+
+**Renames.** A text cannot say "rename". When a removed name and an added name have the same target, and no other added or removed name has it, the accept stores a rename (`Store::rename`), so the name's lineage and history continue. Every other case is a removal plus an addition. The proposal reports such a pair as a rename, so that what Moonkale shows is what the accept does.
+
+**A dangling name is a warning, not a refusal.** References are by content id, so a definition that refers to a removed name's target keeps working, but it prints that reference unnamed (`_<hash>`). The accept's result names those dependants as warnings, as `Written.stale_dependants` does for replaced content.
+
+**One transaction.** The token check and every write (new relations, records, names added, moved, renamed and removed, memberships) happen in one write transaction. A stale token writes nothing and is reported as `Conflict`. That needs a store call that applies prepared records with name and membership operations under a check of the export token. Today an interface edit spans several transactions ([[SP-008 Edits span several transactions]]), so this call is SP-008's fix too. Proposal: build B-060 and B-010 together, with `write_text` moved onto the same call.
+
+**The proposal guards against concurrent writes** (Mistral's F1, [[Review 2026-11-17 Mistral B-003 (external)]]): `propose_text` runs its diff again while the log position moved during it, as `export` does.
+
+**Acceptance (proposed):**
+1. on four backends, an accept after `propose_text` leaves exactly the names, targets and memberships the proposal listed, and an unchanged export proposes back as `changes_nothing`;
+2. a stale token, or any refusal, writes nothing (the log position is unchanged);
+3. a removed name's definition is still stored and reachable through its lineage; a same-content remove-and-add is a rename;
+4. a backend that fails its n-th write leaves the store unchanged for every n (B-010's test).
+
 ## Acceptance
 
 1. `replace_files_checked`, `file_token`, `take_truth`, `give_truth` and `propose_files` on all four backends, with tests:
@@ -112,7 +139,7 @@ A status update half exists. Storing an annotation again under the same id overw
    - `take_truth` then `give_truth` leaves a fresh build's records (as SR-146's tests do);
    - an interface edit of a laid-out name is refused (if open question 1 is accepted).
 2. Moonkale's history replay switched into store-truth mode halfway: no differences against a store built fresh and switched, and the replay's later commits appended as history. **Passed 2026-10-28 (Moonkale's report, on `08e6ffb`):** Lenticulum.jl 130 commits and Moonkale 471, each switched at half. Every checkpoint after the switch showed 0 differences against the twin and against a fresh build. There were 0 errors and 0 token conflicts. After `give_truth`, 2 473 → 1 770 and 7 840 → 5 940 records, equal to a fresh build. Command: on Moonkale's branch `replay-truth` (`08e23152`), `MOONKALE_REPLAY_TRUTH_AT=half target/agent/debug/examples/history_replay <repo> <range> ~/.cache/moonkale-replay`. Rerun on `v0.1.6` (2026-10-29): the same counts, 0 differences.
-3. `Interface::export` round-trips: exporting, then storing the export back, changes no name. (Amended by §6.2: the export is not stored back as a manifest; the round trip goes through `propose_text`, not built yet.)
+3. `Interface::export` round-trips: exporting, then storing the export back, changes no name. (Amended by §6.2: the export is not stored back as a manifest; the round trip goes through `propose_text`.) **Passed 2026-11-17** on all four backends: `an_exported_file_proposes_back` in `crates/sophia-interface/tests/acceptance.rs` (`cargo test -p sophia-interface --all-features --test acceptance`).
 4. A tag after 1 to 3, as for `v0.1.x`.
 
 ## Questions for Daniel, answered 2026-10-26
@@ -131,7 +158,7 @@ A status update half exists. Storing an annotation again under the same id overw
 
    **Proposal: (b), in a form that suits content addressing.** Records go one file per id: they are immutable, so two branches never conflict on a record, and a merge is a union. Names, memberships and manifests go in text files sorted by path: these are the only parts that can conflict, and git shows them line by line. Recording the version history (the log and lineages) in that form needs its own measurement. This is large enough for its own spec.
 
-   **Answered by Daniel (2026-10-26, relayed by the Moonkale agent): (b), a text export, is fine for now.** Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. The export format gets its own spec (SR-149).
+   **Answered by Daniel (2026-10-26, relayed by the Moonkale agent): (b), a text export, is fine for now.** Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. The export format gets its own spec (SR-149): [[SPEC-011 Sharing a Store-Truth Folder]], a draft since 2026-11-18.
 
 ## Moonkale's review (2026-10-26)
 

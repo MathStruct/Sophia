@@ -4,7 +4,13 @@
 
 ## Next session
 
-*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-17.** B-002 is done (`a8e2c45`): annotations move with the truth ([[SPEC-010 Store-Truth Folders and Generated Files]] §7). `give_truth(files, exported_annotations)` refuses with `AnnotationsNotExported`, `take_truth(files, annotations)` stores the folder's jsonl with the switch, and `annotate_many` skips an annotation stored exactly as given. A new `ReadTx::annotation_ids` exists on every backend. 342 tests pass; Mistral's review found no defect ([[Review 2026-11-17 Mistral B-002 (external)]]). Moonkale has a handoff entry: its calls of both functions need the new argument. **Next task:** B-003, `Interface::propose_text(path, text, token)` for sophialang files, returning a `Proposal` (SPEC-010 §5, §6.2 and acceptance 3). Read those sections, `Interface::export` in `crates/sophia-interface`, and `propose_files` in `crates/sophia-store/src/folder.rs`, whose write-and-roll-back pattern it should reuse. Codex's quota was used up on 2026-11-17 until 2026-11-18 00:48; the Mistral worktree `../Sophia-mistral` (branch `mistral/b002-review`, the B-002 diff applied, uncommitted) can be removed.
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** **B-003 and B-004 are done, and neither is committed** (branch `dev-danielb`, working tree). B-003 is `Interface::propose_text` ([[propose]]), with 364 tests passing. Its accept is specified in SPEC-010 §8 and is B-060. B-060 waits on Daniel's choice whether to build it with B-010 (SP-008). B-004 is the draft [[SPEC-011 Sharing a Store-Truth Folder]], a proposal for SR-149. It covers:
+- the text export of a store-truth store, one envelope file per component, with maps as sorted line files;
+- git merge behaviour: union for grow-only sets, a three-way merge for maps, and import checks for what a merge can break;
+- `Store::export_text` and `Store::import_text`;
+- the pointer file as a later option.
+
+Mistral checked the draft against the code ([[Review 2026-11-18 Mistral SPEC-011 (external)]]). Of its 12 findings, 11 are right and 1 partly; all are folded in. Five questions wait for Daniel, and question 5 is Moonkale's. Moonkale has a handoff entry asking for a review. Nothing is built: SPEC-011 waits for acceptance. **Next task:** B-011. Check Fable's findings S-9 (deleting a namespace leaves sub-namespace markers) and S-11 (a removed fact reaches subscribers with no keys). Each gets a test that fails before its fix, or is recorded as not reproduced. Read [[Review 2026-11-10 Fable (external)]] S-9 and S-11, `crates/sophia-interface/src/edit.rs` (namespace delete, `ns/` markers), and `changes_since` in `sophia_interface.rs`. The Mistral worktree `../Sophia-mistral` still holds the B-003 review state, which can be dropped.
 
 **As of 2026-11-09.**
 
