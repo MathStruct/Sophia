@@ -70,7 +70,7 @@ Not yet included: the log, lineages, names' versions, record sizes and statuses.
 
 ### 3.4 Queries are not sophialang expressions (SR-99)
 
-`x + y == 10` in sophialang computes a Boolean once `x` and `y` have values. In a query, `x == y` is a **constraint** that may bind a variable. The query language has its own semantics (least fixpoints over finite relations), so it is a **separate typed DSL**, not an interpretation of arbitrary sophialang expressions. Arithmetic, user functions and dispatch are not in v0. They enter later as **pure functions with bound arguments** (like `startswith`), never as unification over function results.
+`x + y == 10` in sophialang computes a Boolean once `x` and `y` have values. In a query, `x == y` is a **constraint** that may bind a variable. The query language has its own semantics (least fixpoints over finite relations), so it is a **separate typed DSL**, not an interpretation of arbitrary sophialang expressions. Arithmetic, user functions and dispatch are not in v0. They enter later as **pure functions with bound arguments** (like `startswith`), never as unification over function results: §13 (proposal).
 
 A query has a type `Query{S, A, E}`:
 - `S`: the base schema (`store-base-v0`), part of the id;
@@ -293,8 +293,8 @@ Summarised from [[Query Languages for Sophia]]:
 - **Precise snapshots** (SP-010): per-relation epochs are done (§4.3, B-016); content-addressed name and world snapshots and key-level read sets are not.
 - **Incremental view maintenance:** semi-naive evaluation is already the delta rule; DBSP or differential dataflow keep results up to date as the change feed arrives.
 - **Cost-based planning** from backend statistics, and a **DuckDB translation**.
-- **Aggregates** beyond `count` (`sum`, `min`, `max`), and arithmetic.
-- **Query functions** (review of M3a, §6): instead of many special built-in predicates, one mechanism for **typed, pure functions callable from queries**, `f: A₁ × … × Aₙ → B`, each declaring its purity, determinism, cost class and whether it may be compiled. They are called with bound arguments only (like `startswith`), never unified against. A certified sophialang function could become one, without gaining I/O or mutation. This is where the query language and sophialang meet, without merging their semantics (§3.4).
+- **Aggregates** beyond `count` (`sum`, `min`, `max`); arithmetic is a query function (§13.8).
+- **Query functions** (review of M3a, §6; SR-111): designed in §13 (proposal, 2026-11-18): one mechanism for typed, pure, deterministic, cost-annotated functions called with bound arguments, replacing the `startswith` literal; sophialang functions join it after M4. Not built (B-067 to B-070).
 - **More base relations:** log, lineage, sizes, statuses; roles (TypeQL).
 - **Proof-backed rewrites:** query equivalences as facts with evidence (e-graphs, as in egglog), so that an optimiser's rewrite needs no trust in the optimiser.
 - **Queries as compiled functions,** partial evaluation against database state, materialised views as reusable computations (SR-106). This waits until the small algebra works on at least two backends, which it now does.
@@ -321,3 +321,114 @@ Tests: 11 identity tests, an execution suite, and property tests.
 - **Interface:** an acceptance test on every backend.
 
 Benchmarks: B-17 in [[Benchmark Results]].
+
+## 13. Query functions (proposal, 2026-11-18, B-019)
+
+**A design by Claude for SR-111, not yet accepted by Daniel and not built.** It answers point 6 of [[Review 2026-10-20 M3a (external)]]: rather than adding a special literal for each built-in (today there is one, `startswith`), queries call **typed, pure, cost-annotated functions through one mechanism**. Everything here is a proposal; nothing in it has been measured.
+
+### 13.1 What a query function is
+
+A query function is `f: A₁ × … × Aₙ → B`, where each `Aᵢ` is a sort (`Id`, `Text`, `Int`) and `B` is a sort or `Bool`. A `Bool` function is a **test**; any other is a **map**. Every function carries a **signature record**:
+
+| field | meaning | used by |
+|---|---|---|
+| `name` | its name in the query syntax (`startswith`, `length`) | parser, printers |
+| `params`, `result` | the sorts above | `check` (sorts) |
+| `partial` | whether it is undefined on some inputs (`div` by zero, overflow) | executor, SQL translation |
+| `cost` | a cost class: `Const` (O(1)), `Linear` (O(size of the arguments)), `Heavy` (anything else, with a declared bound in steps per call) | planner, budget |
+| `recursion` | `Safe` or `Inventive` (defined in §13.4) | `check` (termination, §13.4) |
+| `sql` | an optional SQLite expression template that computes exactly the same value | SQL translation (§13.6) |
+
+**Required of every function, not declared:** it is **pure** (no I/O, no mutation, no reading of the store, no clock, no randomness) and **deterministic** (the same arguments give the same result on every platform and in every run). The signature does not offer an "impure" setting, because an impure function would break result identity: `ResultId = H(query, snapshot, parameters)` (§4.3) is only sound if a query's answer is fixed by the store's state and the parameters. Anything that reads the store (a record's size, its status) is a **base relation** and enters through a schema version (`store-base-v1`), never as a function.
+
+Determinism rules out floating point whose result depends on the platform, and Unicode operations whose result depends on a Unicode version (case folding, normalisation) unless the version is part of the function's name. Text functions work on bytes or on Unicode scalar values, and each one says which.
+
+### 13.2 In the IR and its identity
+
+`Literal::StartsWith` is replaced by one literal:
+
+```rust
+Literal::Call { f: FnRef, args: Vec<Term>, out: Option<Term>, neg: bool }
+```
+
+- a **test** has `out = None`; `neg` negates it (`!startswith(p, "core.")`);
+- a **map** has `out = Some(t)` and `neg = false`: `t == f(args…)`. If `t` is an unbound variable the call **binds** it; otherwise the call checks it.
+
+`FnRef` names a function:
+- `Builtin(name)`: a function of Sophia's built-in library, versioned as a whole (`sophia-fn-v0`);
+- `Def(id)` (later, §13.7): a stored sophialang definition, by content id.
+
+**Identity.** The canonical bytes become `query-v1`: the header adds `functions: sophia-fn-v0` next to `schema: store-base-v0`, and a call is encoded as tag `call`, the reference (a builtin's name, or a definition id), `neg`, the arguments and the output. So a change to the meaning of any built-in function is a new library version and gives new query ids, as a schema change does (§2). The library version is in every query's header, whether or not it calls a function, so that one rule fixes the meaning of every name.
+
+This changes every query id: a **migration**, carried out as SPEC-006 §6 says: `migrated_to(old id, new id, query-v0, query-v1)` for every stored query, a new world, and facts or proofs on the old ids marked stale. `decode` keeps reading `query-v0` (its `startswith` tag becomes a call of the builtin), and `load`'s canonicity check is made version-aware (today `canon::decode` refuses anything but `query-v0`), so a v0 record still loads and runs. Nobody uses Sophia yet (SR-118), so the migration can run once per store when B-067 lands. Cached results are keyed by query id and simply miss.
+
+A `Def(id)` reference is to be a `ref` of the stored query, so that a query **is a dependant of the functions it calls** (§8), as it is of the definitions it names. Today `Prepared::record` takes refs from `canon::constants`, which sees only id constants in terms; B-070 must add `FnRef::Def` there.
+
+### 13.3 Semantics
+
+A call adds no new semantics beyond Datalog with a finite set of built-in relations: the map `f` is the (possibly infinite) relation `{(x₁, …, xₙ, f(x…))}`, and a call is a positive or negated literal over it whose input columns must be bound. So:
+
+- **Bound inputs only** (as §3.4 required): every argument of a call must be bound before it, in the sense `plan::bind` already uses: by a positive literal, a parameter, a constant, an equation with a bound side, or an earlier call's output. A call is never unified against: `x == f(y)` with `y` unbound and `x` bound is refused, not inverted. Safety (§3.3) is extended: a variable is bound by a positive literal **or by being the output of a call whose inputs are bound**.
+- **Partial functions:** where `f` is undefined, the call's literal is false and the row is dropped, as for a relation with no tuple. For a test this holds **negated or not**: a partial test has three outcomes, `f(x…)` holds only where it is defined and true, `!f(x…)` only where it is defined and false. This is never an error. `Stats` counts undefined calls, so that a query which drops rows by overflow can be seen to do so.
+- **Negation:** `!f(x…)` is allowed only for tests. It needs no stratification, because a function does not depend on any predicate.
+- **Errors** are only resource limits (§6.0).
+
+### 13.4 Termination
+
+A map in a recursive rule can **invent values**: `n(y) = n(x) && y == x + 1` never reaches a fixpoint. The derived-tuple, byte and time limits stop such a query, but they report a limit, not an answer.
+
+**`Safe` (corrected after Mistral's review, 2026-11-18).** A function is `Safe` when there is a closure `C` from values to **finite** sets of values of its result sort such that `f(x₁, …, xₙ) ∈ C(x₁) ∪ … ∪ C(xₙ)` for all arguments, and `C` is closed under itself (`w ∈ C(v)` implies `C(w) ⊆ C(v)`). For text, `C(t)` is the set of substrings of `t`: `parent`, `basename` and prefixes are `Safe`. For ints, `C(i)` is `{0, …, i}` for `i ≥ 0`. Then from finitely many starting values, iterating `Safe` calls reaches only finitely many values, so recursion through them terminates. Every other map is `Inventive` (`+`, `sizeof`, `concat`). Each builtin declared `Safe` states its `C`, and a property test checks `f(x…) ∈ ⋃ C(xᵢ)` on random inputs.
+
+**The check.** In each rule whose head is in a recursive stratum (it depends on itself), build the rule's flow graph over variables: a call's inputs flow to its output, and an equation `a == b` flows both ways. `check` refuses the rule if a variable bound by an `Inventive` call reaches a head argument through this graph (so `z == x + 1 && y == z` with `y` in the head is refused, as is passing `z` through a `Safe` call). A non-recursive rule may call anything (`length(p)`, `x + 1`).
+
+### 13.5 Planning, execution and the budget
+
+- **Planner** (§6.1): a call is ready once its inputs are bound. A ready `Const` or `Linear` call scores like `!=` today (100, `Const` before `Linear`), a map that binds an output like a binding equation (90), and a ready `Heavy` call below every narrow lookup (under 60), so it runs after them. The `name(p, _)` prefix range of §6.0 (`plan::name_prefix`) and the parser's `startswith` keyword are re-keyed on the call of the builtin `startswith`; B-067's test is that the prefix range still applies, since without it a name scan is wide (§6.1's 2 ms against 30 s).
+- **Magic sets** (§6.2): unchanged in principle. Calls are kept in magic-rule bodies, since the prefix of a planned body binds their inputs by construction; the sideways passing treats a call's output as bound after it.
+- **Executor:** a call evaluates its function on the bound arguments. Each call costs steps from the budget: one for `Const`, the argument bytes divided by a constant for `Linear`, the declared bound for `Heavy`. Heavy calls are memoised per run by their arguments, and the deadline and cancel flag are checked between calls. So no function escapes `Limits`.
+- **Bounded runs** (`run_bounded`, B-017) need nothing new: the worker is the same executor.
+
+### 13.6 SQL translation
+
+A call translates only if its function has a `sql` template **and** the template computes exactly the native value on every input, including where the function is undefined: a partial function's template yields `NULL` there. A test translates as `tpl IS NOT NULL AND tpl`, a negated test as `tpl IS NOT NULL AND NOT tpl` (not `NOT tpl`, which SQLite's three-valued logic turns into `NULL`), and a map's output adds `tpl IS NOT NULL`. A map's output variable is replaced by its expression in the statement. A call without an exact template makes the query `Unsupported`, as mutual recursion does (§7), and the native executor runs it. Exactness is a claim, so the differential property test (§12) runs plain, magic and SQL evaluation on random programs **with calls**, and compares.
+
+Known traps that decide which templates exist: SQLite's `length` counts characters, not bytes; its integer arithmetic turns overflow into floating point; `LIKE` is case-insensitive for ASCII. So in the first library, integer arithmetic has no SQL template, and text functions are defined to match what SQLite can compute exactly.
+
+### 13.7 sophialang functions (later)
+
+A stored sophialang definition can be a query function, `FnRef::Def(id)`, when:
+- its type maps to query sorts (`Id`, `Text`, `Int`, `Bool`);
+- its effect row is empty and it is total, or partial in the sense of §13.3, shown by a **fact with evidence** from sophialang's effect checker (SPEC-002, [[Effects Memory and Resources]]); an annotation (trust) is not enough;
+- its cost class and recursion safety are facts or annotations on it; without them it is `Heavy` with the default bound, and `Inventive`.
+
+It is evaluated by the sophialang interpreter (M4), inside the query's budget, and never gains I/O or mutation by being called from a query. Its content id is in the query's bytes, but that pins only its code: a change in the interpreter's semantics would change answers under the same result id. So a query with a `Def` call also carries the evaluator's semantic version (`eval: sophialang-eval-vN`) in its header, as builtins carry `sophia-fn-v0`. This is where the query language and sophialang meet without merging their semantics (§3.4). It waits for M4. Functions in Julia, Rust or Python stored through Moonkale are **not** callable: Sophia does not run foreign code in queries.
+
+### 13.8 The first library, `sophia-fn-v0` (proposal)
+
+Only what a stored or planned query needs, each with its stated meaning and its SQL template where exact. `C` is the closure of §13.4 for `Safe` maps:
+
+| function | sig | cost | recursion | SQL |
+|---|---|---|---|---|
+| `startswith(t, p)` | Text × Text → Bool | Linear | — | `substr(t, 1, length(p)) = p` (as today) |
+| `endswith(t, s)`, `contains(t, s)` | Text × Text → Bool | Linear | — | to be checked byte-exact |
+| `sizeof(t)` | Text → Int (bytes, Julia's name) | Const | Inventive | none (SQLite counts characters) |
+| `parent(p)`, `basename(p)` | Text → Text, on dotted names; undefined at the root | Linear | Safe, `C` = substrings | to be checked |
+| `<`, `<=` on Int and on Text (bytewise) | → Bool | Const / Linear | — | `<`, `<=` (Text under `BINARY` collation) |
+| `+`, `-`, `*` on Int, checked | Int × Int → Int, undefined on overflow | Const | Inventive | none |
+
+Aggregates (`sum`, `min`, `max`) are not functions: they belong to `select` beside `count` (§11).
+
+### 13.9 Syntax
+
+`julia` profile: a test is written as a call, `startswith(p, "core.")`, `!contains(p, "test")`; a map as an equation, `n == sizeof(p)`; comparisons and arithmetic infix, `n < 10`, `m == n + 1`. Calls do not nest in v1 (`f(g(x))` is a parse error; write `y == g(x) && f(y)`), so that print(parse(t)) stays a fixed point. A local predicate may not take a function's name, and a function may not take a base relation's name. `datalog` profile: `Y = f(X)` and `f(X)`.
+
+### 13.10 Open, for Daniel
+
+1. **The migration:** bump every query id to `query-v1` (proposed), or keep `query-v0` bytes for queries without calls? The proposal bumps, because one rule for every query is simpler than two encodings that agree.
+2. **Undefined is false** (proposed) or an error? False keeps Datalog's semantics and SQL's `NULL`; an error would surface overflow.
+3. **The first library:** is §13.8 the right set, or should the first build carry only `startswith` and comparisons?
+4. **Inventive recursion refused** (proposed), or allowed under the budget with a warning?
+
+### 13.11 Build plan
+
+Rows B-067 to B-070 in [[Backlog]]. B-067 is the mechanism with `startswith` as its only function and no change of behaviour except the ids; the library, the termination check and sophialang functions follow.

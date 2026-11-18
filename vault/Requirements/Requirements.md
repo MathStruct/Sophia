@@ -146,7 +146,7 @@ From the external review of `d0c08b4` ([[Review 2026-10-20 M3a (external)]]), fo
 | SR-108 | Queries run under a resource budget: steps, rows, derived tuples, estimated bytes, wall time, cancellation. Untrusted (agent) queries additionally get a hard memory bound from outside the executor. | R3 §5 | now (budget); M3b (hard bound) | budget done (SPEC-007 §6.0); hard bound done (B-017, 2026-11-18: a worker process under `RLIMIT_DATA`, Linux; redb and DuckDB only while no other process writes them) |
 | SR-109 | Canonicalisation guarantees canon(πQ) = canon(Q) for every transformation it claims to normalise, or refuses; the guarantee is property-tested. | R3 §7 | now | done (SPEC-007 §4.1) |
 | SR-110 | Every optimisation is differentially tested against unoptimised evaluation on random programs and data; later, it carries checkable certificates. | R3 §8 | now (tests); later (certificates) | done for magic sets and the SQL translation |
-| SR-111 | Queries call typed, pure, cost-annotated functions through one mechanism, not a growing list of built-ins. | R3 §6 | later | design (SPEC-007 §11) |
+| SR-111 | Queries call typed, pure, cost-annotated functions through one mechanism, not a growing list of built-ins. | R3 §6 | later | design proposed (SPEC-007 §13, 2026-11-18, B-019); build B-067 to B-070 |
 | SR-112 | One record shape for transformations and their evidence, shared by every optimiser and frontend. | R3 §10 | interface now, build later | specified (SPEC-006 §6a) |
 | SR-113 | Real-code benchmarks and Moonkale's edit loop come before the agent server. | R3 §9 | now | adopted ([[Milestones]]) |
 
