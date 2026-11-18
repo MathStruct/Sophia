@@ -259,7 +259,7 @@ Queries are queryable themselves: `select q where def(q, :Query)`.
 - **Creating.** Text that starts with `query` or `select`, created under a namespace, is stored as a query under that name.
 - **Reading and editing.** Fetching a query's name prints it in the query syntax. Writing it re-parses it, checks the edit token, and moves the name to the new query id, like any edit. Parse errors are diagnostics with byte positions.
 
-**Agents** reach the same language through the MCP server's `query` tool (`sophia-mcp`, B-062, [[sophia_mcp]]), not through backend SQL (SR-100). Every agent query runs in a worker under a hard memory bound ([[bounded]]). Stored queries by name are B-063.
+**Agents** reach the same language through the MCP server's `query` tool (`sophia-mcp`, B-062, [[sophia_mcp]]), not through backend SQL (SR-100). Every agent query runs in a worker under a hard memory bound ([[bounded]]). Agents store queries with `save_query` (behind `--allow-edits`) and run them by name with parameters through `run` (B-063).
 
 ## 9. Relation to sophialang ([[S-ADR-0012 The query IR is a separate IR on shared primitives]])
 

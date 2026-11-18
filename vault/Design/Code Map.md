@@ -45,7 +45,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | `sophia-query` | `sophia_query.rs` | [[sophia_query]] | Sophia's own query language (SPEC-007): prepare, run, SQL, cache, store |
 | `sophia-query` | `bounded.rs` | [[bounded]] | a hard memory bound for untrusted queries: a worker process under `RLIMIT_DATA` (B-017) |
 | `sophia-query` | `bin/sophia-query-worker.rs` | [[sophia-query-worker]] | the worker binary of `bounded` |
-| `sophia-mcp` | `sophia_mcp.rs` | [[sophia_mcp]] | the agent server: query, show, list and context as MCP tools on stdio, built on `rmcp`; queries through `bounded` (B-062) |
+| `sophia-mcp` | `sophia_mcp.rs` | [[sophia_mcp]] | the agent server: MCP tools on stdio, built on `rmcp`, in permission classes behind startup flags; queries through `bounded` (B-062, B-063) |
 | `sophia-mcp` | `bin/sophia-mcp.rs` | [[sophia-mcp]] | the `sophia-mcp` command |
 | `sophia-mcp` | `bin/sophia-mcp-worker.rs` | [[sophia-mcp-worker]] | the server's copy of the query worker |
 | | `ir.rs`, `syntax.rs`, `canon.rs` | [[ir]], [[syntax]], [[canon]] | the IR; Julia-flavoured syntax and printers; canonical form and ids |

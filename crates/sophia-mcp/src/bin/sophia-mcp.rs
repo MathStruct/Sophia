@@ -1,4 +1,5 @@
-//! `sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>]`:
+//! `sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>]
+//! [--allow-edits] [--allow-removals]`:
 //! the agent server on stdio. See `sophia-mcp.md`.
 
 use std::path::PathBuf;
@@ -6,7 +7,8 @@ use std::process::ExitCode;
 
 use sophia_mcp::{Config, SophiaServer};
 
-const USAGE: &str = "usage: sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>] [--reader <name>]";
+const USAGE: &str =
+    "usage: sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>] [--reader <name>] [--allow-edits] [--allow-removals]";
 
 fn main() -> ExitCode {
     let config = match parse(std::env::args().skip(1)) {
@@ -41,6 +43,7 @@ fn main() -> ExitCode {
 
 fn parse(mut args: impl Iterator<Item = String>) -> Result<Config, String> {
     let (mut store, mut worker, mut mib, mut reader) = (None, None, None, None);
+    let (mut edits, mut removals) = (false, false);
     while let Some(a) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{a} needs a value"));
         match a.as_str() {
@@ -48,6 +51,8 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Config, String> {
             "--worker" => worker = Some(PathBuf::from(value()?)),
             "--max-memory" => mib = Some(value()?.parse::<u64>().map_err(|e| format!("--max-memory: {e}"))?),
             "--reader" => reader = Some(value()?),
+            "--allow-edits" => edits = true,
+            "--allow-removals" => removals = true,
             "-h" | "--help" => return Err("help".into()),
             _ => return Err(format!("unknown argument {a}")),
         }
@@ -65,5 +70,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Config, String> {
     if let Some(r) = reader {
         c.reader = r;
     }
+    c.allow_edits = edits;
+    c.allow_removals = removals;
     Ok(c)
 }

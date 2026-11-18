@@ -2230,6 +2230,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "sophia-hash",
  "sophia-interface",
  "sophia-query",
  "sophia-store",

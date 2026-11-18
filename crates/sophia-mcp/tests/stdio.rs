@@ -92,14 +92,177 @@ fn sample_store(dir: &Path) -> std::path::PathBuf {
     path
 }
 
+impl Client {
+    fn tools(&mut self) -> Vec<String> {
+        let r = self.request("tools/list", json!({}));
+        let mut names: Vec<String> =
+            r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+        names.sort();
+        names
+    }
+}
+
+const READ: [&str; 5] = ["context", "list", "query", "run", "show"];
+const WRITE: [&str; 3] = ["add", "edit", "save_query"];
+const REMOVE: [&str; 2] = ["delete", "rename"];
+
+fn sorted(parts: &[&[&str]]) -> Vec<String> {
+    let mut v: Vec<String> = parts.iter().flat_map(|p| p.iter().map(|s| s.to_string())).collect();
+    v.sort();
+    v
+}
+
+/// Each class of tools is listed only with its flag (SR-157, SR-158).
 #[test]
-fn tools_are_listed() {
+fn tools_are_listed_by_class() {
     let dir = tempfile::tempdir().unwrap();
-    let mut c = Client::start(&sample_store(dir.path()), &[]);
-    let r = c.request("tools/list", json!({}));
-    let mut names: Vec<&str> = r["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    names.sort();
-    assert_eq!(names, ["context", "list", "query", "show"]);
+    let store = sample_store(dir.path());
+    assert_eq!(Client::start(&store, &[]).tools(), sorted(&[&READ]));
+    assert_eq!(Client::start(&store, &["--allow-edits"]).tools(), sorted(&[&READ, &WRITE]));
+    assert_eq!(Client::start(&store, &["--allow-removals"]).tools(), sorted(&[&READ, &REMOVE]));
+    assert_eq!(Client::start(&store, &["--allow-edits", "--allow-removals"]).tools(), sorted(&[&READ, &WRITE, &REMOVE]));
+}
+
+/// Without the flags, a write tool cannot be called even by name, and the
+/// store file is not touched by a whole session.
+#[test]
+fn a_read_only_server_writes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = sample_store(dir.path());
+    let before = std::fs::read(&store).unwrap();
+    {
+        let mut c = Client::start(&store, &[]);
+        let s = c.ok("show", json!({ "path": "sample.add" }));
+        for (tool, args) in [
+            ("edit", json!({ "path": "sample.add", "version": s["version"], "text": s["text"] })),
+            ("add", json!({ "namespace": "sample", "name": "x", "text": "function x()::Nat\n    zero\nend\n" })),
+            ("save_query", json!({ "namespace": "sample", "name": "q", "text": "query q select p where name(p, d) end" })),
+            ("rename", json!({ "path": "sample.add", "to": "sample.plus" })),
+            ("delete", json!({ "path": "sample.add" })),
+        ] {
+            let r = c.request("tools/call", json!({ "name": tool, "arguments": args }));
+            let refused = r["error"].is_object() || r["result"]["isError"] == json!(true);
+            assert!(refused, "{tool}: {r}");
+        }
+        c.ok("query", json!({ "text": "query q select p where name(p, d) end" }));
+    }
+    assert!(std::fs::read(&store).unwrap() == before, "the store file changed");
+    // Removals alone do not allow edits, and edits alone do not allow removals.
+    let mut c = Client::start(&store, &["--allow-removals"]);
+    let s = c.ok("show", json!({ "path": "sample.add" }));
+    let r = c.request(
+        "tools/call",
+        json!({ "name": "edit", "arguments": { "path": "sample.add", "version": s["version"], "text": s["text"] } }),
+    );
+    assert!(r["error"].is_object() || r["result"]["isError"] == json!(true), "{r}");
+    let mut c = Client::start(&store, &["--allow-edits"]);
+    let r = c.request("tools/call", json!({ "name": "delete", "arguments": { "path": "sample.add" } }));
+    assert!(r["error"].is_object() || r["result"]["isError"] == json!(true), "{r}");
+    c.ok("show", json!({ "path": "sample.add" }));
+}
+
+/// `edit`: the version check, diagnostics, and a real change (SPEC-004 §3).
+#[test]
+fn edits_through_the_server() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut c = Client::start(&sample_store(dir.path()), &["--allow-edits"]);
+    let s = c.ok("show", json!({ "path": "sample.add" }));
+    let text = s["text"].as_str().unwrap();
+    let version = s["version"].as_u64().unwrap();
+    assert!(text.contains("add(k, b)"), "{text}");
+    let changed = text.replace("add(k, b)", "add(b, k)");
+
+    // A parse error stores nothing and says where.
+    let bad = format!("{text}\nfunction (\n");
+    let (err, msg) = c.call("edit", json!({ "path": "sample.add", "version": version, "text": bad }));
+    assert!(err, "{msg}");
+    let e: Value = serde_json::from_str(&msg).unwrap();
+    assert_eq!(e["error"], "diagnostics", "{e}");
+    let d = &e["diagnostics"][0];
+    assert!(d["line"].as_u64().unwrap() > 1 && d["start"].as_u64().unwrap() >= text.len() as u64, "{e}");
+    assert_eq!(c.ok("show", json!({ "path": "sample.add" }))["version"], json!(version), "nothing was stored");
+
+    // A stale version is a conflict.
+    let (err, msg) = c.call("edit", json!({ "path": "sample.add", "version": version + 1, "text": changed }));
+    let e: Value = serde_json::from_str(&msg).unwrap();
+    assert!(err && e["error"] == "conflict" && e["found"] == json!(version), "{msg}");
+
+    // The right version stores the change and moves the name.
+    let w = c.ok("edit", json!({ "path": "sample.add", "version": version, "text": changed }));
+    assert_ne!(w["version"], json!(version), "{w}");
+    assert!(w["targets"].as_array().unwrap().iter().any(|t| t["name"] == "sample.add"), "{w}");
+    let after = c.ok("show", json!({ "path": "sample.add" }));
+    assert!(after["text"].as_str().unwrap().contains("add(b, k)"), "{after}");
+    assert_eq!(after["version"], w["version"]);
+    // The old version is now stale.
+    let (err, _) = c.call("edit", json!({ "path": "sample.add", "version": version, "text": text }));
+    assert!(err);
+
+    // add: a new name in the namespace; a dotted name is refused.
+    let a = c
+        .ok("add", json!({ "namespace": "sample", "name": "three", "text": "function three()::Nat\n    Nat.succ(Nat.succ(Nat.succ(Nat.zero)))\nend\n" }));
+    assert_eq!(a["path"], "sample.three", "{a}");
+    assert!(c.ok("list", json!({ "namespace": "sample" }))["children"].as_array().unwrap().iter().any(|n| n["label"] == "three"));
+    // The query worker, a separate process, sees what this server wrote.
+    let t = c.ok("query", json!({ "text": "query q select d where name(\"sample.three\", d) end" }));
+    assert_eq!(t["rows"].as_array().unwrap().len(), 1, "{t}");
+    let (err, _) = c.call("add", json!({ "namespace": "sample", "name": "a.b", "text": "function b()::Nat\n    Nat.zero\nend\n" }));
+    assert!(err);
+}
+
+/// `save_query` and `run`: a stored query with a parameter, called by name.
+#[test]
+fn stored_queries_run_by_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = sample_store(dir.path());
+    let q = "query users_of(t::Id)\n    uses_(a, b) = refs(a, b)\n    uses_(a, c) = refs(a, b) && uses_(b, c)\n    select p where uses_(a, t) && name(p, a)\nend";
+    {
+        let mut c = Client::start(&store, &["--allow-edits"]);
+        // Text with a parameter cannot run as text.
+        let (err, msg) = c.call("query", json!({ "text": q }));
+        assert!(err && msg.contains("save_query"), "{msg}");
+        // save_query takes only queries.
+        let (err, _) =
+            c.call("save_query", json!({ "namespace": "sample", "name": "f", "text": "function f()::Nat\n    Nat.zero\nend\n" }));
+        assert!(err);
+        c.ok("save_query", json!({ "namespace": "sample", "name": "users_of", "text": q }));
+    }
+    // A read-only server runs it.
+    let mut c = Client::start(&store, &[]);
+    let t = c.ok("run", json!({ "name": "sample.users_of", "params": ["sample.add"] }));
+    assert!(t["rows"].as_array().unwrap().iter().any(|r| r[0] == "sample.add_test"), "{t}");
+    // By hex id too.
+    let id = c.ok("query", json!({ "text": "query q select d where name(\"sample.add\", d) end" }))["rows"][0][0].clone();
+    let by_id = c.ok("run", json!({ "name": "sample.users_of", "params": [id] }));
+    assert_eq!(by_id["rows"], t["rows"]);
+    for params in [json!([]), json!([1]), json!(["sample.nothing"]), json!(["sample.add", "sample.add"])] {
+        let (err, msg) = c.call("run", json!({ "name": "sample.users_of", "params": params }));
+        assert!(err, "{params}: {msg}");
+    }
+    let (err, _) = c.call("run", json!({ "name": "sample.nothing" }));
+    assert!(err);
+}
+
+/// `rename` and `delete` move and remove names; the definitions stay.
+#[test]
+fn removals_keep_the_definitions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut c = Client::start(&sample_store(dir.path()), &["--allow-removals"]);
+    let defs = "query q select count(d) where def(d, _) end";
+    let before = c.ok("query", json!({ "text": defs }))["rows"].clone();
+    let old = c.ok("show", json!({ "path": "sample.add_test" }))["text"].clone();
+
+    let r = c.ok("rename", json!({ "path": "sample.add_test", "to": "sample.check_add" }));
+    assert_eq!(r["to"], "sample.check_add", "{r}");
+    // The same definition under the new name (the print names it).
+    let new = c.ok("show", json!({ "path": "sample.check_add" }))["text"].clone();
+    assert_eq!(new.as_str().unwrap(), old.as_str().unwrap().replace("add_test", "check_add"));
+    assert!(c.call("show", json!({ "path": "sample.add_test" })).0);
+
+    c.ok("delete", json!({ "path": "sample.check_add" }));
+    assert!(c.call("show", json!({ "path": "sample.check_add" })).0);
+    assert!(c.call("delete", json!({ "path": "sample.check_add" })).0, "deleting a missing name is an error");
+    assert_eq!(c.ok("query", json!({ "text": defs }))["rows"], before, "no definition was removed");
 }
 
 #[test]
@@ -206,4 +369,39 @@ fn a_missing_store_is_refused_at_start() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("no store file"));
     let out = Command::new(SERVER).output().unwrap();
     assert_eq!(out.status.code(), Some(2));
+}
+
+/// Codex's review of B-063: a name path to a nominal entity is a valid `Id`
+/// parameter; `add` answers with the name the text defined and a version
+/// token that `edit` accepts.
+#[test]
+fn review_findings_b063() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut c = Client::start(&sample_store(dir.path()), &["--allow-edits"]);
+
+    // A relation (nominal) by name and by hex id gives the same members.
+    c.ok(
+        "save_query",
+        json!({ "namespace": "sample", "name": "members", "text": "query members(n::Id)\n    select d where member(n, d)\nend" }),
+    );
+    let id = c.ok("query", json!({ "text": "query q select n where name(\"sample.parent\", n) end" }))["rows"][0][0].clone();
+    let by_id = c.ok("run", json!({ "name": "sample.members", "params": [id] }));
+    assert!(!by_id["rows"].as_array().unwrap().is_empty(), "{by_id}");
+    let by_name = c.ok("run", json!({ "name": "sample.members", "params": ["sample.parent"] }));
+    assert_eq!(by_name["rows"], by_id["rows"]);
+
+    // add: the version it returns is the one edit needs.
+    let a = c.ok("add", json!({ "namespace": "sample", "name": "four", "text": "function four()::Nat\n    Nat.succ(three())\nend\nfunction three()::Nat\n    Nat.succ(Nat.succ(Nat.succ(Nat.zero)))\nend\n" }));
+    assert_eq!(a["path"], "sample.four", "{a}");
+    assert_eq!(a["version"], c.ok("show", json!({ "path": "sample.four" }))["version"], "{a}");
+    let text = c.ok("show", json!({ "path": "sample.four" }))["text"]
+        .as_str()
+        .unwrap()
+        .replace("Nat.succ(three())", "Nat.succ(Nat.succ(three()))");
+    c.ok("edit", json!({ "path": "sample.four", "version": a["version"], "text": text }));
+
+    // add: when the text does not define `name`, the answer names what it did define.
+    let a = c.ok("add", json!({ "namespace": "sample", "name": "foo", "text": "function bar()::Nat\n    Nat.zero\nend\n" }));
+    assert_eq!(a["path"], "sample.bar", "{a}");
+    assert_eq!(a["version"], c.ok("show", json!({ "path": "sample.bar" }))["version"], "{a}");
 }

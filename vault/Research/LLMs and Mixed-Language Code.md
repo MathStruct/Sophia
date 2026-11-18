@@ -2,7 +2,7 @@
 
 > Language models are trained on existing languages, not on sophialang's canonical form. So models reach the store through a **frontend**: a projection in a language they know. Daniel asked whether a model can handle the **mixed-language content** this yields (SR-62). **Answer: yes, if each definition is shown in a surface the model knows, if the cross-language edges are explicit, and if every write goes through a parser that refuses what it cannot normalise.** This note says how, what the risks are, and how training on sophialang directly would work later.
 >
-> Sources: Moonkale `markdown/architecture/LLM and RAG.md`, `Claude Code Extension.md`; the Model Context Protocol; Chen et al., *Evaluating Large Language Models Trained on Code*, 2021 (models are strongest in high-resource languages); [[Cross-Language Semantic Hazards]]. code: `crates/sophia-mcp` (B-062: `query`, `show`, `list`, `context`, read-only; edits are B-063).
+> Sources: Moonkale `markdown/architecture/LLM and RAG.md`, `Claude Code Extension.md`; the Model Context Protocol; Chen et al., *Evaluating Large Language Models Trained on Code*, 2021 (models are strongest in high-resource languages); [[Cross-Language Semantic Hazards]]. code: `crates/sophia-mcp` (B-062, B-063).
 
 ## 1. How a model sees the store
 
@@ -17,7 +17,7 @@
 
 ## 2. The tool interface
 
-A Model Context Protocol server, `sophia-mcp`, gives agents the same operations Moonkale has ([[SPEC-004 Moonkale Interface]]). Built so far (B-062, [[sophia_mcp]]): `query` (Sophia's query language under a memory bound), `show`, `list` and `context`. Planned:
+A Model Context Protocol server, `sophia-mcp`, gives agents the same operations Moonkale has ([[SPEC-004 Moonkale Interface]]). Built (B-062, B-063, [[sophia_mcp]]): `query` and `run` (Sophia's query language, stored queries by name, under a memory bound), `show`, `list`, `context`; `edit`, `add` and `save_query` behind `--allow-edits`; `rename` and `delete` behind `--allow-removals`. Still planned: `facts` (B-064). The original list:
 - `search(query)`, read-only (no `sql`: agents use the query language, SR-100);
 - `show(name, profile)`: the printed text with its source map;
 - `context(name, depth)`: the definition plus its dependencies and dependants, each in its own language;
