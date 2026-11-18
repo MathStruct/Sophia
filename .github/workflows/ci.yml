@@ -2,8 +2,8 @@ name: CI
 
 # Formatting, clippy with warnings denied, and the workspace tests with all
 # features (all four backends; the DuckDB build takes a few minutes). Asked for
-# by Fable's review (2026-11-10, 04 §1). The wasm tests are not run here: they
-# need wasm-bindgen's test runner and clang for wasm32 (see sophia_interface.md).
+# by Fable's review (2026-11-10, 04 §1). A second job runs the wasm tests of
+# sophia-interface under Node (B-012; see sophia_interface.md).
 
 on:
   push:
@@ -33,3 +33,37 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Tests
         run: cargo test --workspace --all-features
+
+  wasm:
+    # The web client's read path (SPEC-009 §4) on wasm32-unknown-unknown, under
+    # Node: tests/wasm_read.rs and tests/wasm_deep.rs. The runner's version must
+    # equal the wasm-bindgen crate's in Cargo.lock, so it is read from there.
+    # clang (preinstalled on ubuntu-latest) compiles SQLite's C for wasm32.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - name: wasm-bindgen version from Cargo.lock
+        id: wb
+        run: |
+          v=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          test -n "$v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: wasm tests (Node)
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          CC_wasm32_unknown_unknown: clang
+        run: >-
+          cargo test -p sophia-interface --no-default-features --features sqlite
+          --target wasm32-unknown-unknown --test wasm_read --test wasm_deep
