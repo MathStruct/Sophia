@@ -25,7 +25,7 @@ The executor's byte budget (`Limits::max_bytes`) is an estimate: it counts what 
 ## What it covers and what it does not
 
 - **The bound covers the whole worker:** the executor, the backend's allocations, thread stacks and a few MiB of fixed overhead. SQLite's page cache is heap and counts. File mappings do not: LMDB's 64 GiB map is shared and file-backed.
-- **Backends.** SQLite (WAL) and LMDB can be read by the worker while another process writes. redb and DuckDB lock their file: the worker can open them only while no process holds the store for writing, so an agent server on those backends would have to close the store or hand the worker a copy. DuckDB's read-only open uses one thread, since each thread's stack counts against the bound.
+- **Backends.** SQLite (WAL) and LMDB can be read by the worker while another process writes. redb and DuckDB lock their file: the worker can open them only while no process holds the store for writing, so `sophia-mcp` serves them read-only (SR-159, [[backends]]): its own read-only open shares the file with the worker. DuckDB's read-only open uses one thread, since each thread's stack counts against the bound.
 - **Linux only.** macOS does not enforce `RLIMIT_DATA` on `mmap`, which large allocations use, so `run_bounded` returns `Unsupported` off Linux. The module is not built for wasm (no processes).
 - **Smallest bound:** below about 1 MiB the worker cannot start, and every query fails with `MemoryBound` (Codex's sweep, [[Review 2026-11-18 Codex B-017 (external)]]).
 - **Cost:** a process start and a re-prepare per query, a few ms; not measured.

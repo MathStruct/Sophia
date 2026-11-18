@@ -209,6 +209,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-155 | Accepting an outside edit of a generated sophialang file removes the names the text dropped (option 1 of B-060). The proposal that lists them is the confirmation; the definitions and their history stay in the store. | D 2026-11-18 | next | planned: [[SPEC-010 Store-Truth Folders and Generated Files]] §8, B-060 |
 | SR-156 | The agent server `sophia-mcp` is built on `rmcp`, the official Rust MCP SDK, rather than a hand-written JSON-RPC layer or a community SDK. | D 2026-11-18 | M3b | done for the first slice (B-062, [[sophia_mcp]]) |
 | SR-157 | `sophia-mcp` gets the edit tools `edit(path, text, version)`, `add(namespace, name, text)`, `save_query(namespace, name, text)` and `run(name, params)`. The server stays read-only unless started with `--allow-edits`. | D 2026-11-18 | M3b | done (B-063, [[sophia_mcp]]) |
+| SR-159 | `sophia-mcp` serves every backend. On redb and DuckDB, which lock their file while it is open for writing, the server is read-only: the write flags are refused at startup rather than closing the store around each query or handing the worker a copy. | D 2026-11-18 | M3b | done (B-064, [[sophia_mcp]], [[backends]]) |
 | SR-158 | All the tools, `rename` and `delete` included, with a flag for each of the more critical groups, as a general measure: every tool has a permission class, reading is always allowed, and each riskier class is served only with its own startup flag. | D 2026-11-18 | M3b | done (B-063: classes `Read`, `Write` (`--allow-edits`), `Remove` (`--allow-removals`), [[sophia_mcp]]) |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | specified as a draft: [[SPEC-011 Sharing a Store-Truth Folder]] (2026-11-18, B-004), five questions for Daniel; not built |
 
@@ -249,6 +250,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 - 2026-11-18: SR-155 added: an accept of a proposed sophialang file removes the dropped names (Daniel, option 1 of B-060).
 - 2026-11-18: SR-156 added: `sophia-mcp` uses `rmcp` (Daniel).
 - 2026-11-18: SR-157 added: the edit tools of `sophia-mcp`, behind `--allow-edits` (Daniel).
+- 2026-11-18: SR-159 added: `sophia-mcp` on every backend; redb and DuckDB read-only (Daniel chose it over closing the store or copying it).
 - 2026-11-18: SR-158 added: rename and delete too, each riskier class of tools behind its own flag (Daniel). SR-157's "no rename or delete" withdrawn.
 - 2026-11-09: SR-154 added: sophialang as one language with three parts (programming, queries, type systems), with three external reviews of the question ([[Review 2026-11-09 Scope (external)]]).
 - 2026-11-08: SR-153 added: act on Gemini's review (pin move, `verify`, five fixes).

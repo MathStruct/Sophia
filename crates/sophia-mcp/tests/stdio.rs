@@ -102,7 +102,7 @@ impl Client {
     }
 }
 
-const READ: [&str; 5] = ["context", "list", "query", "run", "show"];
+const READ: [&str; 6] = ["context", "facts", "list", "query", "run", "show"];
 const WRITE: [&str; 3] = ["add", "edit", "save_query"];
 const REMOVE: [&str; 2] = ["delete", "rename"];
 
@@ -366,7 +366,7 @@ fn a_missing_store_is_refused_at_start() {
     let dir = tempfile::tempdir().unwrap();
     let out = Command::new(SERVER).arg("--store").arg(dir.path().join("none.sqlite")).output().unwrap();
     assert_eq!(out.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("no store file"));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no sqlite store"));
     let out = Command::new(SERVER).output().unwrap();
     assert_eq!(out.status.code(), Some(2));
 }

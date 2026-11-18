@@ -17,8 +17,10 @@ use sophia_hash::Digest;
 use sophia_interface::{Direction, EditError, Interface, Key, NodeView, Prop, Subgraph, Written};
 use sophia_query::bounded::{Bound, StoreFile, run_bounded};
 use sophia_query::{Limits, Prepared, Sort, Strategy, Val};
-use sophia_store::sqlite::Sqlite;
-use sophia_store::types::Target;
+use sophia_store::types::{Input, Target};
+
+mod backends;
+pub use backends::{AnyBackend, Kind};
 
 /// Largest `depth` the `context` tool accepts.
 pub const MAX_DEPTH: u32 = 3;
@@ -44,6 +46,7 @@ pub const TOOLS: &[(&str, Class)] = &[
     ("show", Class::Read),
     ("list", Class::Read),
     ("context", Class::Read),
+    ("facts", Class::Read),
     ("edit", Class::Write),
     ("add", Class::Write),
     ("save_query", Class::Write),
@@ -54,8 +57,11 @@ pub const TOOLS: &[(&str, Class)] = &[
 /// How the server is started.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// The SQLite store file. Opened read-only unless a write class is allowed.
+    /// The store: a file, or LMDB's directory. Opened read-only unless a
+    /// write class is allowed.
     pub store: PathBuf,
+    /// Its backend. redb and DuckDB are served read-only (`Kind::serves_writes`).
+    pub backend: Kind,
     /// The worker binary (`sophia-mcp-worker`) and its memory bound in bytes.
     pub worker: PathBuf,
     pub max_memory: u64,
@@ -87,6 +93,7 @@ impl Config {
         let limits = Limits { max_rows: 1_000, deadline: Some(std::time::Duration::from_secs(10)), ..Limits::default() };
         Config {
             store: store.into(),
+            backend: Kind::Sqlite,
             worker: worker.into(),
             max_memory: 512 << 20,
             limits,
@@ -99,7 +106,7 @@ impl Config {
 }
 
 struct Inner {
-    iface: Interface<Sqlite>,
+    iface: Interface<AnyBackend>,
     store: StoreFile,
     bound: Bound,
     limits: Limits,
@@ -128,6 +135,14 @@ pub struct QueryArgs {
 pub struct PathArgs {
     /// A dotted name path, e.g. `sample.add`.
     pub path: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct FactsArgs {
+    /// A dotted name path (e.g. `sample.add_test`) or a hex id.
+    pub path: String,
+    /// Only facts and annotations of this kind (e.g. `test-result`, `proof`).
+    pub kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -188,18 +203,27 @@ pub struct RenameArgs {
 
 impl SophiaServer {
     /// Opens the store: read-only unless `allow_edits` or `allow_removals`.
-    /// Fails if the file does not exist or is not a Sophia SQLite store; the
-    /// server never creates a store.
+    /// Fails if the store does not exist or is not a Sophia store of
+    /// `config.backend`, and refuses the write flags on a backend that
+    /// cannot write while its worker reads (redb, DuckDB). The server never
+    /// creates a store.
     pub fn open(config: Config) -> Result<Self, String> {
-        if !config.store.is_file() {
-            return Err(format!("no store file at {}", config.store.display()));
+        let kind = config.backend;
+        if !kind.exists(&config.store) {
+            return Err(format!("no {} store at {}", kind.as_str(), config.store.display()));
         }
         let writes = config.allow_edits || config.allow_removals;
+        if writes && !kind.serves_writes() {
+            return Err(format!(
+                "a {} store is served read-only (its query worker cannot open the file while the server holds it for writing): \
+                 start without --allow-edits and --allow-removals",
+                kind.as_str()
+            ));
+        }
+        let backend = AnyBackend::open(kind, &config.store, writes)?;
         let iface = if writes {
-            let backend = Sqlite::open(&config.store).map_err(|e| e.to_string())?;
             Interface::open(backend, config.reader.clone()).map_err(|e| e.to_string())?
         } else {
-            let backend = Sqlite::open_read_only(&config.store).map_err(|e| e.to_string())?;
             Interface::open_read_only(backend, config.reader.clone())
         };
         let mut router = Self::tool_router();
@@ -210,7 +234,7 @@ impl SophiaServer {
         }
         let inner = Inner {
             iface,
-            store: StoreFile::Sqlite(config.store.clone()),
+            store: kind.store_file(&config.store),
             bound: Bound::new(config.worker.clone(), config.max_memory),
             limits: config.limits,
             max_nodes: config.max_nodes,
@@ -360,6 +384,75 @@ impl SophiaServer {
         Ok(subgraph_json(&g))
     }
 
+    /// The `facts` tool's work: what is recorded about the definition (or
+    /// nominal entity) a name points to, or about a hex id: derived facts
+    /// (typings, test results, source spans, …) with whether their inputs
+    /// changed since, and annotations (proofs, tags, attributes, docs, …).
+    /// `kind` keeps only that kind.
+    pub fn facts_about(&self, path: &str, kind: Option<&str>) -> Result<Json, String> {
+        let store = self.inner.iface.store();
+        let subject = match path.parse::<Digest>() {
+            Ok(d) => d,
+            Err(_) => match store.resolve(path).map_err(|e| e.to_string())?.map(|n| n.target) {
+                Some(Target::Content(d) | Target::Nominal(d)) => d,
+                None => return Err(format!("no name {path}")),
+            },
+        };
+        let keep = |k: &str| kind.is_none_or(|want| want == k);
+        let (facts, annotations) =
+            store.read(|tx| Ok((tx.facts_of(&subject)?, tx.annotations_of(&subject)?))).map_err(|e| e.to_string())?;
+        let cap = self.inner.max_nodes;
+        let mut cut = false;
+        let mut fs = Vec::new();
+        for f in facts.iter().filter(|f| keep(&f.kind)) {
+            if fs.len() == self.inner.max_nodes {
+                break;
+            }
+            let stale = store.is_stale(f).map_err(|e| e.to_string())?;
+            cut |= f.inputs.len() > cap;
+            fs.push(json!({
+                "id": f.id.to_hex(),
+                "kind": f.kind,
+                "value": bytes_json(&f.value),
+                "by": f.by,
+                "by_version": f.by_version,
+                "derived_at": f.derived_at,
+                "stale": stale,
+                "inputs": f.inputs.iter().take(cap).map(|i| match i {
+                    Input::Content(d) => json!({ "content": d.to_hex() }),
+                    Input::Relation { nominal, version } => json!({ "relation": nominal.to_hex(), "version": version }),
+                }).collect::<Vec<_>>(),
+            }));
+        }
+        let anns: Vec<Json> = annotations
+            .iter()
+            .filter(|a| keep(&a.kind))
+            .take(self.inner.max_nodes)
+            .map(|a| {
+                let with: Vec<String> = a.subjects.iter().filter(|s| **s != subject).map(|s| s.to_hex()).collect();
+                cut |= with.len() > cap;
+                json!({
+                    "id": a.id.to_hex(),
+                    "kind": a.kind,
+                    "payload": bytes_json(&a.payload),
+                    "status": a.status,
+                    "checker": a.checker,
+                    "checker_version": a.checker_version,
+                    // The other subjects (an equivalence, a proof's theorem and its proof).
+                    "with": &with[..with.len().min(cap)],
+                })
+            })
+            .collect();
+        let n_facts = facts.iter().filter(|f| keep(&f.kind)).count();
+        let n_anns = annotations.iter().filter(|a| keep(&a.kind)).count();
+        Ok(json!({
+            "subject": subject.to_hex(),
+            "facts": fs,
+            "annotations": anns,
+            "truncated": cut || n_facts > fs.len() || n_anns > anns.len(),
+        }))
+    }
+
     /// The `edit` tool's work: replace what `path` names by `text`, if the
     /// name is still at `version` (from `show`).
     pub fn edit_text(&self, path: &str, version: u64, text: &str) -> Result<Json, String> {
@@ -445,6 +538,14 @@ fn node_json(n: &NodeView, r: &str) -> Json {
         }
     }
     o
+}
+
+/// A payload as text when it is UTF-8, else as `{"hex": …}`.
+fn bytes_json(b: &[u8]) -> Json {
+    match std::str::from_utf8(b) {
+        Ok(t) => Json::String(t.to_string()),
+        Err(_) => json!({ "hex": b.iter().map(|x| format!("{x:02x}")).collect::<String>() }),
+    }
 }
 
 fn written_json(path: &str, w: &Written) -> Json {
@@ -575,6 +676,14 @@ impl SophiaServer {
     async fn context(&self, Parameters(a): Parameters<ContextArgs>) -> Result<String, String> {
         blocking(self, move |s| s.context_of(&a.path, a.depth, a.direction.as_deref())).await
     }
+
+    #[tool(
+        description = "What is recorded about a name's definition (or a hex id): derived facts such as typings, test results and source spans, each with its value, the tool that derived it and whether its inputs changed since (stale); and annotations such as proofs, tags, attributes and docs. kind keeps one kind only.",
+        annotations(read_only_hint = true)
+    )]
+    async fn facts(&self, Parameters(a): Parameters<FactsArgs>) -> Result<String, String> {
+        blocking(self, move |s| s.facts_about(&a.path, a.kind.as_deref())).await
+    }
 }
 
 // The router field, not the default `Self::tool_router()`: the field has
@@ -584,7 +693,7 @@ impl ServerHandler for SophiaServer {
     fn get_info(&self) -> ServerConfig {
         let c = &self.inner.config;
         let mut text = String::from(
-            "Sophia, a content-addressed code store. Names are dotted paths (sample.add). Read with list, show and context; \
+            "Sophia, a content-addressed code store. Names are dotted paths (sample.add). Read with list, show, context and facts; \
              ask questions with query (Sophia's query language, not SQL) and run stored queries with run.",
         );
         text.push_str(match (c.allow_edits, c.allow_removals) {

@@ -20,6 +20,14 @@ path = "src/bin/sophia-mcp.rs"
 name = "sophia-mcp-worker"
 path = "src/bin/sophia-mcp-worker.rs"
 
+# The backends a server (and its worker) can open (B-064). SQLite is always
+# built: it is the default store. DuckDB is off by default (a long C++ build).
+[features]
+default = ["redb", "lmdb"]
+redb = ["sophia-store/redb", "sophia-query/redb", "sophia-interface/redb"]
+lmdb = ["sophia-store/lmdb", "sophia-query/lmdb", "sophia-interface/lmdb"]
+duckdb = ["sophia-store/duckdb", "sophia-query/duckdb", "sophia-interface/duckdb"]
+
 [dependencies]
 sophia-store = { path = "../sophia-store", default-features = false, features = ["sqlite"] }
 sophia-query = { path = "../sophia-query", default-features = false, features = ["sqlite"] }

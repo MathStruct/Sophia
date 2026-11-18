@@ -1,14 +1,13 @@
-//! `sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>]
-//! [--allow-edits] [--allow-removals]`:
+//! `sophia-mcp --store <path> [--backend sqlite|redb|lmdb|duckdb] [--worker <path>]
+//! [--max-memory <MiB>] [--reader <name>] [--allow-edits] [--allow-removals]`:
 //! the agent server on stdio. See `sophia-mcp.md`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use sophia_mcp::{Config, SophiaServer};
+use sophia_mcp::{Config, Kind, SophiaServer};
 
-const USAGE: &str =
-    "usage: sophia-mcp --store <file.sqlite> [--worker <path>] [--max-memory <MiB>] [--reader <name>] [--allow-edits] [--allow-removals]";
+const USAGE: &str = "usage: sophia-mcp --store <path> [--backend sqlite|redb|lmdb|duckdb] [--worker <path>] [--max-memory <MiB>] [--reader <name>] [--allow-edits] [--allow-removals]";
 
 fn main() -> ExitCode {
     let config = match parse(std::env::args().skip(1)) {
@@ -43,11 +42,16 @@ fn main() -> ExitCode {
 
 fn parse(mut args: impl Iterator<Item = String>) -> Result<Config, String> {
     let (mut store, mut worker, mut mib, mut reader) = (None, None, None, None);
+    let mut backend = Kind::Sqlite;
     let (mut edits, mut removals) = (false, false);
     while let Some(a) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{a} needs a value"));
         match a.as_str() {
             "--store" => store = Some(PathBuf::from(value()?)),
+            "--backend" => {
+                let b = value()?;
+                backend = Kind::parse(&b).ok_or_else(|| format!("--backend must be sqlite, redb, lmdb or duckdb, not {b:?}"))?;
+            }
             "--worker" => worker = Some(PathBuf::from(value()?)),
             "--max-memory" => mib = Some(value()?.parse::<u64>().map_err(|e| format!("--max-memory: {e}"))?),
             "--reader" => reader = Some(value()?),
@@ -64,6 +68,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Config, String> {
         None => std::env::current_exe().map_err(|e| e.to_string())?.with_file_name("sophia-mcp-worker"),
     };
     let mut c = Config::new(store, worker);
+    c.backend = backend;
     if let Some(m) = mib {
         c.max_memory = m.checked_mul(1 << 20).ok_or("--max-memory is too large")?;
     }
