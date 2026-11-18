@@ -4,7 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
-use ::redb::{Database, ReadTransaction, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition, WriteTransaction};
+use ::redb::{
+    Database, ReadOnlyDatabase, ReadTransaction, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition, WriteTransaction,
+};
 
 use crate::backend::{Backend, ReadTx, Result, WriteTx};
 use crate::error::StoreError;
@@ -22,8 +24,15 @@ fn be<E: std::fmt::Display>(e: E) -> StoreError {
 
 /// The redb backend.
 pub struct Redb {
-    db: Database,
+    db: Db,
     path: PathBuf,
+}
+
+/// A redb handle: read-write, or read-only (another process may read a file
+/// that no process holds for writing, B-017).
+enum Db {
+    Rw(Database),
+    Ro(ReadOnlyDatabase),
 }
 
 impl Redb {
@@ -34,13 +43,24 @@ impl Redb {
             w.open_table(def(t)).map_err(be)?;
         }
         w.commit().map_err(be)?;
-        Ok(Redb { db, path: path.as_ref().to_path_buf() })
+        Ok(Redb { db: Db::Rw(db), path: path.as_ref().to_path_buf() })
+    }
+
+    /// Opens an existing store **read-only**: nothing is created and every
+    /// write fails. redb locks its file, so this fails while another process
+    /// holds the store open for writing (B-017).
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        let db = ReadOnlyDatabase::open(path.as_ref()).map_err(be)?;
+        Ok(Redb { db: Db::Ro(db), path: path.as_ref().to_path_buf() })
     }
 
     /// Compacts the file (redb does not reclaim space on its own). Benchmarks
     /// report size both before and after.
     pub fn compact(&mut self) -> Result<bool> {
-        self.db.compact().map_err(be)
+        match &mut self.db {
+            Db::Rw(db) => db.compact().map_err(be),
+            Db::Ro(_) => Err(StoreError::Backend("the store is open read-only".into())),
+        }
     }
 }
 
@@ -127,12 +147,19 @@ impl Backend for Redb {
     }
 
     fn read<R>(&self, f: impl FnOnce(&dyn ReadTx) -> Result<R>) -> Result<R> {
-        let r = RedbRead { txn: self.db.begin_read().map_err(be)? };
+        let txn = match &self.db {
+            Db::Rw(db) => db.begin_read(),
+            Db::Ro(db) => db.begin_read(),
+        };
+        let r = RedbRead { txn: txn.map_err(be)? };
         f(&r)
     }
 
     fn write<R>(&self, f: impl FnOnce(&mut dyn WriteTx) -> Result<R>) -> Result<R> {
-        let txn = self.db.begin_write().map_err(be)?;
+        let Db::Rw(db) = &self.db else {
+            return Err(StoreError::Backend("the store is open read-only".into()));
+        };
+        let txn = db.begin_write().map_err(be)?;
         let out = f(&mut RedbWrite { txn: &txn });
         match out {
             Ok(v) => {

@@ -43,9 +43,12 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `propose.rs` | [[propose]] | an outside edit of an exported sophialang file as a proposal (SPEC-010 §5) |
 | | `tests/propose_text.rs` | [[propose]] | `propose_text` against the specification, compared with real edits (Mistral's review probes) |
 | `sophia-query` | `sophia_query.rs` | [[sophia_query]] | Sophia's own query language (SPEC-007): prepare, run, SQL, cache, store |
+| `sophia-query` | `bounded.rs` | [[bounded]] | a hard memory bound for untrusted queries: a worker process under `RLIMIT_DATA` (B-017) |
+| `sophia-query` | `bin/sophia-query-worker.rs` | [[sophia-query-worker]] | the worker binary of `bounded` |
 | | `ir.rs`, `syntax.rs`, `canon.rs` | [[ir]], [[syntax]], [[canon]] | the IR; Julia-flavoured syntax and printers; canonical form and ids |
 | | `check.rs`, `plan.rs`, `magic.rs` | [[check]], [[plan]], [[magic]] | sorts, safety, strata; literal ordering; the magic-set rewrite |
 | | `eval.rs`, `sql.rs` | [[eval]], [[sql]] | the native executor; the SQL translation |
+| | `tests/set_oriented.rs` | [[eval]] | the prefix path and anti-joins against tuple at a time (every backend) and SQL (B-014) |
 | `sophia-ingest` | `sophia_ingest.rs`, `metamath.rs`, `code.rs`, `module.rs` | [[sophia_ingest]], [[crates/sophia-ingest/src/metamath\|metamath]], [[code]], [[module]] | frontends for real code (B-16): Metamath into statements, proofs and library collections; Julia, Rust and Python through Moonkale's shared WP-66 normal form; generic functions keyed by (module, name) |
 | | `source.rs` | [[source]] | source files as records and the ingest manifest; `reconstruct` rebuilds and compares every record |
 | | `examples/lean_export_stats.rs` | [[lean_export_stats]] | measures a lean4export file (statements, programs, proofs) |

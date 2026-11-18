@@ -65,7 +65,7 @@ Its table of the 2026-11-07 findings matches [[Review 2026-11-07 Gemini (externa
 
 Each fix has a test that fails without it, checked by undoing the fix:
 - **S-2:** `changes_since` saturates (`settings_are_listed_and_logged`).
-- **S-3:** SQLite's query connection has `SQLITE_LIMIT_LENGTH` (at most 16 MiB) and a result byte budget, and DuckDB runs user queries under a 512 MiB `memory_limit` with the same budget (`sql_queries_are_read_only_and_capped`, `duckdb_queries_are_read_only_capped_and_timed`). `QueryLimits` gained `max_bytes`.
+- **S-3:** SQLite's query connection has `SQLITE_LIMIT_LENGTH` (at most 16 MiB) and a result byte budget, and DuckDB runs user queries under a 512 MiB `memory_limit` with the same budget (`sql_queries_are_read_only_and_capped`, `duckdb_queries_are_read_only_capped_and_timed`). `QueryLimits` gained `max_bytes`. The remainder, a hard bound for untrusted queries of Sophia's own language, is B-017 (2026-11-18): a worker process under `RLIMIT_DATA` ([[bounded]]).
 - **S-7:** `set_settings` accepts only its four prefixes (`NotASetting`).
 - **S-8:** counters fail on a wrong length or an underflow (`batches_and_counters_are_checked`).
 - **S-12:** `InvalidBatch` replaces `NotFound` for malformed batches.

@@ -90,6 +90,11 @@ fn dg(b: Vec<u8>) -> Result<Digest> {
     Digest::from_slice(&b).ok_or_else(|| StoreError::Codec("digest".into()))
 }
 
+/// A digest read in place from a column, without copying the blob first.
+fn blob_dg(v: rusqlite::types::ValueRef<'_>) -> Result<Digest> {
+    v.as_blob().ok().and_then(Digest::from_slice).ok_or_else(|| StoreError::Codec("digest".into()))
+}
+
 fn opt_dg(b: Option<Vec<u8>>) -> Result<Option<Digest>> {
     b.map(dg).transpose()
 }
@@ -119,6 +124,18 @@ impl Sqlite {
 
     pub fn open_in_memory() -> Result<Self> {
         Self::init(Connection::open_in_memory().map_err(be)?, None)
+    }
+
+    /// Opens an existing store file **read-only**: the schema is not touched
+    /// and every write fails. Other processes may write meanwhile (WAL); a
+    /// read transaction sees one snapshot. For the bounded query worker
+    /// (B-017).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        use rusqlite::OpenFlags;
+        let conn =
+            Connection::open_with_flags(path.as_ref(), OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX).map_err(be)?;
+        Ok(Sqlite { conn: Mutex::new(conn), path: Some(path.as_ref().to_path_buf()) })
     }
 
     /// Opens a store from the bytes of its file, **read-only**, in memory
@@ -674,25 +691,26 @@ impl ReadTx for SqliteTx<'_> {
     }
 
     fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
+        // Read in place: no `Vec` per id.
         let mut st = self.tx.prepare_cached("SELECT id, kind FROM t_definition").map_err(be)?;
-        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, String>(1)?))).map_err(be)?.collect();
-        v.into_iter()
-            .map(|r| {
-                let (i, k) = r.map_err(be)?;
-                Ok((dg(i)?, k))
-            })
-            .collect()
+        let mut rows = st.query([]).map_err(be)?;
+        let mut out: Vec<(Digest, String)> = Vec::new();
+        while let Some(r) = rows.next().map_err(be)? {
+            let id = blob_dg(r.get_ref(0).map_err(be)?)?;
+            let k = r.get_ref(1).map_err(be)?.as_str().map_err(|e| StoreError::Codec(e.to_string()))?;
+            out.push((id, k.to_string()));
+        }
+        Ok(out)
     }
 
     fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
         let mut st = self.tx.prepare_cached("SELECT src, dst FROM t_ref").map_err(be)?;
-        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
-        v.into_iter()
-            .map(|r| {
-                let (a, b) = r.map_err(be)?;
-                Ok((dg(a)?, dg(b)?))
-            })
-            .collect()
+        let mut rows = st.query([]).map_err(be)?;
+        let mut out = Vec::new();
+        while let Some(r) = rows.next().map_err(be)? {
+            out.push((blob_dg(r.get_ref(0).map_err(be)?)?, blob_dg(r.get_ref(1).map_err(be)?)?));
+        }
+        Ok(out)
     }
 }
 

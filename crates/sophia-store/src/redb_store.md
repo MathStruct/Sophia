@@ -18,6 +18,8 @@ The log is keyed by big-endian `seq`, so a range scan is in order.
 
 Since 2026-10-20 the tables and logic live in [[kv]], which is shared with LMDB. This file only adapts redb's read and write transactions. `Redb::compact` reclaims space for a fair size comparison.
 
+`Redb::open_read_only` (2026-11-18, B-017) opens an existing file through redb's `ReadOnlyDatabase`: nothing is created, writes and `compact` fail. redb locks the file, so it fails while another process holds the store for writing. The query worker of [[bounded]] uses it.
+
 ## Findings (2026-10-20, [[Benchmark Results]])
 
 - Fastest reads: ~1–1.4 µs per record by id, and closure walks 3× faster than SQLite.

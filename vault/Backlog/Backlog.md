@@ -38,11 +38,10 @@ The order below is a proposal (2026-11-17, B-001), following SR-125 (Moonkale fi
 
 | id | task | status | needs | size | source | done when |
 |---|---|---|---|---|---|---|
-| B-014 | The set-oriented native executor: a prefix access path, anti-joins for negation over scans, borrowed field reads | planned | — | M | [[Milestones]] order item 3 | B-17 re-run, differential tests unchanged, results in [[Benchmark Results]] |
+| B-061 | A covering index for `all_kinds` on SQLite (`t_definition(kind, id)`, or `id` as the primary key): today the scan reads every whole row, 5 of the 7 ms of "count by kind" at 10⁴ | proposed | Daniel (SR-126: storage layout) | S | [[Benchmark Results]] 2026-11-18 (B-014) | count by kind and unreferenced definitions re-measured at 10⁴ and 10⁵; size on disk compared |
 | B-015 | SP-014 option 3: query results cached in memory by default | proposed | Daniel | S | [[SP-014 The query result cache is never evicted]] | Daniel's choice; the cache is bounded and tested |
 | B-016 | SP-010: finer query snapshots, so a logged change invalidates only the results that read it | planned | — | M | [[SP-010 Query snapshots are coarse]]; SR-98 (incremental maintenance) | a change outside a query's relations keeps its cached result, tested |
-| B-017 | A hard memory bound for untrusted queries, from outside the executor (SQLite's `sqlite3_hard_heap_limit64` is process-wide; a subprocess or allocator limit) | planned | — | M | SR-108; Fable S-3 remainder | a query that exceeds the bound fails cleanly on every backend, tested |
-| B-018 | M3b: `sophia-mcp`, the agent server with the query API and edits | planned | B-017 | L (split) | [[Milestones]] M3b; SR-62 | an agent edits sophialang and runs stored queries through MCP; B-11 measured |
+| B-018 | M3b: `sophia-mcp`, the agent server with the query API and edits | planned | B-017 done | L (split) | [[Milestones]] M3b; SR-62 | an agent edits sophialang and runs stored queries through MCP; B-11 measured |
 | B-019 | Typed, pure, cost-annotated functions called from queries through one mechanism | planned | — | M | SR-111; [[SPEC-007 Sophia Query Language]] §11 | a written design in SPEC-007, then rows for the build |
 | B-020 | SP-009: literal order inside a query body is part of its id | planned (later) | — | S | [[SP-009 Canonical form of queries]] | a canonical literal order, as a migration (SPEC-006 §6) |
 

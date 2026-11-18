@@ -1,0 +1,7 @@
+1. **UNVERIFIED — memory exhaustion can return `Worker` instead of `MemoryBound`.** [bounded.rs:282](/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query/src/bounded.rs:282): `read_to_end` can fail through fallible buffer allocation when the request exceeds RLIMIT_DATA. This path prints the I/O error and exits 2; the caller recognizes only `"memory allocation of"` or specific signals, so it misclassifies this bound violation.
+
+2. **UNVERIFIED — deadline overflow panics in the caller.** [bounded.rs:108](/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query/src/bounded.rs:108): `deadline: Some(Duration::MAX)` or an overflowing `grace` panics during unchecked `Instant` addition, after spawning the worker. The caller receives no error, and unwinding does not kill/reap the child.
+
+3. **UNVERIFIED — non-UTF-8 paths open the wrong store.** [bounded.rs:185](/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query/src/bounded.rs:185): encoding preserves raw path bytes, but decoding replaces invalid UTF-8. A valid Linux store path consequently fails to open—or silently queries another store if the replacement-character path exists.
+
+Probes added in `crates/sophia-query/tests/codex_probe_b017.rs`, but execution was blocked: `/tmp/codex-b017-probe.log:2` reports denied access to the Nix daemon socket. No tracked files modified.

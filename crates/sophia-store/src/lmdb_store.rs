@@ -52,6 +52,29 @@ impl Lmdb {
         Ok(Lmdb { env, dbs, path: path.as_ref().to_path_buf() })
     }
 
+    /// Opens an existing environment **read-only**: nothing is created and
+    /// every write fails. Other processes may write meanwhile; a read
+    /// transaction sees one snapshot. For the bounded query worker (B-017).
+    pub fn open_read_only(path: impl AsRef<Path>, map_size: usize) -> Result<Self> {
+        let mut opts = EnvOpenOptions::new();
+        opts.map_size(map_size).max_dbs(Table::ALL.len() as u32 + 4);
+        // SAFETY: as in `open_with_map_size`; READ_ONLY only removes write
+        // access to the environment.
+        let env = unsafe {
+            opts.flags(heed::EnvFlags::READ_ONLY);
+            opts.open(path.as_ref())
+        }
+        .map_err(be)?;
+        let r = env.read_txn().map_err(be)?;
+        let mut dbs = Vec::new();
+        for t in Table::ALL {
+            let db = env.open_database::<Bytes, Bytes>(&r, Some(t.name())).map_err(be)?;
+            dbs.push(db.ok_or_else(|| StoreError::Backend(format!("no table {} in {}", t.name(), path.as_ref().display())))?);
+        }
+        r.commit().map_err(be)?;
+        Ok(Lmdb { env, dbs, path: path.as_ref().to_path_buf() })
+    }
+
     /// Calls `f` with each record's stored bytes, borrowed straight from the
     /// memory map, inside one read transaction: no copy, no decode. For the
     /// zero-copy measurements of [[Zero-Copy Storage of Canonical Graphs]].

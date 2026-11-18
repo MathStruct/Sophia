@@ -17,10 +17,17 @@ redb = ["sophia-store/redb"]
 lmdb = ["sophia-store/lmdb"]
 duckdb = ["sophia-store/duckdb"]
 
+[[bin]]
+name = "sophia-query-worker"
+path = "src/bin/sophia-query-worker.rs"
+
 [dependencies]
 sophia-hash.workspace = true
 sophia-store = { path = "../sophia-store", default-features = false }
 thiserror.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 sophialang-core.workspace = true

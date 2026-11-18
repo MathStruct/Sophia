@@ -7,6 +7,8 @@
 //! `sophia-query`, has a content id like any definition, and its results are
 //! identified by (query id, snapshot, parameters). See `sophia_query.md`.
 
+#[cfg(unix)]
+pub mod bounded;
 pub mod canon;
 pub mod check;
 pub mod eval;
@@ -21,7 +23,7 @@ use sophia_hash::{Digest, Record};
 use sophia_store::{Backend, ReadTx, Store, StoreError, Target, Visibility};
 
 pub use check::Checked;
-pub use eval::{Limits, Stats};
+pub use eval::{Limits, Stats, Tuning};
 pub use ir::{Names, Query, Sort, Val};
 pub use syntax::Profile;
 
@@ -40,6 +42,14 @@ pub enum Error {
     Codec(String),
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// The query went over the hard memory bound of its worker process
+    /// ([`bounded`], B-017).
+    #[error("memory bound reached: the query needed more than {limit} bytes")]
+    MemoryBound { limit: u64 },
+    /// The worker process failed for another reason (it could not start, or
+    /// it ended without an answer).
+    #[error("query worker: {0}")]
+    Worker(String),
 }
 
 impl Error {
@@ -237,6 +247,13 @@ impl Prepared {
         cancel: &std::sync::atomic::AtomicBool,
     ) -> Result<Rows> {
         self.run_inner(eval::Exec::new(tx, params, limits).with_cancel(cancel), strategy)
+    }
+
+    /// Like [`Prepared::run`], with other set-at-a-time choices
+    /// ([`Tuning`]). The rows are the same; tests and benchmarks use it to
+    /// compare the access strategies.
+    pub fn run_tuned(&self, tx: &dyn ReadTx, params: &[Val], limits: Limits, strategy: Strategy, tuning: Tuning) -> Result<Rows> {
+        self.run_inner(eval::Exec::new(tx, params, limits).with_tuning(tuning), strategy)
     }
 
     fn run_inner(&self, mut exec: eval::Exec, strategy: Strategy) -> Result<Rows> {

@@ -1935,6 +1935,7 @@ dependencies = [
 name = "sophia-query"
 version = "0.1.12"
 dependencies = [
+ "libc",
  "proptest",
  "sophia-hash",
  "sophia-store",

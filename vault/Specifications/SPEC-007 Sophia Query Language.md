@@ -169,7 +169,8 @@ Profiles for queries live beside the code profiles (SPEC-005). Choosing the quer
 
 The native executor runs on every backend, inside one read transaction:
 - **Strata** run in dependency order. Recursive strata use **semi-naive** iteration: each round, every rule runs once per recursive literal, with that literal reading only the last round's new tuples.
-- **Base literals** go through an access path when a lookup column is bound (memoised per run), and through a full scan otherwise.
+- **Base literals** go through an access path when a lookup column is bound (memoised per run), through a **prefix range** for `name(p, _)` with a bound `startswith(p, s)`, and through a full scan otherwise.
+- **Negated base literals** are probed per solution; after 256 probes on one column set, the executor scans the relation once and probes a hash set of its projection (an **anti-join**), when the literal's unbound arguments are distinct variables (B-014).
 - **Local relations** keep hash indexes on the column sets the plans look them up by.
 - **The resource budget (`Limits`):**
   - join steps;
@@ -179,7 +180,7 @@ The native executor runs on every backend, inside one read transaction:
   - a **wall-clock deadline** (30 s by default);
   - a **cancel flag** (`run_cancellable`) that another thread can set.
   
-  The step budget alone did not bound memory: without magic sets, a closure over 10⁵ definitions passed 14 GB before reaching 50 M steps. The byte budget is an **estimate, not a guarantee**: it counts what the executor keeps, not every temporary or allocator overhead. A hard bound needs a counting allocator or a separate process, which an agent server (M3b) should use for untrusted queries.
+  The step budget alone did not bound memory: without magic sets, a closure over 10⁵ definitions passed 14 GB before reaching 50 M steps. The byte budget is an **estimate, not a guarantee**: it counts what the executor keeps, not every temporary or allocator overhead. **The hard bound** for untrusted queries is a separate process (B-017, Daniel's choice on 2026-11-18): `bounded::run_bounded` runs the query in `sophia-query-worker` under `RLIMIT_DATA`, and going over it returns `Error::MemoryBound` without harming the caller ([[bounded]]). Linux only. The worker opens the store read-only; redb and DuckDB lock their file, so it can read them only while no other process holds them for writing. The agent server (M3b) is to run untrusted queries this way.
 - `Stats` report lookups, scans, derived tuples, rounds and estimated bytes.
 
 ### 6.1 Planning
@@ -190,6 +191,8 @@ A greedy planner orders each body:
 3. then base literals with an access path on a bound column;
 4. then local literals with bound arguments;
 5. full scans last.
+
+A `name(p, _)` with a bound `startswith(p, s)` in the body is a prefix range and ranks like a wide lookup (B-014).
 
 The same planner decides the sideways information passing of §6.2.
 
@@ -287,7 +290,6 @@ Summarised from [[Query Languages for Sophia]]:
 
 ## 11. Open
 
-- **A prefix access path** on names: `startswith(p, "core.")` with a constant prefix should become a range scan. B-17 shows the scan costs 3–4 ms at 10⁴.
 - **Precise snapshots** (SP-010): per-relation epochs, then content-addressed name and world snapshots.
 - **Incremental view maintenance:** semi-naive evaluation is already the delta rule; DBSP or differential dataflow keep results up to date as the change feed arrives.
 - **Cost-based planning** from backend statistics, and a **DuckDB translation**.

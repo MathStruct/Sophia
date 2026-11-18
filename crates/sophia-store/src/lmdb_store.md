@@ -8,6 +8,8 @@
 
 A directory holds `data.mdb`. `Lmdb::open` reserves 64 GiB of address space (`open_with_map_size` changes that); no disk is used until data is written. There is one database per [[kv]] table. Read transactions are thread-local (`WithTls`), which suits the store, since every read runs inside one closure on one thread.
 
+`Lmdb::open_read_only` (2026-11-18, B-017) opens an existing environment with `READ_ONLY`: the tables are opened, not created, and writes fail. Other processes may write meanwhile. The query worker of [[bounded]] uses it.
+
 ## Findings (2026-10-20)
 
 - **The fastest backend** on the synthetic corpus: 17 600 definitions/s ingest and 0.9 µs record lookups at 10⁵ ([[Benchmark Results]]).

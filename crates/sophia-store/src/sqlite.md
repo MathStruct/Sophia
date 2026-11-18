@@ -10,6 +10,8 @@ Tables are prefixed `t_`. Views are named as in SPEC-001 §11 (`definitions`, `n
 
 The connection uses WAL mode with `synchronous = NORMAL`. Writes take an `IMMEDIATE` transaction, and reads run in a deferred transaction that is rolled back.
 
+`Sqlite::open_read_only` (2026-11-18, B-017; not on wasm) opens an existing file with `SQLITE_OPEN_READ_ONLY` and does not run the schema. Other processes may write meanwhile (WAL). The query worker of [[bounded]] uses it.
+
 ## The read-only guard
 
 `query_readonly(sql, limits)` enforces read-only access; it does not rely on the caller:
@@ -27,6 +29,8 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
 - `rusqlite` does not read `u64` columns, so they are read as `i64` and cast. Sequence numbers stay far below 2⁶³.
 
 **`query_compiled`** (2026-10-20): runs SQL that `sophia-query` generated from a checked query. The guard is the same as for `query_readonly` (only `SELECT`, no writes, a step budget), except that it may read the base tables `t_*`, so their indexes apply. The views would hide them behind `lower(hex(…))`. It is never given text from users or agents. SQLite also overrides the access paths `kind_of`, `refs_of`, `all_kinds` and `all_refs` with direct index reads.
+
+**Scans read in place (B-014, 2026-11-18).** `all_kinds` and `all_refs` read their digests from the row without a `Vec` per column. `all_refs` at 10⁴ definitions: 3.9 → 2.3 ms. `all_kinds` stays at 5 ms: `t_definition` is a rowid table and `t_definition_kind` does not hold `id`, so the scan reads every whole row, record bytes included. A covering index on `(kind, id)` would fix that; it is a layout change and needs Daniel's agreement (SR-126).
 
 **`Sqlite::from_bytes(bytes)`** (2026-10-24, SPEC-009 §4): a store opened read-only from the bytes of its file, in memory, for Moonkale's web client. Three things were needed to make it work under wasm, found by running `tests/wasm_read.rs`:
 - a WAL-mode file (Sophia's are) makes SQLite open `-wal` and `-shm` files even to read, which fails in memory with "unable to open database file"; the copy's header bytes 18 and 19 are set from 2 (WAL) to 1 (rollback journal), which is safe for a complete file;

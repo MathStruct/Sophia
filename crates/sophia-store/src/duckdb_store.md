@@ -15,6 +15,8 @@ The file was derived from [[sqlite]] and changed where DuckDB differs:
 
 The schema and the views are otherwise the same, so the same `sql` queries run on both.
 
+`DuckDb::open_read_only` (2026-11-18, B-017) opens an existing file in DuckDB's read-only access mode, on one thread, without touching the schema. DuckDB locks the file, so it fails while another process holds the store for writing. The query worker of [[bounded]] uses it; one thread because each thread's stack counts against the worker's memory bound.
+
 ## The query guard
 
 DuckDB has no authorizer. So:

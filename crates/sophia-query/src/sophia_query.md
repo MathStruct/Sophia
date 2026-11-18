@@ -10,4 +10,5 @@
 - `Prepared::record` and `from_record`, `save` and `load`: queries stored as definitions of the language `sophia-query`.
 - `snapshot`, `run_cached`: result identity (query id, snapshot, parameters) and a result cache in meta rows, which are not logged, so caching does not move the snapshot. The snapshot id, the lookup and the evaluation share one read transaction. Only complete results are cached, and the caller's row cap is applied to hits. Entries are keyed `query-result/<snapshot>/<result id>`; a miss that writes removes every entry of another snapshot (old-layout `query-result/<result id>` keys included) in the same write transaction, so only the current snapshot's results stay (SP-014, option 2).
 - `run_cancellable`: a run another thread can stop.
+- `bounded` (Unix; the bound itself Linux only): `run_bounded` runs a query in a worker process under a hard memory bound, for untrusted queries ([[bounded]], B-017). `Error::MemoryBound` and `Error::Worker` are its errors.
 - `Rows`: typed result rows; `to_table` turns them into the store's `Table`, with ids as hex text like the `sql` views.

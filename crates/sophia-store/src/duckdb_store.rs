@@ -120,6 +120,18 @@ impl DuckDb {
         Self::init(Connection::open_in_memory().map_err(be)?, None)
     }
 
+    /// Opens an existing store file **read-only**: the schema is not touched
+    /// and every write fails. DuckDB locks its file, so this fails while
+    /// another process holds the store open for writing (B-017). It runs on
+    /// one thread: each further thread's stack counts against a worker's
+    /// memory bound.
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        let config = duckdb::Config::default().access_mode(duckdb::AccessMode::ReadOnly).and_then(|c| c.threads(1)).map_err(be)?;
+        let conn = Connection::open_with_flags(path.as_ref(), config).map_err(be)?;
+        conn.execute_batch("SET enable_external_access = false;").map_err(be)?;
+        Ok(DuckDb { conn: Mutex::new(conn), path: Some(path.as_ref().to_path_buf()) })
+    }
+
     fn init(conn: Connection, path: Option<std::path::PathBuf>) -> Result<Self> {
         conn.execute_batch(SCHEMA).map_err(be)?;
         conn.execute_batch("SET enable_external_access = false;").map_err(be)?;

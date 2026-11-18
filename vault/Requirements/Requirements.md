@@ -143,7 +143,7 @@ From the external review of `d0c08b4` ([[Review 2026-10-20 M3a (external)]]), fo
 | # | Requirement | Origin | When | Status |
 |---|---|---|---|---|
 | SR-107 | A cached result is stored under the id of exactly the snapshot it was computed from; result identity is semantic, and execution policy (limits) never changes what a hit returns beyond the caller's own row cap. | R3 §3, §4 | now | done (SPEC-007 §4.3) |
-| SR-108 | Queries run under a resource budget: steps, rows, derived tuples, estimated bytes, wall time, cancellation. Untrusted (agent) queries additionally get a hard memory bound from outside the executor. | R3 §5 | now (budget); M3b (hard bound) | budget done (SPEC-007 §6.0); hard bound open |
+| SR-108 | Queries run under a resource budget: steps, rows, derived tuples, estimated bytes, wall time, cancellation. Untrusted (agent) queries additionally get a hard memory bound from outside the executor. | R3 §5 | now (budget); M3b (hard bound) | budget done (SPEC-007 §6.0); hard bound done (B-017, 2026-11-18: a worker process under `RLIMIT_DATA`, Linux; redb and DuckDB only while no other process writes them) |
 | SR-109 | Canonicalisation guarantees canon(πQ) = canon(Q) for every transformation it claims to normalise, or refuses; the guarantee is property-tested. | R3 §7 | now | done (SPEC-007 §4.1) |
 | SR-110 | Every optimisation is differentially tested against unoptimised evaluation on random programs and data; later, it carries checkable certificates. | R3 §8 | now (tests); later (certificates) | done for magic sets and the SQL translation |
 | SR-111 | Queries call typed, pure, cost-annotated functions through one mechanism, not a growing list of built-ins. | R3 §6 | later | design (SPEC-007 §11) |
