@@ -1,0 +1,33 @@
+# The agent server (M3b, B-018): Sophia's query API and text operations over
+# the Model Context Protocol, through the official Rust SDK `rmcp` (Daniel's
+# choice, 2026-11-18). See src/sophia_mcp.md.
+[package]
+name = "sophia-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# rmcp 3.11 needs 1.88.
+rust-version = "1.88"
+
+[lib]
+path = "src/sophia_mcp.rs"
+
+[[bin]]
+name = "sophia-mcp"
+path = "src/bin/sophia-mcp.rs"
+
+[[bin]]
+name = "sophia-mcp-worker"
+path = "src/bin/sophia-mcp-worker.rs"
+
+[dependencies]
+sophia-store = { path = "../sophia-store", default-features = false, features = ["sqlite"] }
+sophia-query = { path = "../sophia-query", default-features = false, features = ["sqlite"] }
+sophia-interface = { path = "../sophia-interface", default-features = false, features = ["sqlite"] }
+rmcp = { version = "3.11", default-features = false, features = ["server", "macros", "transport-io"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

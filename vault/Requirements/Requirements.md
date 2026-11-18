@@ -207,6 +207,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-153 | Act on Gemini's review (2026-11-07): move the `moonkale-content-id` pin to Moonkale's X-BUG-01 fix, make `Store::verify` say when it cannot check another tool's ids, and make the five small fixes. | D 2026-11-08 | now | done: `v0.1.9` ([[Review 2026-11-07 Gemini (external)]]) |
 | SR-154 | sophialang is meant as **one language with three parts**: a programming language that executes (Julia/Lisp-like), a query language, and a type-theory language that can describe arbitrary types and type systems. The other specifications should hold for all three. Storing types, proofs and other information in the store must not slow down the executed program. Daniel would rather move from SQL to Sophia's query language over a key-value store (LMDB, RocksDB or redb). Asked whether this is still in scope. | D 2026-11-09 | later | open: in scope. The programming and query parts are planned to meet through S-ADR-0012's `Query{S, A}`. The store already runs queries without SQL on redb and LMDB (S-ADR-0011). Storing must not slow execution: SR-52/53. The type-system language is not specified anywhere: [[RQ-004 A Language for Defining Type Systems]] |
 | SR-155 | Accepting an outside edit of a generated sophialang file removes the names the text dropped (option 1 of B-060). The proposal that lists them is the confirmation; the definitions and their history stay in the store. | D 2026-11-18 | next | planned: [[SPEC-010 Store-Truth Folders and Generated Files]] §8, B-060 |
+| SR-156 | The agent server `sophia-mcp` is built on `rmcp`, the official Rust MCP SDK, rather than a hand-written JSON-RPC layer or a community SDK. | D 2026-11-18 | M3b | done for the first slice (B-062, [[sophia_mcp]]) |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | specified as a draft: [[SPEC-011 Sharing a Store-Truth Folder]] (2026-11-18, B-004), five questions for Daniel; not built |
 
 ## From Moonkale
@@ -244,6 +245,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 ## Changes
 
 - 2026-11-18: SR-155 added: an accept of a proposed sophialang file removes the dropped names (Daniel, option 1 of B-060).
+- 2026-11-18: SR-156 added: `sophia-mcp` uses `rmcp` (Daniel).
 - 2026-11-09: SR-154 added: sophialang as one language with three parts (programming, queries, type systems), with three external reviews of the question ([[Review 2026-11-09 Scope (external)]]).
 - 2026-11-08: SR-153 added: act on Gemini's review (pin move, `verify`, five fixes).
 - 2026-10-31: SR-152 added: the fact cache's policy is a setting, decided by experiment; local and per user at first.

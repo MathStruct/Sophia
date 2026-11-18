@@ -22,6 +22,7 @@ members = [
     "crates/sophia-ingest",      # frontends for real code (B-16): Metamath first
     "crates/sophia-bench",       # the benchmark suite
     "crates/sophia-cli",         # the `sophia` command
+    "crates/sophia-mcp",         # the agent server (MCP, M3b)
 ]
 exclude = ["attic"]
 
