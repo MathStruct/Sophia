@@ -1,0 +1,946 @@
+diff --git a/crates/sophia-bench/src/bin/sophia-bench-report.md b/crates/sophia-bench/src/bin/sophia-bench-report.md
+index b442853..6adf640 100644
+--- a/crates/sophia-bench/src/bin/sophia-bench-report.md
++++ b/crates/sophia-bench/src/bin/sophia-bench-report.md
+@@ -16,4 +16,5 @@ It reports:
+ **B-17 and zero-copy** (2026-10-20):
+ - `--query-size N` sets the size for the query workloads (B-17); `--skip-queries` and `--only-queries` select them.
+ - `--zero-copy` adds the LMDB read breakdown.
++- **B-014 (2026-11-18):** the whole-relation workloads (count by kind, unreferenced definitions, names by prefix) also run as "native, tuple at a time" (`Tuning::TUPLE_AT_A_TIME`: no prefix path, no anti-joins), for comparison in the same run.
+ - Bare flags go through `flag()`. Before that fix, `arg()` expected a value after every flag, so `--skip-analytics` never worked.
+diff --git a/crates/sophia-bench/src/bin/sophia-bench-report.rs b/crates/sophia-bench/src/bin/sophia-bench-report.rs
+index 60d04e7..4f60dd2 100644
+--- a/crates/sophia-bench/src/bin/sophia-bench-report.rs
++++ b/crates/sophia-bench/src/bin/sophia-bench-report.rs
+@@ -164,7 +164,7 @@ type SqlRun<'a> =
+     &'a dyn Fn(&sophia_query::Prepared, &[sophia_query::Val], sophia_query::Strategy) -> sophia_query::Result<sophia_query::Rows>;
+ 
+ fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usize, sql: Option<SqlRun>) {
+-    use sophia_query::{Limits, Strategy, Val, prepare_text};
++    use sophia_query::{Limits, Strategy, Tuning, Val, prepare_text};
+     let mut rng = Rng::new(0x5150);
+     let probes: Vec<Val> = (0..20).map(|_| Val::Id(records[rng.below(records.len() as u64) as usize].id)).collect();
+     let limits = Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Limits::default() };
+@@ -172,12 +172,16 @@ fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usi
+     for (label, text, per_probe) in WORKLOADS {
+         let p = prepare_text(text).unwrap();
+         let args: Vec<Vec<Val>> = if per_probe { probes.iter().map(|v| vec![v.clone()]).collect() } else { vec![vec![]] };
+-        let mut strategies = vec![("native", Strategy::Auto)];
++        let mut strategies = vec![("native", Strategy::Auto, Tuning::default())];
+         if p.magic.is_some() {
+-            strategies.push(("native, no magic sets (1 probe)", Strategy::Plain));
++            strategies.push(("native, no magic sets (1 probe)", Strategy::Plain, Tuning::default()));
++        }
++        if !per_probe {
++            // B-014: without the prefix access path and anti-joins.
++            strategies.push(("native, tuple at a time", Strategy::Auto, Tuning::TUPLE_AT_A_TIME));
+         }
+         let mut cells = Vec::new();
+-        for (exec, strategy) in strategies {
++        for (exec, strategy, tuning) in strategies {
+             // Without magic sets a run computes the whole relation whatever
+             // the probe, so one probe, once, is enough to show the cost.
+             let (args, runs) = if strategy == Strategy::Plain { (&args[..1], 1) } else { (&args[..], 5) };
+@@ -186,7 +190,7 @@ fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usi
+             let t = median_time(runs, || {
+                 rows = 0;
+                 for a in args {
+-                    match store.read(|tx| Ok(p.run(tx, a, limits, strategy))).unwrap() {
++                    match store.read(|tx| Ok(p.run_tuned(tx, a, limits, strategy, tuning))).unwrap() {
+                         Ok(r) => rows += r.rows.len(),
+                         Err(e) => failed = Some(e.to_string()),
+                     }
+diff --git a/crates/sophia-query/src/eval.md b/crates/sophia-query/src/eval.md
+index 29dd921..5404555 100644
+--- a/crates/sophia-query/src/eval.md
++++ b/crates/sophia-query/src/eval.md
+@@ -11,4 +11,13 @@
+ - `Stats` count lookups, scans, derived tuples and rounds (reported by the CLI and the benchmarks).
+ - `count` with no grouping columns over no solutions gives one row of zeros, as SQL does.
+ 
++**Set-oriented access (B-014, 2026-11-18).** Three costs the tuple-at-a-time executor paid on whole-relation queries ([[Benchmark Results]], B-17):
++- **A prefix access path.** `name(p, _)` with a bound `startswith(p, s)` reads only the names that start with `s`: pages of `names_from` from `s`, under the namespace part of `s` (up to its last `.`), stopping at the first path past the range. Any string is a prefix, not only a namespace. Memoised per prefix; the `startswith` literal still runs as a filter. The planner marks the step (`plan::name_prefix`).
++- **Anti-joins.** A negated base literal is probed once per solution. After `Tuning::anti_join_after` probes (256) on one column set, the executor scans the relation once, keeps the projection on the bound columns as a hash set, and probes that. Only when the literal's unbound arguments are distinct variables: `!refs(x, x)` with `x` unbound asks for a self-reference, which a projection cannot see.
++- **Borrowed reads.** Terms are read by reference (`val`), not cloned; `unify` records bindings on one trail instead of a `Vec` per tuple; local indexes on one column are probed without building a key. `count` groups solutions as they arrive (the distinct counted values per group), without first collecting and de-duplicating rows; groups plus distinct counted values are bounded by `max_derived`.
++
++`Tuning` (and `Prepared::run_tuned`) choose these; `Tuning::TUPLE_AT_A_TIME` turns the prefix path and anti-joins off, for tests and benchmarks. The rows never depend on it (`tests/set_oriented.rs` compares three tunings on every backend, and the SQL translation). `Stats` count `prefix_reads` and `anti_joins`.
++
++**The byte count is shared (2026-11-18).** The estimated bytes live in one counter shared with the closures that receive a join's solutions. Before, the select and each round copied the count, and wrote the copy back after the join: base tuples read in the middle of a join were dropped from the count and the budget (a select over a scan reported 3 952 bytes for two full scans; regression test `bytes_count_base_reads_inside_joins`).
++
+ **No clock on wasm (2026-10-24).** `wasm32-unknown-unknown` has no clock in `std` (`Instant::now` panics), so there the query deadline is not enforced (`clock()` returns `None`); the step and row budgets still bound a query. A browser clock can replace that placeholder.
+diff --git a/crates/sophia-query/src/eval.rs b/crates/sophia-query/src/eval.rs
+index 845e570..82c0444 100644
+--- a/crates/sophia-query/src/eval.rs
++++ b/crates/sophia-query/src/eval.rs
+@@ -3,6 +3,7 @@
+ //! through access paths, memoised per run; local relations are hash-indexed
+ //! on the columns the plan looks them up by. See `eval.md`.
+ 
++use std::cell::Cell;
+ use std::collections::{HashMap, HashSet};
+ use std::rc::Rc;
+ use std::sync::atomic::{AtomicBool, Ordering};
+@@ -40,6 +41,32 @@ pub struct Limits {
+     pub deadline: Option<Duration>,
+ }
+ 
++/// How the executor chooses between tuple-at-a-time and set-at-a-time
++/// access (B-014). Results never depend on it; only the work does. Tests
++/// and benchmarks set it to compare both ways.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct Tuning {
++    /// Probes of a negated base literal, on one column set, after which the
++    /// executor scans the relation once and probes a hash set of its keys
++    /// instead (an anti-join). `0` builds the set on the first probe;
++    /// `u64::MAX` never does.
++    pub anti_join_after: u64,
++    /// Whether `name(p, _)` with a bound `startswith(p, s)` reads only the
++    /// names that start with `s` (a range scan) instead of every name.
++    pub prefix_paths: bool,
++}
++
++impl Default for Tuning {
++    fn default() -> Self {
++        Tuning { anti_join_after: 256, prefix_paths: true }
++    }
++}
++
++impl Tuning {
++    /// Tuple at a time throughout: the executor before B-014.
++    pub const TUPLE_AT_A_TIME: Tuning = Tuning { anti_join_after: u64::MAX, prefix_paths: false };
++}
++
+ impl Default for Limits {
+     fn default() -> Self {
+         Limits {
+@@ -59,6 +86,10 @@ pub struct Stats {
+     pub lookups: u64,
+     /// Full scans of a base relation.
+     pub scans: u64,
++    /// Name prefixes read through the prefix access path.
++    pub prefix_reads: u64,
++    /// Hash sets built for negated base literals (anti-joins).
++    pub anti_joins: u64,
+     /// Tuples derived for local predicates.
+     pub derived: u64,
+     /// Semi-naive iterations, summed over strata.
+@@ -117,6 +148,13 @@ impl Rel {
+ struct Step {
+     lit: usize,
+     bound_cols: Vec<usize>,
++    /// For `name(p, _)`: the bound prefix `s` of a `startswith(p, s)`, read
++    /// as a range ([`plan::name_prefix`]).
++    prefix: Option<Term>,
++    /// For a negated literal: its unbound arguments are distinct variables,
++    /// so "some tuple matches" is "the bound columns' key is in the
++    /// relation's projection", and an anti-join may answer it.
++    anti: bool,
+ }
+ 
+ fn steps(body: &[Literal], order: &[usize], vars: u32, initially: &[bool]) -> Vec<Step> {
+@@ -131,18 +169,50 @@ fn steps(body: &[Literal], order: &[usize], vars: u32, initially: &[bool]) -> Ve
+                 }
+                 _ => Vec::new(),
+             };
++            let anti = match &body[i] {
++                Literal::Neg(a) => {
++                    let mut free: Vec<&Term> = a.args.iter().filter(|t| !plan::is_bound(t, &bound)).collect();
++                    let n = free.len();
++                    free.sort_by_key(|t| match t {
++                        Term::Var(v) => *v,
++                        _ => u32::MAX,
++                    });
++                    free.dedup();
++                    free.len() == n
++                }
++                _ => false,
++            };
++            let prefix = plan::name_prefix(body, i, &bound).cloned();
+             plan::bind(&body[i], &mut bound);
+-            Step { lit: i, bound_cols: cols }
++            Step { lit: i, bound_cols: cols, prefix, anti }
+         })
+         .collect()
+ }
+ 
++/// A negated literal's anti-join state: probes counted so far, or the
++/// projection of the relation on the bound columns.
++enum Anti {
++    Counting(u64),
++    Built(Rc<HashSet<Tuple>>),
++}
++
+ pub struct Exec<'a> {
+     tx: &'a dyn ReadTx,
+     params: &'a [Val],
+     limits: Limits,
+-    memo: HashMap<(Base, usize, Val), Rc<Vec<Tuple>>>,
++    tuning: Tuning,
++    memo: HashMap<(Base, usize), HashMap<Val, Rc<Vec<Tuple>>>>,
+     full: HashMap<Base, Rc<Vec<Tuple>>>,
++    /// Names read by prefix, memoised per prefix.
++    prefixed: HashMap<String, Rc<Vec<Tuple>>>,
++    /// Anti-join state per (relation, bound columns); a short list.
++    anti: Vec<(Base, Vec<usize>, Anti)>,
++    /// Variables bound by `unify`, undone by `undo` (no allocation per tuple).
++    trail: Vec<u32>,
++    /// The estimated bytes held, shared with the closures that receive a
++    /// join's solutions: base reads in the middle of a join and the tuples
++    /// the solutions add are counted against one budget.
++    held: Rc<Cell<u64>>,
+     /// When the run started, if a deadline is to be enforced; see [`clock`].
+     started: Option<Instant>,
+     cancel: Option<&'a AtomicBool>,
+@@ -163,6 +233,25 @@ fn text(v: &Val) -> Option<&str> {
+     }
+ }
+ 
++/// Adds `n` to the estimated bytes held, failing over `max`.
++fn charge(held: &Cell<u64>, n: u64, max: u64) -> Result<(), Error> {
++    held.set(held.get().saturating_add(n));
++    if held.get() > max {
++        return Err(Error::Limit(format!("more than {max} estimated bytes")));
++    }
++    Ok(())
++}
++
++/// A term's value, borrowed: from the environment, the parameters, or the
++/// term itself. `None` for an unbound variable.
++fn val<'v>(params: &'v [Val], t: &'v Term, env: &'v [Option<Val>]) -> Option<&'v Val> {
++    match t {
++        Term::Var(v) => env[*v as usize].as_ref(),
++        Term::Param(p) => params.get(*p as usize),
++        Term::Const(c) => Some(c),
++    }
++}
++
+ /// The start of a run, for the deadline. `wasm32-unknown-unknown` has no
+ /// clock in `std` (`Instant::now` panics), so there the deadline is not
+ /// enforced and the step and row budgets bound the work alone. A browser
+@@ -179,7 +268,27 @@ fn clock() -> Option<Instant> {
+ 
+ impl<'a> Exec<'a> {
+     pub fn new(tx: &'a dyn ReadTx, params: &'a [Val], limits: Limits) -> Self {
+-        Exec { tx, params, limits, memo: HashMap::new(), full: HashMap::new(), started: clock(), cancel: None, stats: Stats::default() }
++        Exec {
++            tx,
++            params,
++            limits,
++            tuning: Tuning::default(),
++            memo: HashMap::new(),
++            full: HashMap::new(),
++            prefixed: HashMap::new(),
++            anti: Vec::new(),
++            trail: Vec::new(),
++            held: Rc::new(Cell::new(0)),
++            started: clock(),
++            cancel: None,
++            stats: Stats::default(),
++        }
++    }
++
++    /// A run with other set-at-a-time choices ([`Tuning`]).
++    pub fn with_tuning(mut self, tuning: Tuning) -> Self {
++        self.tuning = tuning;
++        self
+     }
+ 
+     /// A run that stops with [`Error::Limit`] once `flag` is set, from any
+@@ -191,10 +300,8 @@ impl<'a> Exec<'a> {
+ 
+     /// Adds to the estimated bytes held, failing over budget.
+     fn charge(&mut self, n: u64) -> Result<(), Error> {
+-        self.stats.bytes += n;
+-        if self.stats.bytes > self.limits.max_bytes {
+-            return Err(Error::Limit(format!("more than {} estimated bytes", self.limits.max_bytes)));
+-        }
++        charge(&self.held, n, self.limits.max_bytes)?;
++        self.stats.bytes = self.held.get();
+         Ok(())
+     }
+ 
+@@ -206,7 +313,7 @@ impl<'a> Exec<'a> {
+ 
+     /// Tuples of a base relation whose column `col` equals `key`.
+     fn lookup(&mut self, b: Base, col: usize, key: &Val) -> Result<Rc<Vec<Tuple>>, Error> {
+-        if let Some(r) = self.memo.get(&(b, col, key.clone())) {
++        if let Some(r) = self.memo.get(&(b, col)).and_then(|m| m.get(key)) {
+             return Ok(r.clone());
+         }
+         self.stats.lookups += 1;
+@@ -286,10 +393,80 @@ impl<'a> Exec<'a> {
+         }
+         let out = Rc::new(out);
+         self.charge(out.iter().map(|t| tuple_bytes(t)).sum::<u64>() + 64)?;
+-        self.memo.insert((b, col, key.clone()), out.clone());
++        self.memo.entry((b, col)).or_default().insert(key.clone(), out.clone());
+         Ok(out)
+     }
+ 
++    /// The `name` tuples whose path starts with `prefix` (any string, not
++    /// only a namespace), read as a range: pages of
++    /// [`ReadTx::names_from`] from `prefix` under its namespace, stopping at
++    /// the first path past the range. Memoised per prefix.
++    fn names_with_prefix(&mut self, prefix: &Val) -> Result<Rc<Vec<Tuple>>, Error> {
++        let Some(p) = text(prefix) else { return Ok(Rc::new(Vec::new())) };
++        if let Some(r) = self.prefixed.get(p) {
++            return Ok(r.clone());
++        }
++        self.stats.prefix_reads += 1;
++        let base = p.rfind('.').map_or("", |i| &p[..=i]);
++        let mut out: Vec<Tuple> = Vec::new();
++        let mut from = p.to_string();
++        let mut page = 64;
++        'pages: loop {
++            let names = self.tx.names_from(base, &from, page)?;
++            let more = names.len() == page;
++            for n in names {
++                if !n.path.starts_with(p) {
++                    break 'pages;
++                }
++                let t = match n.target {
++                    Target::Content(d) | Target::Nominal(d) => d,
++                };
++                from.clear();
++                from.push_str(&n.path);
++                out.push(vec![Val::Text(n.path), Val::Id(t)]);
++            }
++            if !more {
++                break;
++            }
++            // `from` is inclusive: the next path after the last one read.
++            from.push('\0');
++            page = (page * 2).min(4096);
++        }
++        let out = Rc::new(out);
++        self.charge(out.iter().map(|t| tuple_bytes(t)).sum::<u64>() + 64)?;
++        self.prefixed.insert(p.to_string(), out.clone());
++        Ok(out)
++    }
++
++    /// The anti-join set for a negated base literal on `cols`, once
++    /// [`Tuning::anti_join_after`] probes have been made; `None` before.
++    fn anti_set(&mut self, b: Base, cols: &[usize]) -> Result<Option<Rc<HashSet<Tuple>>>, Error> {
++        let i = match self.anti.iter().position(|(x, c, _)| *x == b && c == cols) {
++            Some(i) => i,
++            None => {
++                self.anti.push((b, cols.to_vec(), Anti::Counting(0)));
++                self.anti.len() - 1
++            }
++        };
++        let probes = match &mut self.anti[i].2 {
++            Anti::Built(s) => return Ok(Some(s.clone())),
++            Anti::Counting(n) => {
++                *n += 1;
++                *n
++            }
++        };
++        if probes <= self.tuning.anti_join_after {
++            return Ok(None);
++        }
++        let all = self.scan(b)?;
++        let set: HashSet<Tuple> = all.iter().map(|t| cols.iter().map(|&c| t[c].clone()).collect()).collect();
++        self.charge(set.iter().map(|k| tuple_bytes(k)).sum::<u64>())?;
++        self.stats.anti_joins += 1;
++        let set = Rc::new(set);
++        self.anti[i].2 = Anti::Built(set.clone());
++        Ok(Some(set))
++    }
++
+     /// Every tuple of a base relation.
+     fn scan(&mut self, b: Base) -> Result<Rc<Vec<Tuple>>, Error> {
+         if let Some(r) = self.full.get(&b) {
+@@ -354,38 +531,36 @@ impl<'a> Exec<'a> {
+         Ok(out)
+     }
+ 
+-    fn value(&self, t: &Term, env: &[Option<Val>]) -> Option<Val> {
+-        match t {
+-            Term::Var(v) => env[*v as usize].clone(),
+-            Term::Param(p) => self.params.get(*p as usize).cloned(),
+-            Term::Const(c) => Some(c.clone()),
+-        }
+-    }
+-
+-    /// Matches `args` against a tuple, binding unbound variables. Returns
+-    /// the variables it bound (to undo), or `None` on a mismatch.
+-    fn unify(&self, args: &[Term], t: &[Val], env: &mut [Option<Val>]) -> Option<Vec<u32>> {
+-        let mut newly = Vec::new();
++    /// Matches `args` against a tuple, binding unbound variables and
++    /// recording them on the trail. On a mismatch it undoes its own
++    /// bindings and returns `false`; on a match the caller undoes them with
++    /// [`Exec::undo`] from the trail length before the call.
++    fn unify(&mut self, args: &[Term], t: &[Val], env: &mut [Option<Val>]) -> bool {
++        let mark = self.trail.len();
+         for (a, v) in args.iter().zip(t) {
+             let ok = match a {
+                 Term::Var(x) => match &env[*x as usize] {
+                     Some(cur) => cur == v,
+                     None => {
+                         env[*x as usize] = Some(v.clone());
+-                        newly.push(*x);
++                        self.trail.push(*x);
+                         true
+                     }
+                 },
+-                other => self.value(other, env).as_ref() == Some(v),
++                other => val(self.params, other, env) == Some(v),
+             };
+             if !ok {
+-                for x in newly {
+-                    env[x as usize] = None;
+-                }
+-                return None;
++                self.undo(mark, env);
++                return false;
+             }
+         }
+-        Some(newly)
++        true
++    }
++
++    fn undo(&mut self, mark: usize, env: &mut [Option<Val>]) {
++        for x in self.trail.drain(mark..) {
++            env[x as usize] = None;
++        }
+     }
+ 
+     fn tick(&mut self) -> Result<(), Error> {
+@@ -405,15 +580,20 @@ impl<'a> Exec<'a> {
+     }
+ 
+     /// Candidate tuples for an atom given the bound columns.
+-    fn candidates(&mut self, a: &Atom, cols: &[usize], env: &[Option<Val>], rels: &Rels, delta_lit: bool) -> Result<Cand, Error> {
++    fn candidates(&mut self, a: &Atom, step: &Step, env: &[Option<Val>], rels: &Rels, delta_lit: bool) -> Result<Cand, Error> {
++        let cols = &step.bound_cols;
++        let params = self.params;
+         match a.pred {
+             Pred::Base(b) => {
+                 for &c in access_columns(b) {
+                     if cols.contains(&c) {
+-                        let key = self.value(&a.args[c], env).unwrap();
+-                        return Ok(Cand::Owned(self.lookup(b, c, &key)?));
++                        let key = val(params, &a.args[c], env).unwrap();
++                        return Ok(Cand::Owned(self.lookup(b, c, key)?));
+                     }
+                 }
++                if let (Some(s), true) = (&step.prefix, self.tuning.prefix_paths) {
++                    return Ok(Cand::Owned(self.names_with_prefix(val(params, s, env).unwrap())?));
++                }
+                 Ok(Cand::Owned(self.scan(b)?))
+             }
+             Pred::Local(p) => {
+@@ -421,8 +601,14 @@ impl<'a> Exec<'a> {
+                 if cols.is_empty() {
+                     return Ok(Cand::All(rel.tuples.len()));
+                 }
+-                let key: Tuple = cols.iter().map(|&c| self.value(&a.args[c], env).unwrap()).collect();
+-                Ok(Cand::Some(rel.index[cols].get(&key).cloned().unwrap_or_default()))
++                let ix = &rel.index[cols];
++                let hit = if let [c] = cols[..] {
++                    ix.get(std::slice::from_ref(val(params, &a.args[c], env).unwrap()))
++                } else {
++                    let key: Tuple = cols.iter().map(|&c| val(params, &a.args[c], env).unwrap().clone()).collect();
++                    ix.get(&key)
++                };
++                Ok(Cand::Some(hit.cloned().unwrap_or_default()))
+             }
+         }
+     }
+@@ -446,7 +632,7 @@ impl<'a> Exec<'a> {
+         match lit {
+             Literal::Pos(a) => {
+                 let is_delta = delta == Some(step.lit);
+-                let cands = self.candidates(a, &step.bound_cols, env, rels, is_delta)?;
++                let cands = self.candidates(a, step, env, rels, is_delta)?;
+                 let rel = match a.pred {
+                     Pred::Local(p) => Some(if is_delta { &rels.delta[p as usize] } else { &rels.full[p as usize] }),
+                     _ => None,
+@@ -458,60 +644,77 @@ impl<'a> Exec<'a> {
+                         Cand::All(_) => &rel.unwrap().tuples[k],
+                         Cand::Some(ix) => &rel.unwrap().tuples[ix[k]],
+                     };
+-                    if let Some(newly) = self.unify(&a.args, t, env) {
++                    let mark = self.trail.len();
++                    if self.unify(&a.args, t, env) {
+                         self.join(body, steps, at + 1, delta, env, rels, emit)?;
+-                        for x in newly {
+-                            env[x as usize] = None;
+-                        }
++                        self.undo(mark, env);
+                     }
+                 }
+             }
+             Literal::Neg(a) => {
+-                let cands = self.candidates(a, &step.bound_cols, env, rels, false)?;
+-                let rel = match a.pred {
+-                    Pred::Local(p) => Some(&rels.full[p as usize]),
++                let anti = match a.pred {
++                    Pred::Base(b) if step.anti => self.anti_set(b, &step.bound_cols)?,
+                     _ => None,
+                 };
+-                let mut found = false;
+-                for k in 0..cands.len() {
+-                    let t: &[Val] = match &cands {
+-                        Cand::Owned(v) => &v[k],
+-                        Cand::All(_) => &rel.unwrap().tuples[k],
+-                        Cand::Some(ix) => &rel.unwrap().tuples[ix[k]],
++                let found = if let Some(set) = anti {
++                    let params = self.params;
++                    if let [c] = step.bound_cols[..] {
++                        set.contains(std::slice::from_ref(val(params, &a.args[c], env).unwrap()))
++                    } else {
++                        let key: Tuple = step.bound_cols.iter().map(|&c| val(params, &a.args[c], env).unwrap().clone()).collect();
++                        set.contains(&key)
++                    }
++                } else {
++                    let cands = self.candidates(a, step, env, rels, false)?;
++                    let rel = match a.pred {
++                        Pred::Local(p) => Some(&rels.full[p as usize]),
++                        _ => None,
+                     };
+-                    if let Some(newly) = self.unify(&a.args, t, env) {
+-                        for x in newly {
+-                            env[x as usize] = None;
++                    let mut found = false;
++                    for k in 0..cands.len() {
++                        let t: &[Val] = match &cands {
++                            Cand::Owned(v) => &v[k],
++                            Cand::All(_) => &rel.unwrap().tuples[k],
++                            Cand::Some(ix) => &rel.unwrap().tuples[ix[k]],
++                        };
++                        let mark = self.trail.len();
++                        if self.unify(&a.args, t, env) {
++                            self.undo(mark, env);
++                            found = true;
++                            break;
+                         }
+-                        found = true;
+-                        break;
+                     }
+-                }
++                    found
++                };
+                 if !found {
+                     self.join(body, steps, at + 1, delta, env, rels, emit)?;
+                 }
+             }
+-            Literal::Eq(x, y) => match (self.value(x, env), self.value(y, env)) {
+-                (Some(a), Some(b)) => {
+-                    if a == b {
++            Literal::Eq(x, y) => {
++                let params = self.params;
++                match (val(params, x, env), val(params, y, env)) {
++                    (Some(a), Some(b)) => {
++                        if a == b {
++                            self.join(body, steps, at + 1, delta, env, rels, emit)?;
++                        }
++                    }
++                    (Some(a), None) | (None, Some(a)) => {
++                        let a = a.clone();
++                        let Term::Var(v) = (if val(params, x, env).is_none() { x } else { y }) else { unreachable!() };
++                        env[*v as usize] = Some(a);
+                         self.join(body, steps, at + 1, delta, env, rels, emit)?;
++                        env[*v as usize] = None;
+                     }
++                    _ => unreachable!("the planner orders an equation after one side is bound"),
+                 }
+-                (Some(a), None) | (None, Some(a)) => {
+-                    let Term::Var(v) = (if self.value(x, env).is_none() { x } else { y }) else { unreachable!() };
+-                    env[*v as usize] = Some(a);
+-                    self.join(body, steps, at + 1, delta, env, rels, emit)?;
+-                    env[*v as usize] = None;
+-                }
+-                _ => unreachable!("the planner orders an equation after one side is bound"),
+-            },
++            }
+             Literal::Ne(x, y) => {
+-                if self.value(x, env) != self.value(y, env) {
++                if val(self.params, x, env) != val(self.params, y, env) {
+                     self.join(body, steps, at + 1, delta, env, rels, emit)?;
+                 }
+             }
+             Literal::StartsWith(x, y) => {
+-                let ok = matches!((self.value(x, env), self.value(y, env)), (Some(Val::Text(a)), Some(Val::Text(b))) if a.starts_with(&b));
++                let ok = matches!((val(self.params, x, env), val(self.params, y, env)), (Some(Val::Text(a)), Some(Val::Text(b))) if a.starts_with(b.as_str()));
+                 if ok {
+                     self.join(body, steps, at + 1, delta, env, rels, emit)?;
+                 }
+@@ -633,7 +836,7 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
+             let max_derived = exec.limits.max_derived;
+             let max_bytes = exec.limits.max_bytes;
+             let mut derived = exec.stats.derived;
+-            let mut bytes = exec.stats.bytes;
++            let held = exec.held.clone();
+             for v in variants {
+                 let r = &q.rules[v.rule];
+                 let mut env = vec![None; r.vars as usize];
+@@ -646,20 +849,17 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
+                         derived += 1;
+                         // The fresh list and set now, the full list and set
+                         // after the round: four copies.
+-                        bytes += 4 * b;
+                         if derived > max_derived {
+                             return Err(Error::Limit(format!("more than {max_derived} derived tuples")));
+                         }
+-                        if bytes > max_bytes {
+-                            return Err(Error::Limit(format!("more than {max_bytes} estimated bytes")));
+-                        }
++                        charge(&held, 4 * b, max_bytes)?;
+                     }
+                     Ok(())
+                 };
+                 exec.join(&r.body, &v.steps, 0, v.delta, &mut env, &rels, &mut emit)?;
+             }
+             exec.stats.derived = derived;
+-            exec.stats.bytes = bytes;
++            exec.stats.bytes = exec.held.get();
+             exec.stats.iterations += 1;
+             let mut any = false;
+             for &p in stratum {
+@@ -696,78 +896,130 @@ pub fn run(exec: &mut Exec, q: &Query, strata: &[Vec<u32>]) -> Result<Evaluated,
+         }
+     }
+     let has_count = s.outputs.iter().any(|o| matches!(o, Output::Count(_)));
+-    let mut seen: HashSet<Tuple> = HashSet::new();
+-    let mut rows: Vec<Tuple> = Vec::new();
+     let mut env = vec![None; s.vars as usize];
+-    // Without counts, the select stops once it has one row more than the cap
+-    // (to know it truncated); with counts, rows before grouping are bounded
+-    // like derived tuples.
+-    let cap = if has_count { exec.limits.max_derived as usize } else { exec.limits.max_rows.saturating_add(1) };
+-    let mut full_stop = false;
+     let max_bytes = exec.limits.max_bytes;
+-    let mut bytes = exec.stats.bytes;
+-    {
+-        let mut emit = |env: &[Option<Val>]| -> Result<(), Error> {
+-            let t: Tuple = out_terms.iter().map(|t| ground(t, env, params)).collect();
+-            if seen.insert(t.clone()) {
+-                bytes += 2 * tuple_bytes(&t);
+-                if bytes > max_bytes {
+-                    return Err(Error::Limit(format!("more than {max_bytes} estimated bytes")));
+-                }
+-                rows.push(t);
+-                if rows.len() >= cap {
+-                    full_stop = true;
+-                    return Err(Error::Limit("rows".into()));
+-                }
+-            }
+-            Ok(())
+-        };
+-        match exec.join(&s.body, &st, 0, None, &mut env, &rels, &mut emit) {
+-            Err(Error::Limit(_)) if full_stop && !has_count => {}
+-            Err(Error::Limit(_)) if full_stop => {
+-                return Err(Error::Limit(format!("more than {cap} rows before grouping")));
+-            }
+-            other => other?,
+-        }
+-    }
+-    exec.stats.bytes = bytes;
++    let held = exec.held.clone();
++    let mut rows: Vec<Tuple> = Vec::new();
+     if has_count {
+-        // Group by the plain outputs; count distinct values per counted output.
+-        let groups_cols: Vec<usize> = (0..s.outputs.len()).filter(|&i| matches!(s.outputs[i], Output::Var(_))).collect();
++        // Grouped as solutions arrive: the plain outputs are the group key,
++        // and each counted output keeps the set of its distinct values in
++        // the group. Counting distinct values per group does not need the
++        // distinct rows first. Groups plus distinct counted values are
++        // bounded like derived tuples.
++        let group_cols: Vec<usize> = (0..s.outputs.len()).filter(|&i| matches!(s.outputs[i], Output::Var(_))).collect();
++        let count_cols: Vec<usize> = (0..s.outputs.len()).filter(|&i| matches!(s.outputs[i], Output::Count(_))).collect();
++        let cap = exec.limits.max_derived;
++        let mut entries: u64 = 0;
+         let mut groups: Vec<(Tuple, Vec<HashSet<Val>>)> = Vec::new();
+         let mut gi: HashMap<Tuple, usize> = HashMap::new();
+-        for r in rows {
+-            let key: Tuple = groups_cols.iter().map(|&c| r[c].clone()).collect();
+-            let g = *gi.entry(key.clone()).or_insert_with(|| {
+-                groups.push((key, vec![HashSet::new(); s.outputs.len()]));
+-                groups.len() - 1
+-            });
+-            for (c, o) in s.outputs.iter().enumerate() {
+-                if matches!(o, Output::Count(_)) {
+-                    groups[g].1[c].insert(r[c].clone());
++        {
++            let mut emit = |env: &[Option<Val>]| -> Result<(), Error> {
++                let get = |c: usize| val(params, &out_terms[c], env).expect("safe select");
++                let hit = if let [c] = group_cols[..] {
++                    gi.get(std::slice::from_ref(get(c))).copied()
++                } else {
++                    gi.get(&group_cols.iter().map(|&c| get(c).clone()).collect::<Tuple>()).copied()
++                };
++                let g = match hit {
++                    Some(g) => g,
++                    None => {
++                        let key: Tuple = group_cols.iter().map(|&c| get(c).clone()).collect();
++                        charge(&held, 2 * tuple_bytes(&key), max_bytes)?;
++                        entries += 1;
++                        gi.insert(key.clone(), groups.len());
++                        groups.push((key, vec![HashSet::new(); count_cols.len()]));
++                        groups.len() - 1
++                    }
++                };
++                for (j, &c) in count_cols.iter().enumerate() {
++                    let v = get(c);
++                    if !groups[g].1[j].contains(v) {
++                        charge(&held, tuple_bytes(std::slice::from_ref(v)), max_bytes)?;
++                        entries += 1;
++                        groups[g].1[j].insert(v.clone());
++                    }
+                 }
+-            }
++                if entries > cap {
++                    return Err(Error::Limit(format!("more than {cap} groups and distinct values while counting")));
++                }
++                Ok(())
++            };
++            exec.join(&s.body, &st, 0, None, &mut env, &rels, &mut emit)?;
+         }
+         rows = groups
+             .into_iter()
+             .map(|(key, counts)| {
+                 let mut k = key.into_iter();
++                let mut n = counts.into_iter();
+                 s.outputs
+                     .iter()
+-                    .enumerate()
+-                    .map(|(c, o)| match o {
++                    .map(|o| match o {
+                         Output::Var(_) => k.next().unwrap(),
+-                        Output::Count(_) => Val::Int(counts[c].len() as i64),
++                        Output::Count(_) => Val::Int(n.next().unwrap().len() as i64),
+                     })
+                     .collect()
+             })
+             .collect();
++        if rows.is_empty() && group_cols.is_empty() {
++            // Counting over no solutions gives one row of zeros, as in SQL.
++            rows.push(vec![Val::Int(0); s.outputs.len()]);
++        }
++    } else {
++        // The select stops once it has one row more than the cap, to know
++        // it truncated.
++        let cap = exec.limits.max_rows.saturating_add(1);
++        let mut seen: HashSet<Tuple> = HashSet::new();
++        let mut full_stop = false;
++        {
++            let mut emit = |env: &[Option<Val>]| -> Result<(), Error> {
++                let t: Tuple = out_terms.iter().map(|t| ground(t, env, params)).collect();
++                if !seen.contains(&t) {
++                    charge(&held, 2 * tuple_bytes(&t), max_bytes)?;
++                    seen.insert(t.clone());
++                    rows.push(t);
++                    if rows.len() >= cap {
++                        full_stop = true;
++                        return Err(Error::Limit("rows".into()));
++                    }
++                }
++                Ok(())
++            };
++            match exec.join(&s.body, &st, 0, None, &mut env, &rels, &mut emit) {
++                Err(Error::Limit(_)) if full_stop => {}
++                other => other?,
++            }
++        }
+     }
+-    if has_count && rows.is_empty() && s.outputs.iter().all(|o| matches!(o, Output::Count(_))) {
+-        // Counting over no solutions gives one row of zeros, as in SQL.
+-        rows.push(vec![Val::Int(0); s.outputs.len()]);
+-    }
++    exec.stats.bytes = exec.held.get();
+     let truncated = rows.len() > exec.limits.max_rows;
+     rows.truncate(exec.limits.max_rows);
+     Ok(Evaluated { rows, truncated })
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn neg(args: Vec<Term>) -> Literal {
++        Literal::Neg(Atom { pred: Pred::Base(Base::Refs), args })
++    }
++
++    /// An anti-join answers a negation only when its unbound arguments are
++    /// distinct variables: `!refs(x, x)` with `x` unbound asks for a
++    /// self-reference, which the projection on no columns cannot see.
++    #[test]
++    fn anti_join_needs_distinct_free_variables() {
++        let def = Literal::Pos(Atom { pred: Pred::Base(Base::Def), args: vec![Term::Var(0), Term::Var(1)] });
++        for (lit, anti) in [
++            (neg(vec![Term::Var(2), Term::Var(2)]), false),
++            (neg(vec![Term::Var(2), Term::Var(3)]), true),
++            (neg(vec![Term::Var(0), Term::Var(0)]), true),
++            (neg(vec![Term::Var(2), Term::Var(0)]), true),
++            (neg(vec![Term::Const(Val::Id(Digest::of(b"x"))), Term::Var(2)]), true),
++        ] {
++            let body = vec![def.clone(), lit];
++            let st = steps(&body, &[0, 1], 4, &[]);
++            assert_eq!(st[1].anti, anti, "{:?}", body[1]);
++        }
++    }
++}
+diff --git a/crates/sophia-query/src/plan.md b/crates/sophia-query/src/plan.md
+index 8c48fb6..5b73411 100644
+--- a/crates/sophia-query/src/plan.md
++++ b/crates/sophia-query/src/plan.md
+@@ -7,4 +7,5 @@
+ - `access_columns` says which columns of each base relation have an access path on every backend (for example `refs`: both columns, through `refs_of` and `dependants`).
+ - `order` schedules filters as soon as their variables are bound, then prefers base literals that can use an access path, then local literals with bound arguments, and full scans last. Variables that occur only inside one negated literal are existential.
+ - `wide` marks lookups that return a large share of a relation: by kind, and by collection. They rank after local literals (SPEC-007 §6.1, measured on set.mm).
++- `name_prefix` (B-014): a positive `name(p, _)` with neither column bound and a `startswith(p, s)` in the body whose `s` is bound can be read as a prefix range. It then ranks like a wide lookup.
+ - `check_safe` uses `order` to report a variable that no literal binds.
+diff --git a/crates/sophia-query/src/plan.rs b/crates/sophia-query/src/plan.rs
+index ea279f1..a3a9740 100644
+--- a/crates/sophia-query/src/plan.rs
++++ b/crates/sophia-query/src/plan.rs
+@@ -63,7 +63,25 @@ pub(crate) fn local_only(head: &[Term], body: &[Literal], vars: u32) -> Vec<Vec<
+         .collect()
+ }
+ 
+-fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
++/// The prefix access path (B-014): for body literal `i`, a positive
++/// `name(p, t)` with neither column bound, the term `s` of a
++/// `startswith(p, s)` in the same body whose `s` is bound now. The executor
++/// then reads only the names that start with `s` (a range scan) instead of
++/// every name; the `startswith` literal still runs as a filter.
++pub(crate) fn name_prefix<'b>(body: &'b [Literal], i: usize, bound: &[bool]) -> Option<&'b Term> {
++    let Literal::Pos(Atom { pred: Pred::Base(Base::Name), args }) = &body[i] else { return None };
++    let Term::Var(p) = args[0] else { return None };
++    if bound[p as usize] || is_bound(&args[1], bound) {
++        return None;
++    }
++    body.iter().find_map(|l| match l {
++        Literal::StartsWith(Term::Var(x), s) if *x == p && is_bound(s, bound) => Some(s),
++        _ => None,
++    })
++}
++
++fn score(body: &[Literal], i: usize, bound: &[bool], local: &[u32]) -> Option<u32> {
++    let l = &body[i];
+     let nb = |a: &Atom| a.args.iter().filter(|t| is_bound(t, bound)).count() as u32;
+     match l {
+         Literal::Pos(a) => Some(match a.pred {
+@@ -71,7 +89,9 @@ fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
+                 let paths: Vec<usize> = access_columns(b).iter().copied().filter(|&c| is_bound(&a.args[c], bound)).collect();
+                 if paths.iter().any(|&c| !wide(b, c)) {
+                     60 + nb(a)
+-                } else if !paths.is_empty() {
++                } else if !paths.is_empty() || name_prefix(body, i, bound).is_some() {
++                    // A name prefix is a range scan: like a wide lookup, it
++                    // can match a large share of the names.
+                     // A wide lookup (all definitions of a kind) binds many
+                     // tuples. It comes after local literals, bound or free:
+                     // a free local predicate is computed once from the
+@@ -129,11 +149,11 @@ pub fn order(head: &[Term], body: &[Literal], bound: &mut [bool], first: Option<
+     }
+     while out.len() < body.len() {
+         let mut best: Option<(u32, usize)> = None;
+-        for (i, l) in body.iter().enumerate() {
++        for i in 0..body.len() {
+             if done[i] {
+                 continue;
+             }
+-            if let Some(s) = score(l, bound, &local[i]) {
++            if let Some(s) = score(body, i, bound, &local[i]) {
+                 if best.is_none_or(|(b, _)| s > b) {
+                     best = Some((s, i));
+                 }
+diff --git a/crates/sophia-query/src/sophia_query.rs b/crates/sophia-query/src/sophia_query.rs
+index d7feea3..a6cf548 100644
+--- a/crates/sophia-query/src/sophia_query.rs
++++ b/crates/sophia-query/src/sophia_query.rs
+@@ -21,7 +21,7 @@ use sophia_hash::{Digest, Record};
+ use sophia_store::{Backend, ReadTx, Store, StoreError, Target, Visibility};
+ 
+ pub use check::Checked;
+-pub use eval::{Limits, Stats};
++pub use eval::{Limits, Stats, Tuning};
+ pub use ir::{Names, Query, Sort, Val};
+ pub use syntax::Profile;
+ 
+@@ -239,6 +239,13 @@ impl Prepared {
+         self.run_inner(eval::Exec::new(tx, params, limits).with_cancel(cancel), strategy)
+     }
+ 
++    /// Like [`Prepared::run`], with other set-at-a-time choices
++    /// ([`Tuning`]). The rows are the same; tests and benchmarks use it to
++    /// compare the access strategies.
++    pub fn run_tuned(&self, tx: &dyn ReadTx, params: &[Val], limits: Limits, strategy: Strategy, tuning: Tuning) -> Result<Rows> {
++        self.run_inner(eval::Exec::new(tx, params, limits).with_tuning(tuning), strategy)
++    }
++
+     fn run_inner(&self, mut exec: eval::Exec, strategy: Strategy) -> Result<Rows> {
+         let p = self.program(strategy);
+         let out = eval::run(&mut exec, &p.query, &p.strata)?;
+diff --git a/crates/sophia-store/src/sqlite.md b/crates/sophia-store/src/sqlite.md
+index 6b8b087..cbfc233 100644
+--- a/crates/sophia-store/src/sqlite.md
++++ b/crates/sophia-store/src/sqlite.md
+@@ -28,6 +28,8 @@ The test tries `DELETE`, a direct table read, `INSERT`, `PRAGMA`, `ATTACH`, `CRE
+ 
+ **`query_compiled`** (2026-10-20): runs SQL that `sophia-query` generated from a checked query. The guard is the same as for `query_readonly` (only `SELECT`, no writes, a step budget), except that it may read the base tables `t_*`, so their indexes apply. The views would hide them behind `lower(hex(…))`. It is never given text from users or agents. SQLite also overrides the access paths `kind_of`, `refs_of`, `all_kinds` and `all_refs` with direct index reads.
+ 
++**Scans read in place (B-014, 2026-11-18).** `all_kinds` and `all_refs` read their digests from the row without a `Vec` per column. `all_refs` at 10⁴ definitions: 3.9 → 2.3 ms. `all_kinds` stays at 5 ms: `t_definition` is a rowid table and `t_definition_kind` does not hold `id`, so the scan reads every whole row, record bytes included. A covering index on `(kind, id)` would fix that; it is a layout change and needs Daniel's agreement (SR-126).
++
+ **`Sqlite::from_bytes(bytes)`** (2026-10-24, SPEC-009 §4): a store opened read-only from the bytes of its file, in memory, for Moonkale's web client. Three things were needed to make it work under wasm, found by running `tests/wasm_read.rs`:
+ - a WAL-mode file (Sophia's are) makes SQLite open `-wal` and `-shm` files even to read, which fails in memory with "unable to open database file"; the copy's header bytes 18 and 19 are set from 2 (WAL) to 1 (rollback journal), which is safe for a complete file;
+ - on wasm, `Connection::open_in_memory` does not open under `sqlite-wasm-rs`; a named database in its default in-memory VFS does;
+diff --git a/crates/sophia-store/src/sqlite.rs b/crates/sophia-store/src/sqlite.rs
+index c01e907..f364d6c 100644
+--- a/crates/sophia-store/src/sqlite.rs
++++ b/crates/sophia-store/src/sqlite.rs
+@@ -90,6 +90,11 @@ fn dg(b: Vec<u8>) -> Result<Digest> {
+     Digest::from_slice(&b).ok_or_else(|| StoreError::Codec("digest".into()))
+ }
+ 
++/// A digest read in place from a column, without copying the blob first.
++fn blob_dg(v: rusqlite::types::ValueRef<'_>) -> Result<Digest> {
++    v.as_blob().ok().and_then(Digest::from_slice).ok_or_else(|| StoreError::Codec("digest".into()))
++}
++
+ fn opt_dg(b: Option<Vec<u8>>) -> Result<Option<Digest>> {
+     b.map(dg).transpose()
+ }
+@@ -674,25 +679,26 @@ impl ReadTx for SqliteTx<'_> {
+     }
+ 
+     fn all_kinds(&self) -> Result<Vec<(Digest, String)>> {
++        // Read in place: no `Vec` per id.
+         let mut st = self.tx.prepare_cached("SELECT id, kind FROM t_definition").map_err(be)?;
+-        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, String>(1)?))).map_err(be)?.collect();
+-        v.into_iter()
+-            .map(|r| {
+-                let (i, k) = r.map_err(be)?;
+-                Ok((dg(i)?, k))
+-            })
+-            .collect()
++        let mut rows = st.query([]).map_err(be)?;
++        let mut out: Vec<(Digest, String)> = Vec::new();
++        while let Some(r) = rows.next().map_err(be)? {
++            let id = blob_dg(r.get_ref(0).map_err(be)?)?;
++            let k = r.get_ref(1).map_err(be)?.as_str().map_err(|e| StoreError::Codec(e.to_string()))?;
++            out.push((id, k.to_string()));
++        }
++        Ok(out)
+     }
+ 
+     fn all_refs(&self) -> Result<Vec<(Digest, Digest)>> {
+         let mut st = self.tx.prepare_cached("SELECT src, dst FROM t_ref").map_err(be)?;
+-        let v: Vec<_> = st.query_map([], |r| Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, Vec<u8>>(1)?))).map_err(be)?.collect();
+-        v.into_iter()
+-            .map(|r| {
+-                let (a, b) = r.map_err(be)?;
+-                Ok((dg(a)?, dg(b)?))
+-            })
+-            .collect()
++        let mut rows = st.query([]).map_err(be)?;
++        let mut out = Vec::new();
++        while let Some(r) = rows.next().map_err(be)? {
++            out.push((blob_dg(r.get_ref(0).map_err(be)?)?, blob_dg(r.get_ref(1).map_err(be)?)?));
++        }
++        Ok(out)
+     }
+ }
+ 

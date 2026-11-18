@@ -164,7 +164,7 @@ type SqlRun<'a> =
     &'a dyn Fn(&sophia_query::Prepared, &[sophia_query::Val], sophia_query::Strategy) -> sophia_query::Result<sophia_query::Rows>;
 
 fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usize, sql: Option<SqlRun>) {
-    use sophia_query::{Limits, Strategy, Val, prepare_text};
+    use sophia_query::{Limits, Strategy, Tuning, Val, prepare_text};
     let mut rng = Rng::new(0x5150);
     let probes: Vec<Val> = (0..20).map(|_| Val::Id(records[rng.below(records.len() as u64) as usize].id)).collect();
     let limits = Limits { max_rows: usize::MAX, max_steps_k: 50_000, ..Limits::default() };
@@ -172,12 +172,16 @@ fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usi
     for (label, text, per_probe) in WORKLOADS {
         let p = prepare_text(text).unwrap();
         let args: Vec<Vec<Val>> = if per_probe { probes.iter().map(|v| vec![v.clone()]).collect() } else { vec![vec![]] };
-        let mut strategies = vec![("native", Strategy::Auto)];
+        let mut strategies = vec![("native", Strategy::Auto, Tuning::default())];
         if p.magic.is_some() {
-            strategies.push(("native, no magic sets (1 probe)", Strategy::Plain));
+            strategies.push(("native, no magic sets (1 probe)", Strategy::Plain, Tuning::default()));
+        }
+        if !per_probe {
+            // B-014: without the prefix access path and anti-joins.
+            strategies.push(("native, tuple at a time", Strategy::Auto, Tuning::TUPLE_AT_A_TIME));
         }
         let mut cells = Vec::new();
-        for (exec, strategy) in strategies {
+        for (exec, strategy, tuning) in strategies {
             // Without magic sets a run computes the whole relation whatever
             // the probe, so one probe, once, is enough to show the cost.
             let (args, runs) = if strategy == Strategy::Plain { (&args[..1], 1) } else { (&args[..], 5) };
@@ -186,7 +190,7 @@ fn queries<B: Backend>(store: &Store<B>, records: &[sophia_hash::Record], n: usi
             let t = median_time(runs, || {
                 rows = 0;
                 for a in args {
-                    match store.read(|tx| Ok(p.run(tx, a, limits, strategy))).unwrap() {
+                    match store.read(|tx| Ok(p.run_tuned(tx, a, limits, strategy, tuning))).unwrap() {
                         Ok(r) => rows += r.rows.len(),
                         Err(e) => failed = Some(e.to_string()),
                     }

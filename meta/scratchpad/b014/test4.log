@@ -1,0 +1,84 @@
+   Compiling sophia-query v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.17s
+     Running unittests src/sophia_query.rs (target/debug/deps/sophia_query-bdcbf0b0aae7168f)
+
+running 1 test
+test eval::tests::anti_join_needs_distinct_free_variables ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/execution.rs (target/debug/deps/execution-24fa5ad848efc74f)
+
+running 22 tests
+test compiled_sql_cannot_write ... ok
+test lmdb::limits_stop_runaway_queries ... ok
+test lmdb::queries_are_stored_as_definitions ... ok
+test lmdb::results_are_cached_per_snapshot ... ok
+test redb::limits_stop_runaway_queries ... ok
+test lmdb::magic_sets_read_less ... ok
+test lmdb::plain_and_magic_agree ... ok
+test redb::queries_are_stored_as_definitions ... ok
+test redb::results_are_cached_per_snapshot ... ok
+test redb::magic_sets_read_less ... ok
+test sqlite::limits_stop_runaway_queries ... ok
+test sql_translation_agrees_with_the_native_executor ... ok
+test redb::plain_and_magic_agree ... ok
+test sqlite::queries_are_stored_as_definitions ... ok
+test sqlite::results_are_cached_per_snapshot ... ok
+test sqlite::magic_sets_read_less ... ok
+test duckdb::queries_are_stored_as_definitions ... ok
+test sqlite::plain_and_magic_agree ... ok
+test duckdb::results_are_cached_per_snapshot ... ok
+test duckdb::limits_stop_runaway_queries ... ok
+test duckdb::plain_and_magic_agree ... ok
+test duckdb::magic_sets_read_less ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.64s
+
+     Running tests/identity.rs (target/debug/deps/identity-5edaab12e42b73da)
+
+running 11 tests
+test literal_order_is_part_of_the_identity ... ok
+test meaning_changes_the_id ... ok
+test datalog_profile_prints ... ok
+test checks_reject_bad_queries ... ok
+test names_and_formatting_do_not_change_the_id ... ok
+test julia_text_round_trips ... ok
+test parser_is_bounded ... ok
+test every_construct_round_trips ... ok
+test predicate_order_and_unused_predicates_do_not_change_the_id ... ok
+test rule_order_and_duplicate_rules_do_not_change_the_id ... ok
+test queries_and_definitions_share_the_identity_rule ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/properties.rs (target/debug/deps/properties-7573f51a3282eb63)
+
+running 3 tests
+test symmetric_predicates_get_one_id ... ok
+test canonical_form_is_invariant_and_round_trips ... ok
+test magic_sets_preserve_meaning_on_random_programs ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.16s
+
+     Running tests/set_oriented.rs (target/debug/deps/set_oriented-c1a383f468a90bf9)
+
+running 9 tests
+test lmdb::prefix_range ... ok
+test sqlite::prefix_range ... ok
+test redb::prefix_range ... ok
+test sql_agrees ... ok
+test lmdb::tunings_agree ... ok
+test sqlite::tunings_agree ... ok
+test redb::tunings_agree ... ok
+test duckdb::prefix_range ... ok
+test duckdb::tunings_agree ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.95s
+
+   Doc-tests sophia_query
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

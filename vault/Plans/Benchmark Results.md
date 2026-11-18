@@ -2,6 +2,53 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
+## 2026-11-18: B-014, the set-oriented native executor (B-17 re-run)
+
+- Machine: AMD Ryzen 7 7800X3D, 8 threads, 30 GiB RAM, Linux 7.3.4-arch1-2.
+- Commit: B-014 on `dev-danielb` (before: `88837d1`, the same machine and day).
+- Commands: `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000 --query-size 10000 --only-queries`, and `… --query-size 100000 --backends sqlite,redb,lmdb --only-queries` with the binary built before and after. Raw output: `meta/scratchpad/b014/`.
+- What changed ([[eval]]): a prefix access path for `name(p, _)` with a bound `startswith`; anti-joins for negated base literals after 256 probes; borrowed term reads, a binding trail and grouping as solutions arrive; SQLite's `all_refs` and `all_kinds` reading digests in place.
+- "Native, tuple at a time" is the new executor with the prefix path and anti-joins switched off (`Tuning::TUPLE_AT_A_TIME`), in the same run. It keeps the borrowed reads, so "before" is the old binary.
+- The recursive workloads are unchanged within noise (10⁵ SQLite: transitive dependants 0.648 → 0.644 ms, dependencies 7.63 → 7.38 ms), as are the row counts of every workload.
+
+### At 100 000 definitions (median ms)
+
+| backend | workload | before | after | after, tuple at a time | SQL (SQLite) |
+|---|---|---|---|---|---|
+| sqlite | count by kind | 112.5 | 76.3 | 76.2 | 51.6 |
+| sqlite | unreferenced definitions | 320.0 | 142.2 | 295.5 | 32.3 |
+| sqlite | names by prefix | 40.4 | 0.162 | 35.9 | 4.84 |
+| redb | count by kind | 70.1 | 36.8 | 36.3 | |
+| redb | unreferenced definitions | 172.8 | 126.0 | 161.1 | |
+| redb | names by prefix | 42.6 | 0.119 | 38.0 | |
+| lmdb | count by kind | 57.0 | 29.9 | 29.9 | |
+| lmdb | unreferenced definitions | 108.9 | 99.0 | 100.4 | |
+| lmdb | names by prefix | 38.8 | 0.080 | 30.6 | |
+
+### At 10 000 definitions (median ms)
+
+| backend | workload | before | after | after, tuple at a time | SQL (SQLite) |
+|---|---|---|---|---|---|
+| sqlite | count by kind | 10.33 | 7.13 | 6.67 | 4.43 |
+| sqlite | unreferenced definitions | 20.45 | 11.86 | 19.28 | 2.73 |
+| sqlite | names by prefix | 3.63 | 0.099 | 3.26 | 0.441 |
+| redb | count by kind | 5.81 | 3.25 | 3.25 | |
+| redb | unreferenced definitions | 14.01 | 9.70 | 13.38 | |
+| redb | names by prefix | 3.71 | 0.068 | 3.32 | |
+| lmdb | count by kind | 5.15 | 2.73 | 2.70 | |
+| lmdb | unreferenced definitions | 8.79 | 7.36 | 8.30 | |
+| lmdb | names by prefix | 3.16 | 0.060 | 2.76 | |
+| duckdb | count by kind | 7.60 (2026-10-20) | 4.84 | 4.29 | |
+| duckdb | unreferenced definitions | 1982 (2026-10-20) | 73.4 | 2011 | |
+| duckdb | names by prefix | 6.37 (2026-10-20) | 1.37 | 5.92 | |
+
+### What this says
+
+- **The prefix path is a range read:** 0.06–0.16 ms against 30–43 ms, flat in the store's size. That is faster than SQLite's own engine on the translated SQL (4.8 ms at 10⁵), whose `substr(p, 1, length(s)) = s` filter (`sql.rs`) cannot use the name index.
+- **Anti-joins** halve the negation on SQLite (320 → 142 ms) and save 27× on DuckDB, whose point lookups cost about 0.3 ms. On LMDB, where a lookup costs about 1 µs, the scan and the probes cost about the same.
+- **Count by kind** is 30–48 % faster from the borrowed reads and the grouping alone.
+- **Native still trails SQL on SQLite by 1.5× (count) and 4.4× (negation)**. Timing the parts at 10⁴ (a probe example, removed after): `all_kinds` takes 5.0 ms of the 7 ms, because `t_definition` is a rowid table and its `kind` index does not hold `id`, so the scan reads every whole row. A covering index on `(kind, id)` would remove most of that; it is a storage change and waits for Daniel (SR-126). The rest is the executor's tuple vectors (`Vec<Val>` per base tuple).
+
 ## 2026-10-20 (late night): B-15, Moonkale's edit loop through Sophia
 
 **The first end-to-end measurement with Moonkale.** Moonkale (`26752448`, on Sophia `202e137a`) times its own edit path through the `Source` trait: resolve and fetch a definition, save an edited text with `apply`, read the name's new id, list the definitions that still reference the old id. Script: `experiments/b15-edit-loop/run.sh` ([[run]]); 200 runs per store, each alternating the original and the edited text; release build; this machine (see the B-16 section for hardware).

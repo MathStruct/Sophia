@@ -1,0 +1,51 @@
+### Run of today (seed 42)
+
+- Machine: AMD Ryzen 7 7800X3D 8-Core Processor, 8 threads, 30 GiB RAM, Linux 7.3.4-arch1-2
+- Build: `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000`
+- Workload: synthetic sophialang (Shape { median_nodes: 60.0, sigma: 0.9, mean_refs: 3.0, recursive_fraction: 0.01 }); ingest in batches of 1000 with names; lookups are 1000 random probes, median of 5 runs.
+
+#### B-07 / B-05: canonical sizes (synthetic corpus, 1000 definitions)
+
+| median bytes | p90 bytes | mean bytes | distinct refs per def | 32-byte reference digests in canonical bytes | key overhead (32 B / mean) | savings with 8-byte local ids |
+|---|---|---|---|---|---|---|
+| 2566 | 8437 | 3796 | 2.96 | 2.5 % of bytes | 0.8 % | 1.9 % of bytes |
+
+#### B-17: query workloads (SPEC-007), 100000 definitions
+
+- Per-probe workloads: 20 random probes, time per probe. Native limits: 50M join steps and 5M derived tuples; SQL step limit 50M VM steps.
+
+| backend | definitions | workload | executor | rows (per probe) | median |
+|---|---|---|---|---|---|
+| sqlite | 100000 | direct dependants | native | 2 | 0.004 ms |
+| sqlite | 100000 | direct dependants | SQL | 2 | 0.006 ms |
+| sqlite | 100000 | transitive dependants | native | 225 | 0.648 ms |
+| sqlite | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependants | SQL | 225 | 0.583 ms |
+| sqlite | 100000 | transitive dependants | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependencies | native | 2055 | 7.627 ms |
+| sqlite | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependencies | SQL | 2055 | 6.715 ms |
+| sqlite | 100000 | transitive dependencies | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | count by kind | native | 1 | 112.484 ms |
+| sqlite | 100000 | count by kind | SQL | 1 | 53.424 ms |
+| sqlite | 100000 | unreferenced definitions | native | 1 | 320.028 ms |
+| sqlite | 100000 | unreferenced definitions | SQL | 1 | 32.795 ms |
+| sqlite | 100000 | names by prefix | native | 100 | 40.364 ms |
+| sqlite | 100000 | names by prefix | SQL | 100 | 4.958 ms |
+| redb | 100000 | direct dependants | native | 2 | 0.002 ms |
+| redb | 100000 | transitive dependants | native | 225 | 0.509 ms |
+| redb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| redb | 100000 | transitive dependencies | native | 2055 | 6.802 ms |
+| redb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| redb | 100000 | count by kind | native | 1 | 70.101 ms |
+| redb | 100000 | unreferenced definitions | native | 1 | 172.821 ms |
+| redb | 100000 | names by prefix | native | 100 | 42.616 ms |
+| lmdb | 100000 | direct dependants | native | 2 | 0.001 ms |
+| lmdb | 100000 | transitive dependants | native | 225 | 0.390 ms |
+| lmdb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| lmdb | 100000 | transitive dependencies | native | 2055 | 5.749 ms |
+| lmdb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| lmdb | 100000 | count by kind | native | 1 | 57.012 ms |
+| lmdb | 100000 | unreferenced definitions | native | 1 | 108.891 ms |
+| lmdb | 100000 | names by prefix | native | 100 | 38.826 ms |
+

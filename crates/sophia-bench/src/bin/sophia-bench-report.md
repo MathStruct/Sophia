@@ -16,4 +16,5 @@ It reports:
 **B-17 and zero-copy** (2026-10-20):
 - `--query-size N` sets the size for the query workloads (B-17); `--skip-queries` and `--only-queries` select them.
 - `--zero-copy` adds the LMDB read breakdown.
+- **B-014 (2026-11-18):** the whole-relation workloads (count by kind, unreferenced definitions, names by prefix) also run as "native, tuple at a time" (`Tuning::TUPLE_AT_A_TIME`: no prefix path, no anti-joins), for comparison in the same run.
 - Bare flags go through `flag()`. Before that fix, `arg()` expected a value after every flag, so `--skip-analytics` never worked.

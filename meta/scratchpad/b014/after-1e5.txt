@@ -1,0 +1,60 @@
+### Run of today (seed 42)
+
+- Machine: AMD Ryzen 7 7800X3D 8-Core Processor, 8 threads, 30 GiB RAM, Linux 7.3.4-arch1-2
+- Build: `cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000`
+- Workload: synthetic sophialang (Shape { median_nodes: 60.0, sigma: 0.9, mean_refs: 3.0, recursive_fraction: 0.01 }); ingest in batches of 1000 with names; lookups are 1000 random probes, median of 5 runs.
+
+#### B-07 / B-05: canonical sizes (synthetic corpus, 1000 definitions)
+
+| median bytes | p90 bytes | mean bytes | distinct refs per def | 32-byte reference digests in canonical bytes | key overhead (32 B / mean) | savings with 8-byte local ids |
+|---|---|---|---|---|---|---|
+| 2566 | 8437 | 3796 | 2.96 | 2.5 % of bytes | 0.8 % | 1.9 % of bytes |
+
+#### B-17: query workloads (SPEC-007), 100000 definitions
+
+- Per-probe workloads: 20 random probes, time per probe. Native limits: 50M join steps and 5M derived tuples; SQL step limit 50M VM steps.
+
+| backend | definitions | workload | executor | rows (per probe) | median |
+|---|---|---|---|---|---|
+| sqlite | 100000 | direct dependants | native | 2 | 0.004 ms |
+| sqlite | 100000 | direct dependants | SQL | 2 | 0.005 ms |
+| sqlite | 100000 | transitive dependants | native | 225 | 0.644 ms |
+| sqlite | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependants | SQL | 225 | 0.581 ms |
+| sqlite | 100000 | transitive dependants | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependencies | native | 2055 | 7.384 ms |
+| sqlite | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | transitive dependencies | SQL | 2055 | 6.735 ms |
+| sqlite | 100000 | transitive dependencies | SQL, no magic sets (1 probe) | 0 | aborted at the step limit |
+| sqlite | 100000 | count by kind | native | 1 | 76.295 ms |
+| sqlite | 100000 | count by kind | native, tuple at a time | 1 | 76.183 ms |
+| sqlite | 100000 | count by kind | SQL | 1 | 51.579 ms |
+| sqlite | 100000 | unreferenced definitions | native | 1 | 142.169 ms |
+| sqlite | 100000 | unreferenced definitions | native, tuple at a time | 1 | 295.518 ms |
+| sqlite | 100000 | unreferenced definitions | SQL | 1 | 32.272 ms |
+| sqlite | 100000 | names by prefix | native | 100 | 0.162 ms |
+| sqlite | 100000 | names by prefix | native, tuple at a time | 100 | 35.901 ms |
+| sqlite | 100000 | names by prefix | SQL | 100 | 4.837 ms |
+| redb | 100000 | direct dependants | native | 2 | 0.002 ms |
+| redb | 100000 | transitive dependants | native | 225 | 0.505 ms |
+| redb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| redb | 100000 | transitive dependencies | native | 2055 | 6.563 ms |
+| redb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| redb | 100000 | count by kind | native | 1 | 36.828 ms |
+| redb | 100000 | count by kind | native, tuple at a time | 1 | 36.324 ms |
+| redb | 100000 | unreferenced definitions | native | 1 | 125.995 ms |
+| redb | 100000 | unreferenced definitions | native, tuple at a time | 1 | 161.136 ms |
+| redb | 100000 | names by prefix | native | 100 | 0.119 ms |
+| redb | 100000 | names by prefix | native, tuple at a time | 100 | 37.972 ms |
+| lmdb | 100000 | direct dependants | native | 2 | 0.001 ms |
+| lmdb | 100000 | transitive dependants | native | 225 | 0.379 ms |
+| lmdb | 100000 | transitive dependants | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| lmdb | 100000 | transitive dependencies | native | 2055 | 5.534 ms |
+| lmdb | 100000 | transitive dependencies | native, no magic sets (1 probe) | 0 | aborted at the step limit |
+| lmdb | 100000 | count by kind | native | 1 | 29.945 ms |
+| lmdb | 100000 | count by kind | native, tuple at a time | 1 | 29.882 ms |
+| lmdb | 100000 | unreferenced definitions | native | 1 | 99.005 ms |
+| lmdb | 100000 | unreferenced definitions | native, tuple at a time | 1 | 100.440 ms |
+| lmdb | 100000 | names by prefix | native | 100 | 0.080 ms |
+| lmdb | 100000 | names by prefix | native, tuple at a time | 100 | 30.564 ms |
+

@@ -1,0 +1,689 @@
+   Compiling serde_core v1.0.229
+   Compiling serde_json v1.0.154
+   Compiling arborium-python v2.18.2
+   Compiling arborium-tree-sitter v2.18.2
+   Compiling arborium-rust v2.18.2
+   Compiling arborium-julia v2.18.2
+   Compiling streaming-iterator v0.1.9
+   Compiling tree-sitter-language v0.1.7
+   Compiling sophialang-syntax v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophialang-syntax)
+   Compiling alloca v0.4.0
+   Compiling ciborium-io v0.2.2
+   Compiling clap_lex v1.1.1
+   Compiling either v1.19.0
+   Compiling anstyle v1.0.14
+   Compiling clap_builder v4.6.7
+   Compiling libduckdb-sys v1.10506.1
+   Compiling itertools v0.13.0
+   Compiling bitflags v2.13.2
+   Compiling arrow-schema v58.4.0
+   Compiling rustix v1.1.5
+   Compiling serde v1.0.229
+   Compiling arrow-data v58.4.0
+   Compiling rustix v0.38.44
+   Compiling bincode v1.3.3
+   Compiling arrow-array v58.4.0
+   Compiling tempfile v3.27.0
+   Compiling crossterm v0.28.1
+   Compiling comfy-table v7.1.4
+   Compiling heed-types v0.21.0
+   Compiling rusqlite v0.40.2
+   Compiling heed v0.22.1
+   Compiling moonkale-content-id v0.1.0 (https://github.com/MathStruct/Moonkale.git?rev=06fd112c75927d1b59ca4a1e883444dbfcc5b238#06fd112c)
+   Compiling rusty-fork v0.3.1
+   Compiling proptest v1.12.0
+   Compiling ciborium-ll v0.2.2
+   Compiling same-file v1.0.6
+   Compiling walkdir v2.5.0
+   Compiling ciborium v0.2.2
+   Compiling tinytemplate v1.2.1
+   Compiling criterion-plot v0.8.2
+   Compiling clap v4.6.7
+   Compiling oorandom v11.1.5
+   Compiling anes v0.1.6
+   Compiling arrow-select v58.4.0
+   Compiling arrow-row v58.4.0
+   Compiling arrow-arith v58.4.0
+   Compiling arrow-ord v58.4.0
+   Compiling arrow-string v58.4.0
+   Compiling criterion v0.8.2
+   Compiling arrow-cast v58.4.0
+   Compiling sophialang-core v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophialang-core)
+   Compiling sophia-hash v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-hash)
+   Compiling arrow v58.4.0
+   Compiling duckdb v1.10506.1
+   Compiling sophia-store v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-store)
+   Compiling sophia-query v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query)
+   Compiling sophia-ingest v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-ingest)
+   Compiling sophia-interface v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-interface)
+   Compiling sophia-bench v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-bench)
+   Compiling sophia-cli v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 27s
+     Running unittests src/sophia_bench.rs (target/debug/deps/sophia_bench-bfb6d4a063fa83a6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/sophia-bench-report.rs (target/debug/deps/sophia_bench_report-b952ccf204b95bbc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/sophia-mm-check.rs (target/debug/deps/sophia_mm_check-23b482ab6247b1dd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/sophia-14dfc64340ba6846)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/sophia_hash.rs (target/debug/deps/sophia_hash-3f288eaa17cf956a)
+
+running 17 tests
+test canonical::tests::field_layout_is_tag_length_value ... ok
+test canonical::tests::nested_fields_round_trip ... ok
+test canonical::tests::truncation_is_an_error_not_a_panic ... ok
+test component::tests::a_symmetric_triangle_collapses_and_an_asymmetric_one_does_not ... ok
+test component::tests::bisimilar_members_that_are_not_automorphic_stay_apart ... ok
+test component::tests::budget_is_enforced ... ok
+test component::tests::components_come_dependency_first ... ok
+test component::tests::automorphic_members_form_one_class ... ok
+test component::tests::self_loop_is_its_own_component ... ok
+test digest::tests::rejects_bad_hex ... ok
+test digest::tests::hex_round_trips ... ok
+test component::tests::order_does_not_depend_on_input_order ... ok
+test component::tests::partial_symmetry_keeps_the_rest_distinct ... ok
+test merkle::tests::language_and_normaliser_are_part_of_identity ... ok
+test merkle::tests::member_ids_differ_by_index_and_component ... ok
+test merkle::tests::nominal_ids_depend_on_the_nonce ... ok
+test component::tests::deep_chain_does_not_overflow ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/sophia_ingest.rs (target/debug/deps/sophia_ingest-7cad4aa85f2a8067)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bindings.rs (target/debug/deps/bindings-35175bf11df24827)
+
+running 1 test
+test julia_names_match_moonkales_golden_bindings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/code.rs (target/debug/deps/code-7fcbc8c22af0a0fb)
+
+running 5 tests
+test sophia_resolves_like_moonkale ... ok
+test moonkale_spans_give_moonkale_ids ... ok
+test moonkale_records_verify_as_foreign ... ok
+test stored_ids_are_moonkale_ids ... ok
+test moonkale_fixtures_verify_under_every_moonkale_normaliser ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/generics.rs (target/debug/deps/generics-c53b69915645ef31)
+
+running 1 test
+test generic_functions_are_module_qualified ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/metamath.rs (target/debug/deps/metamath-4428ef7e844dbe9f)
+
+running 8 tests
+test set_mm_and_iset_mm_parse ... ignored
+test names_quote_labels_that_are_not_identifiers ... ok
+test compressed_proofs_decode ... ok
+test labels_and_variable_names_do_not_change_ids ... ok
+test demo_parses_with_kinds_and_references ... ok
+test another_proof_of_the_same_statement_shares_the_statement ... ok
+test a_changed_statement_changes_its_id_and_its_dependants ... ok
+test repeated_theorems_are_one_record ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/module.rs (target/debug/deps/module-a8fe523813df24ca)
+
+running 3 tests
+test package_root_reads_project_toml ... ok
+test includes_are_followed_in_order ... ok
+test sophia_reproduces_moonkale_module_ids ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/reconstruct.rs (target/debug/deps/reconstruct-134962705647fdad)
+
+running 16 tests
+test lmdb::changed_source_is_detected ... ok
+test lmdb::metamath_rebuilds ... ok
+test redb::changed_source_is_detected ... ok
+test lmdb::reingest_is_a_noop ... ok
+test lmdb::julia_modules_rebuild ... ok
+test sqlite::changed_source_is_detected ... ok
+test redb::metamath_rebuilds ... ok
+test sqlite::metamath_rebuilds ... ok
+test sqlite::reingest_is_a_noop ... ok
+test sqlite::julia_modules_rebuild ... ok
+test redb::reingest_is_a_noop ... ok
+test redb::julia_modules_rebuild ... ok
+test duckdb::metamath_rebuilds ... ok
+test duckdb::changed_source_is_detected ... ok
+test duckdb::reingest_is_a_noop ... ok
+test duckdb::julia_modules_rebuild ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+
+     Running unittests src/sophia_interface.rs (target/debug/deps/sophia_interface-463a08984a2233dd)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/acceptance.rs (target/debug/deps/acceptance-6eb162e3ad85fde4)
+
+running 82 tests
+test duckdb::browsing ... ok
+test duckdb::all_draws_structure ... ok
+test duckdb::creating ... ok
+test duckdb::a_removed_fact_reaches_the_feed_with_its_key ... ok
+test duckdb::a_moved_reference_warns_on_save ... ok
+test duckdb::a_proposal_refuses_names_outside_the_file ... ok
+test duckdb::diagnostics_name_tokens_as_written ... ok
+test duckdb::folder_store_is_read_only_and_prints_files ... ok
+test duckdb::deleting_a_namespace_removes_sub_namespaces ... ok
+test duckdb::foreign_records_print ... ok
+test duckdb::editing ... ok
+test duckdb::a_namespace_exports_as_one_file ... ok
+test duckdb::listing_skips_sub_namespaces ... ok
+test lmdb::a_moved_reference_warns_on_save ... ok
+test lmdb::a_namespace_exports_as_one_file ... ok
+test lmdb::a_proposal_refuses_names_outside_the_file ... ok
+test lmdb::a_removed_fact_reaches_the_feed_with_its_key ... ok
+test lmdb::all_draws_structure ... ok
+test lmdb::an_exported_file_proposes_back ... ok
+test lmdb::browsing ... ok
+test lmdb::creating ... ok
+test lmdb::deleting_a_namespace_removes_sub_namespaces ... ok
+test lmdb::diagnostics_name_tokens_as_written ... ok
+test lmdb::editing ... ok
+test lmdb::folder_store_is_read_only_and_prints_files ... ok
+test lmdb::foreign_records_print ... ok
+test lmdb::generic_and_group_names_route_through_files ... ok
+test lmdb::group_members_cannot_be_overwritten_silently ... ok
+test lmdb::listing_skips_sub_namespaces ... ok
+test lmdb::profiles_switch ... ok
+test lmdb::queries_through_the_interface ... ok
+test lmdb::renaming_and_feed ... ok
+test lmdb::store_truth_folder_routes_laid_out_names_through_files ... ok
+test redb::a_moved_reference_warns_on_save ... ok
+test redb::a_namespace_exports_as_one_file ... ok
+test duckdb::generic_and_group_names_route_through_files ... ok
+test redb::a_proposal_refuses_names_outside_the_file ... ok
+test redb::a_removed_fact_reaches_the_feed_with_its_key ... ok
+test redb::all_draws_structure ... ok
+test redb::browsing ... ok
+test redb::an_exported_file_proposes_back ... ok
+test redb::creating ... ok
+test redb::diagnostics_name_tokens_as_written ... ok
+test redb::deleting_a_namespace_removes_sub_namespaces ... ok
+test duckdb::renaming_and_feed ... ok
+test redb::editing ... ok
+test redb::folder_store_is_read_only_and_prints_files ... ok
+test redb::foreign_records_print ... ok
+test duckdb::profiles_switch ... ok
+test redb::generic_and_group_names_route_through_files ... ok
+test redb::group_members_cannot_be_overwritten_silently ... ok
+test duckdb::queries_through_the_interface ... ok
+test redb::listing_skips_sub_namespaces ... ok
+test redb::profiles_switch ... ok
+test redb::queries_through_the_interface ... ok
+test sql_returns_a_table_and_a_subgraph ... ok
+test redb::renaming_and_feed ... ok
+test sqlite::a_removed_fact_reaches_the_feed_with_its_key ... ok
+test sqlite::a_moved_reference_warns_on_save ... ok
+test sqlite::all_draws_structure ... ok
+test sqlite::a_proposal_refuses_names_outside_the_file ... ok
+test redb::store_truth_folder_routes_laid_out_names_through_files ... ok
+test sqlite::a_namespace_exports_as_one_file ... ok
+test sqlite::browsing ... ok
+test sqlite::creating ... ok
+test sqlite::deleting_a_namespace_removes_sub_namespaces ... ok
+test sqlite::diagnostics_name_tokens_as_written ... ok
+test sqlite::editing ... ok
+test sqlite::folder_store_is_read_only_and_prints_files ... ok
+test sqlite::foreign_records_print ... ok
+test sqlite::generic_and_group_names_route_through_files ... ok
+test sqlite::listing_skips_sub_namespaces ... ok
+test sqlite::profiles_switch ... ok
+test sqlite::group_members_cannot_be_overwritten_silently ... ok
+test the_root_namespace_is_not_deleted ... ok
+test sqlite::queries_through_the_interface ... ok
+test sqlite::renaming_and_feed ... ok
+test sqlite::an_exported_file_proposes_back ... ok
+test sqlite::store_truth_folder_routes_laid_out_names_through_files ... ok
+test duckdb::group_members_cannot_be_overwritten_silently ... ok
+test duckdb::store_truth_folder_routes_laid_out_names_through_files ... ok
+test duckdb::an_exported_file_proposes_back ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.85s
+
+     Running tests/propose_text.rs (target/debug/deps/propose_text-c380f3234611fc81)
+
+running 14 tests
+test derived_store_refuses_proposals ... ok
+test empty_text_reports_every_name_removed ... ok
+test duplicate_name_is_a_parse_error_like_an_edit ... ok
+test name_claimed_outside_the_file_is_refused_like_an_edit ... ok
+test name_from_another_namespace_is_added_locally ... ok
+test laid_out_name_is_refused_like_an_edit ... ok
+test new_relation_reports_provisional_ids ... ok
+test conflict_and_refusal_are_both_reported ... ok
+test nonexistent_namespace_exports_empty_and_proposes ... ok
+test reorder_only_changes_no_name ... ok
+test roundtrip_proposal_changes_nothing_and_writes_nothing ... ok
+test recursive_group_and_its_alias ... ok
+test stale_token_conflicts_but_still_diffs ... ok
+test relations_and_rules_memberships ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/wasm_deep.rs (target/debug/deps/wasm_deep-d5454c2ac29a1e44)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/wasm_fixture.rs (target/debug/deps/wasm_fixture-6dcae31edcafbd62)
+
+running 2 tests
+test write_wasm_fixture ... ignored
+test from_bytes_reads_and_refuses_writes ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/wasm_read.rs (target/debug/deps/wasm_read-e874052e7ceba141)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/sophia_query.rs (target/debug/deps/sophia_query-08dff14b4d6f2db9)
+
+running 1 test
+test eval::tests::anti_join_needs_distinct_free_variables ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/execution.rs (target/debug/deps/execution-8f1868480ef4a907)
+
+running 22 tests
+test compiled_sql_cannot_write ... ok
+test lmdb::limits_stop_runaway_queries ... ok
+test lmdb::queries_are_stored_as_definitions ... ok
+test lmdb::results_are_cached_per_snapshot ... ok
+test redb::limits_stop_runaway_queries ... ok
+test lmdb::magic_sets_read_less ... ok
+test lmdb::plain_and_magic_agree ... ok
+test redb::queries_are_stored_as_definitions ... ok
+test redb::results_are_cached_per_snapshot ... ok
+test redb::magic_sets_read_less ... ok
+test sqlite::limits_stop_runaway_queries ... ok
+test sql_translation_agrees_with_the_native_executor ... ok
+test redb::plain_and_magic_agree ... ok
+test sqlite::queries_are_stored_as_definitions ... ok
+test sqlite::results_are_cached_per_snapshot ... ok
+test sqlite::magic_sets_read_less ... ok
+test duckdb::queries_are_stored_as_definitions ... ok
+test sqlite::plain_and_magic_agree ... ok
+test duckdb::results_are_cached_per_snapshot ... ok
+test duckdb::limits_stop_runaway_queries ... ok
+test duckdb::plain_and_magic_agree ... ok
+test duckdb::magic_sets_read_less ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.46s
+
+     Running tests/identity.rs (target/debug/deps/identity-390d5f0670ec1fef)
+
+running 11 tests
+test datalog_profile_prints ... ok
+test literal_order_is_part_of_the_identity ... ok
+test meaning_changes_the_id ... ok
+test checks_reject_bad_queries ... ok
+test parser_is_bounded ... ok
+test names_and_formatting_do_not_change_the_id ... ok
+test julia_text_round_trips ... ok
+test predicate_order_and_unused_predicates_do_not_change_the_id ... ok
+test queries_and_definitions_share_the_identity_rule ... ok
+test every_construct_round_trips ... ok
+test rule_order_and_duplicate_rules_do_not_change_the_id ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/properties.rs (target/debug/deps/properties-a15b72da2cb339d1)
+
+running 3 tests
+test symmetric_predicates_get_one_id ... ok
+test canonical_form_is_invariant_and_round_trips ... ok
+test magic_sets_preserve_meaning_on_random_programs ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.15s
+
+     Running tests/set_oriented.rs (target/debug/deps/set_oriented-50bab19f948189f9)
+
+running 11 tests
+test lmdb::prefix_range ... ok
+test bytes_count_base_reads_inside_joins ... ok
+test limits_hold_on_the_new_paths ... ok
+test sqlite::prefix_range ... ok
+test redb::prefix_range ... ok
+test sql_agrees ... ok
+test lmdb::tunings_agree ... ok
+test sqlite::tunings_agree ... ok
+test redb::tunings_agree ... ok
+test duckdb::prefix_range ... ok
+test duckdb::tunings_agree ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.34s
+
+     Running unittests src/sophia_store.rs (target/debug/deps/sophia_store-267a162ec94aa325)
+
+running 4 tests
+test logic::tests::nonces_differ ... ok
+test logic::tests::paths ... ok
+test sqlite::prefix_tests::successors ... ok
+test sqlite::prefix_tests::prefix_reads_use_the_index ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-0480c5f334959de1)
+
+running 78 tests
+test duckdb::meta_round_trips ... ok
+test duckdb::names_from_is_a_range_scan ... ok
+test duckdb::failed_writes_roll_back ... ok
+test duckdb::duplicate_names_are_refused ... ok
+test duckdb::incomplete_definitions_store ... ok
+test duckdb::changes_since_pages_through_the_log ... ok
+test duckdb::annotations_attach_to_subjects ... ok
+test duckdb::kinds_follow_from_content ... ok
+test duckdb::methods_change_no_ids_and_stale_facts ... ok
+test duckdb::names_resolve_and_list ... ok
+test duckdb::prefix_reads_agree ... ok
+test lmdb::annotations_attach_to_subjects ... ok
+test lmdb::changes_since_pages_through_the_log ... ok
+test lmdb::duplicate_names_are_refused ... ok
+test lmdb::failed_writes_roll_back ... ok
+test lmdb::incomplete_definitions_store ... ok
+test lmdb::kinds_follow_from_content ... ok
+test lmdb::meta_round_trips ... ok
+test lmdb::methods_change_no_ids_and_stale_facts ... ok
+test lmdb::names_from_is_a_range_scan ... ok
+test lmdb::names_resolve_and_list ... ok
+test lmdb::prefix_reads_agree ... ok
+test lmdb::re_putting_writes_nothing ... ok
+test lmdb::records_round_trip_and_verify ... ok
+test lmdb::recursive_groups_share_a_component ... ok
+test lmdb::rename_keeps_content_and_lineage ... ok
+test lmdb::update_is_optimistic_and_reingest_is_a_noop ... ok
+test duckdb::recursive_groups_share_a_component ... ok
+test lmdb::update_moves_name_extends_lineage_reports_dependants ... ok
+test redb::changes_since_pages_through_the_log ... ok
+test redb::annotations_attach_to_subjects ... ok
+test redb::duplicate_names_are_refused ... ok
+test redb::failed_writes_roll_back ... ok
+test redb::incomplete_definitions_store ... ok
+test redb::meta_round_trips ... ok
+test redb::kinds_follow_from_content ... ok
+test redb::methods_change_no_ids_and_stale_facts ... ok
+test redb::names_from_is_a_range_scan ... ok
+test redb::names_resolve_and_list ... ok
+test redb::prefix_reads_agree ... ok
+test redb::re_putting_writes_nothing ... ok
+test redb::records_round_trip_and_verify ... ok
+test redb::recursive_groups_share_a_component ... ok
+test redb::rename_keeps_content_and_lineage ... ok
+test redb::update_is_optimistic_and_reingest_is_a_noop ... ok
+test duckdb::re_putting_writes_nothing ... ok
+test settings::lmdb ... ok
+test redb::update_moves_name_extends_lineage_reports_dependants ... ok
+test duckdb::rename_keeps_content_and_lineage ... ok
+test settings::sqlite ... ok
+test settings::redb ... ok
+test sqlite::changes_since_pages_through_the_log ... ok
+test sqlite::annotations_attach_to_subjects ... ok
+test sql_queries_are_read_only_and_capped ... ok
+test sqlite::incomplete_definitions_store ... ok
+test sqlite::duplicate_names_are_refused ... ok
+test sqlite::failed_writes_roll_back ... ok
+test sqlite::meta_round_trips ... ok
+test sqlite::kinds_follow_from_content ... ok
+test sqlite::methods_change_no_ids_and_stale_facts ... ok
+test sqlite::names_from_is_a_range_scan ... ok
+test sqlite::names_resolve_and_list ... ok
+test sqlite::re_putting_writes_nothing ... ok
+test sqlite::prefix_reads_agree ... ok
+test sqlite::records_round_trip_and_verify ... ok
+test sqlite::recursive_groups_share_a_component ... ok
+test sqlite::rename_keeps_content_and_lineage ... ok
+test duckdb::update_is_optimistic_and_reingest_is_a_noop ... ok
+test sqlite::update_is_optimistic_and_reingest_is_a_noop ... ok
+test sqlite::update_moves_name_extends_lineage_reports_dependants ... ok
+test worlds::lmdb ... ok
+test worlds::sqlite ... ok
+test duckdb::records_round_trip_and_verify ... ok
+test worlds::redb ... ok
+test settings::duckdb ... ok
+test duckdb::update_moves_name_extends_lineage_reports_dependants ... ok
+test worlds::duckdb ... ok
+test duckdb_queries_are_read_only_capped_and_timed ... ok
+
+test result: ok. 78 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+     Running tests/folder.rs (target/debug/deps/folder-e75b26946e84ec4a)
+
+running 80 tests
+test duckdb::a_new_normaliser_needs_a_rebuild ... ok
+test duckdb::a_file_listing_a_generic_twice_is_one_contributor ... ok
+test duckdb::batches_and_counters_are_checked ... ok
+test duckdb::annotations_move_with_the_truth ... ok
+test duckdb::generic_names_are_laid_out ... ok
+test duckdb::checked_replacement_refuses_stale_tokens ... ok
+test duckdb::give_truth_refuses_names_no_file_has ... ok
+test duckdb::facts_follow_their_files ... ok
+test duckdb::shared_methods_are_counted ... ok
+test duckdb::proposals_name_generic_functions_created_and_removed ... ok
+test duckdb::files_replace_names_generics_and_spans ... ok
+test duckdb::a_proposal_writes_nothing_and_accepting_it_equals_replacing ... ok
+test duckdb::unreached_records_are_refused ... ok
+test lmdb::a_file_listing_a_generic_twice_is_one_contributor ... ok
+test lmdb::a_new_normaliser_needs_a_rebuild ... ok
+test lmdb::a_proposal_writes_nothing_and_accepting_it_equals_replacing ... ok
+test lmdb::annotations_move_with_the_truth ... ok
+test lmdb::batches_and_counters_are_checked ... ok
+test lmdb::checked_replacement_refuses_stale_tokens ... ok
+test lmdb::facts_do_not_keep_records ... ok
+test lmdb::facts_follow_their_files ... ok
+test lmdb::files_replace_names_generics_and_spans ... ok
+test lmdb::files_truth_collects_what_files_no_longer_reach ... ok
+test lmdb::generic_names_are_laid_out ... ok
+test lmdb::give_truth_refuses_names_no_file_has ... ok
+test duckdb::repeated_methods_survive_a_refresh ... ok
+test lmdb::names_changing_kind_keep_memberships_right ... ok
+test lmdb::proposals_name_generic_functions_created_and_removed ... ok
+test lmdb::shared_methods_are_counted ... ok
+test lmdb::repeated_methods_survive_a_refresh ... ok
+test lmdb::store_truth_keeps_history_until_swept ... ok
+test lmdb::text_source_follows_the_name ... ok
+test lmdb::unreached_records_are_refused ... ok
+test lmdb::the_truth_moves_into_the_store_and_back ... ok
+test redb::a_file_listing_a_generic_twice_is_one_contributor ... ok
+test redb::a_new_normaliser_needs_a_rebuild ... ok
+test redb::annotations_move_with_the_truth ... ok
+test redb::a_proposal_writes_nothing_and_accepting_it_equals_replacing ... ok
+test redb::batches_and_counters_are_checked ... ok
+test redb::checked_replacement_refuses_stale_tokens ... ok
+test redb::facts_follow_their_files ... ok
+test redb::facts_do_not_keep_records ... ok
+test redb::files_replace_names_generics_and_spans ... ok
+test redb::generic_names_are_laid_out ... ok
+test redb::give_truth_refuses_names_no_file_has ... ok
+test redb::files_truth_collects_what_files_no_longer_reach ... ok
+test redb::names_changing_kind_keep_memberships_right ... ok
+test redb::proposals_name_generic_functions_created_and_removed ... ok
+test redb::shared_methods_are_counted ... ok
+test redb::repeated_methods_survive_a_refresh ... ok
+test redb::text_source_follows_the_name ... ok
+test redb::store_truth_keeps_history_until_swept ... ok
+test redb::unreached_records_are_refused ... ok
+test sqlite::a_file_listing_a_generic_twice_is_one_contributor ... ok
+test redb::the_truth_moves_into_the_store_and_back ... ok
+test sqlite::a_new_normaliser_needs_a_rebuild ... ok
+test sqlite::annotations_move_with_the_truth ... ok
+test sqlite::batches_and_counters_are_checked ... ok
+test sqlite::checked_replacement_refuses_stale_tokens ... ok
+test sqlite::a_proposal_writes_nothing_and_accepting_it_equals_replacing ... ok
+test sqlite::facts_follow_their_files ... ok
+test duckdb::text_source_follows_the_name ... ok
+test sqlite::files_replace_names_generics_and_spans ... ok
+test sqlite::generic_names_are_laid_out ... ok
+test sqlite::give_truth_refuses_names_no_file_has ... ok
+test sqlite::facts_do_not_keep_records ... ok
+test sqlite::proposals_name_generic_functions_created_and_removed ... ok
+test sqlite::files_truth_collects_what_files_no_longer_reach ... ok
+test sqlite::repeated_methods_survive_a_refresh ... ok
+test sqlite::shared_methods_are_counted ... ok
+test sqlite::text_source_follows_the_name ... ok
+test sqlite::store_truth_keeps_history_until_swept ... ok
+test sqlite::names_changing_kind_keep_memberships_right ... ok
+test sqlite::unreached_records_are_refused ... ok
+test sqlite::the_truth_moves_into_the_store_and_back ... ok
+test duckdb::facts_do_not_keep_records ... ok
+test duckdb::store_truth_keeps_history_until_swept ... ok
+test duckdb::the_truth_moves_into_the_store_and_back ... ok
+test duckdb::names_changing_kind_keep_memberships_right ... ok
+test duckdb::files_truth_collects_what_files_no_longer_reach ... ok
+
+test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.75s
+
+     Running tests/symmetric.rs (target/debug/deps/symmetric-0714107701744499)
+
+running 5 tests
+test lmdb ... ok
+test symmetric_members_are_one_definition_stable_under_permutation_and_renaming ... ok
+test sqlite ... ok
+test redb ... ok
+test duckdb ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running unittests src/sophialang_core.rs (target/debug/deps/sophialang_core-5298a70e705904ec)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/identity.rs (target/debug/deps/identity-d700892cee68a57a)
+
+running 15 tests
+test dangling_drafts_are_rejected ... ok
+test every_id_is_distinct_except_by_design ... ok
+test holes_and_unresolved_names_are_incomplete_and_hashed ... ok
+test called_refs_agrees_with_the_term_walk ... ok
+test mutual_recursion_shares_a_component_and_is_order_independent ... ok
+test a_dependency_change_changes_the_dependant ... ok
+test names_do_not_change_ids ... ok
+test the_declared_type_is_hashed ... ok
+test usage_and_unsafe_marks_are_hashed ... ok
+test normalising_is_deterministic ... ok
+test stored_records_decode_and_rehash_to_the_same_id ... ok
+test decoding_garbage_never_panics ... ok
+test called_refs_runs_in_constant_stack_depth ... ok
+test renaming_binders_never_changes_the_id ... ok
+test encode_decode_round_trips ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running unittests src/sophialang_syntax.rs (target/debug/deps/sophialang_syntax-93eda6085c4e08cc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/deep.rs (target/debug/deps/deep-0fbbb282f0f00847)
+
+running 3 tests
+test probe_print_parse_costs ... ignored
+test print_and_parse_at_depth_100_000 ... ok
+test core_passes_at_depth_100_000 ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 3.63s
+
+     Running tests/round_trip.rs (target/debug/deps/round_trip-99ce972a0c530a20)
+
+running 6 tests
+test relations_print_from_their_signature ... ok
+test errors_and_warnings_have_ranges ... ok
+test the_julia_text_reads_like_julia ... ok
+test the_sample_program_round_trips_in_julia_and_rust ... ok
+test random_definitions_round_trip ... ok
+test debug_like_derive::same_text_in_both_modes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+   Doc-tests sophia_bench
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophia_hash
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophia_ingest
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophia_interface
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophia_query
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophia_store
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophialang_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sophialang_syntax
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

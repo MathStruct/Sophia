@@ -63,7 +63,25 @@ pub(crate) fn local_only(head: &[Term], body: &[Literal], vars: u32) -> Vec<Vec<
         .collect()
 }
 
-fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
+/// The prefix access path (B-014): for body literal `i`, a positive
+/// `name(p, t)` with neither column bound, the term `s` of a
+/// `startswith(p, s)` in the same body whose `s` is bound now. The executor
+/// then reads only the names that start with `s` (a range scan) instead of
+/// every name; the `startswith` literal still runs as a filter.
+pub(crate) fn name_prefix<'b>(body: &'b [Literal], i: usize, bound: &[bool]) -> Option<&'b Term> {
+    let Literal::Pos(Atom { pred: Pred::Base(Base::Name), args }) = &body[i] else { return None };
+    let Term::Var(p) = args[0] else { return None };
+    if bound[p as usize] || is_bound(&args[1], bound) {
+        return None;
+    }
+    body.iter().find_map(|l| match l {
+        Literal::StartsWith(Term::Var(x), s) if *x == p && is_bound(s, bound) => Some(s),
+        _ => None,
+    })
+}
+
+fn score(body: &[Literal], i: usize, bound: &[bool], local: &[u32]) -> Option<u32> {
+    let l = &body[i];
     let nb = |a: &Atom| a.args.iter().filter(|t| is_bound(t, bound)).count() as u32;
     match l {
         Literal::Pos(a) => Some(match a.pred {
@@ -71,7 +89,9 @@ fn score(l: &Literal, bound: &[bool], local: &[u32]) -> Option<u32> {
                 let paths: Vec<usize> = access_columns(b).iter().copied().filter(|&c| is_bound(&a.args[c], bound)).collect();
                 if paths.iter().any(|&c| !wide(b, c)) {
                     60 + nb(a)
-                } else if !paths.is_empty() {
+                } else if !paths.is_empty() || name_prefix(body, i, bound).is_some() {
+                    // A name prefix is a range scan: like a wide lookup, it
+                    // can match a large share of the names.
                     // A wide lookup (all definitions of a kind) binds many
                     // tuples. It comes after local literals, bound or free:
                     // a free local predicate is computed once from the
@@ -129,11 +149,11 @@ pub fn order(head: &[Term], body: &[Literal], bound: &mut [bool], first: Option<
     }
     while out.len() < body.len() {
         let mut best: Option<(u32, usize)> = None;
-        for (i, l) in body.iter().enumerate() {
+        for i in 0..body.len() {
             if done[i] {
                 continue;
             }
-            if let Some(s) = score(l, bound, &local[i]) {
+            if let Some(s) = score(body, i, bound, &local[i]) {
                 if best.is_none_or(|(b, _)| s > b) {
                     best = Some((s, i));
                 }

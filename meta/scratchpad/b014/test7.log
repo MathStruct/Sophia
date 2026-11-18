@@ -1,0 +1,19 @@
+   Compiling sophia-query v0.1.12 (/home/daniel/Code/CategoryTheory/Sophia/crates/sophia-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.33s
+     Running tests/set_oriented.rs (target/debug/deps/set_oriented-c1a383f468a90bf9)
+
+running 11 tests
+test lmdb::prefix_range ... ok
+test bytes_count_base_reads_inside_joins ... ok
+test limits_hold_on_the_new_paths ... ok
+test sqlite::prefix_range ... ok
+test redb::prefix_range ... ok
+test sql_agrees ... ok
+test lmdb::tunings_agree ... ok
+test sqlite::tunings_agree ... ok
+test redb::tunings_agree ... ok
+test duckdb::prefix_range ... ok
+test duckdb::tunings_agree ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.36s
+
