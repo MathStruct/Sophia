@@ -143,7 +143,7 @@ Transformation {
 | §2 world snapshots | implemented in the store; citing worlds in facts comes with M4 |
 | §3 artifact identity | M5 (compilation) |
 | §4 parameter artifacts | specified; needed when Lenticulum's models enter (with M4 execution) |
-| §5 proof trust | specified; fields added to annotations when the first checker exists (M4/M6) |
+| §5 proof trust | first checker recorded (2026-11-19, B-021, E-0): metamath.exe's verdict per Metamath proof as annotations with checker, version, kernel, status and inputs ([[trust]]); certificates and assumptions not recorded; checker policy not visible to queries (B-081, proposal) |
 | §6 migration | specified; the first real migration will be the first normaliser change |
 
 ## Related

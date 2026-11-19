@@ -1,0 +1,54 @@
+binding	Glob.BAD	const	-	immutable
+binding	Glob.CACHE	const	-	mutable
+binding	Glob.DOUBLE	const	-	immutable
+binding	Glob.GREEN	const	-	immutable
+binding	Glob.Inner.WIDTH	const	-	immutable
+binding	Glob.Inner.depth	global	Any	-
+binding	Glob.LIMIT	const	-	immutable
+binding	Glob.RED	const	-	immutable
+binding	Glob.STEP	const	-	immutable
+binding	Glob.TEXT	const	-	mutable
+binding	Glob.TICKS	const	-	mutable
+binding	Glob.UNIT	const	-	immutable
+binding	Glob.badlevel	global	Int64	-
+binding	Glob.counter	global	Any	-
+binding	Glob.fresh	global	Any	-
+binding	Glob.later	global	Any	-
+binding	Glob.level	global	Int64	-
+binding	Glob.mode	global	Any	-
+binding	Glob.mode2	global	Symbol	-
+binding	Glob.scale	global	Any	-
+use	Glob.jl	102	mode2	Glob.mode2	local	global
+use	Glob.jl	104	mode2	Glob.mode2	read	global
+use	Glob.jl	113	TEXT	Glob.TEXT	read	const
+use	Glob.jl	12	scale	Glob.scale	read	global
+use	Glob.jl	16	counter	Glob.counter	read	global
+use	Glob.jl	17	counter	Glob.counter	write	global
+use	Glob.jl	18	counter	Glob.counter	write	global
+use	Glob.jl	25	level	Glob.level	read	global
+use	Glob.jl	26	level	Glob.level	write	global
+use	Glob.jl	27	level	Glob.level	read	global
+use	Glob.jl	32	mode2	Glob.mode2	read	global
+use	Glob.jl	37	mode	Glob.mode	read	global
+use	Glob.jl	41	CACHE	Glob.CACHE	read	const
+use	Glob.jl	43	TICKS	Glob.TICKS	read	const
+use	Glob.jl	47	later	Glob.later	write	global
+use	Glob.jl	48	later	Glob.later	read	global
+use	Glob.jl	51	fresh	Glob.fresh	write	global
+use	Glob.jl	52	fresh	Glob.fresh	read	global
+use	Glob.jl	55	scale	Glob.scale	local	global
+use	Glob.jl	56	scale	Glob.scale	local	global
+use	Glob.jl	59	scale	Glob.scale	read	global
+use	Glob.jl	64	STEP	Glob.STEP	read	const
+use	Glob.jl	72	UNIT	Glob.UNIT	local	const
+use	Glob.jl	8	LIMIT	Glob.LIMIT	read	const
+use	Glob.jl	80	RED	Glob.RED	read	const
+use	Glob.jl	87	depth	Glob.Inner.depth	read	global
+use	Glob.jl	88	WIDTH	Glob.Inner.WIDTH	read	const
+use	Glob.jl	89	depth	Glob.Inner.depth	write	global
+use	Glob.jl	92	LIMIT	Glob.LIMIT	local	const
+use	Glob.jl	93	LIMIT	Glob.LIMIT	local	const
+use	Glob.jl	96	LIMIT	Glob.LIMIT	read	const
+use	Glob.jl	96	LIMIT	Glob.LIMIT	read	const
+use	Glob.jl	98	LIMIT	Glob.LIMIT	read	const
+use	Glob.jl	98	LIMIT	Glob.LIMIT	read	const

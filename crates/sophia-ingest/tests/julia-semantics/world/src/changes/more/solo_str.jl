@@ -1,0 +1,1 @@
+solo(x::String) = "s"

@@ -12,7 +12,7 @@
 | **Method table** | MT(g, w) | the set of g's methods in world w | `Members(g, v)`, versioned (SPEC-006 §1); frozen in a world snapshot (§2) |
 | **Dispatch result** | dispatch(g, argtypes, w) | the most specific applicable method, or an ambiguity or a `MethodError` | **not computed**; would be a derived fact citing w |
 
-Content ids only ever cover the first: a caller's id includes "calls g", never "calls method m of g". Adding a method changes MT, which changes w, which may change dispatch results. It never changes any content id. That is SP-006's answer to the invalidation storm.
+Content ids are meant to cover only the first: a caller's id includes "calls g", never "calls method m of g". (Not yet true in one case: when g has a single definition in the caller's module, the shared normaliser refers to that definition by content. A method added from elsewhere then makes the caller's id false, and one added in the package moves it and every id containing it: [[Julia Conformance]] parts 3 and 4, reported to Moonkale.) Adding a method changes MT, which changes w, which may change dispatch results. It should never change any content id (part 4 shows that it does, through those single-definition references). That is SP-006's answer to the invalidation storm.
 
 ## Why a static tool cannot simply compute dispatch
 
@@ -25,7 +25,7 @@ Content ids only ever cover the first: a caller's id includes "calls g", never "
 
 | Claim | Level | Status |
 |---|---|---|
-| "f calls the generic function g" | L3 | yes (generic uses, `nominal_refs`) |
+| "f calls the generic function g" | L3 | yes (generic uses, `nominal_refs`); on LinearAlgebra 1 758 uses agree with Julia, 5 are spliced loop variables ([[Julia Conformance]] part 3) |
 | "m is a method of g" | L3 | yes, 94.5 % agreement with Julia ([[Julia Conformance]]) |
 | "in world w, g has these methods" | L3 | yes, via world snapshots, for the methods Sophia ingested |
 | "a call g(x::T) in world w reaches m" | L5-adjacent | **no**; would come from Julia itself (below) |

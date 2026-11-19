@@ -1,0 +1,11 @@
+World.jl	13	+	World.+	function	Base.+	call	155	-
+World.jl	14	solo	World.solo	function	World.solo	call	2	World.jl:13
+World.jl	16	+	World.+	function	Base.+	call	155	-
+World.jl	16	call_solo	World.call_solo	function	World.call_solo	call	1	World.jl:14
+World.jl	21	duo	World.duo	function	World.duo	call	2	World.jl:19,World.jl:20
+World.jl	24	sum	World.sum	function	Base.sum	call	10	-
+World.jl	25	maximum	World.maximum	function	Base.maximum	call	9	-
+World.jl	29	h	World.Inner.h	function	World.Inner.h	call	1	World.jl:28
+World.jl	9	convert	Base.convert	function	Base.convert	call	135	-
+World.jl	9	fieldtype	Core.fieldtype	function	Core.fieldtype	call	1	-
+World.jl	9	isa	Core.isa	function	Core.isa	call	1	-

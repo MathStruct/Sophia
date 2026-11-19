@@ -16,7 +16,11 @@
 | # | Experiment | Result |
 |---|---|---|
 | E-0a | Metamath dependency analysis vs metamath.exe | agrees on **every theorem** of set.mm (48 083) and iset.mm (16 483), about 6.7 M dependencies |
+| E-0 | proof trust records (SPEC-006 §5) on set.mm, checked by metamath.exe (2026-11-19, B-021) | 48 035 proofs checked in 3.5 s, 0 failed; annotations 25 % of the proofs' bytes on disk; "rests only on checked proofs" is a query (1.0 s); checker policy not yet expressible (B-081) ([[Benchmark Results]]) |
 | E-1a | Julia generic ownership vs Julia's method table | fixture: all cases; LinearAlgebra: 95.1 % on v7 (53.7 % before the (module, name) fix); found a crate bug, fixed by Moonkale in v7 |
+| E-1 part 3 | what a name in a Julia body refers to vs Julia's lowered code ([[Julia Conformance]]) | LinearAlgebra: 2 853 references agree, 0 name one method of an open function, 5 wrong (spliced `$x` loop variables), 913 unchecked (types in signatures); the fixture shows the open-function case; both reported to Moonkale |
+| E-1 part 4 | world change: a method or an import added after loading, Sophia's facts before and after ([[Julia Conformance]]) | generic uses survive every method addition; a content reference to a function is made stale by a method from another package (and by a qualified head) and moves ids when the package adds one; LinearAlgebra: 215 such functions, a second method moves a median 3 and at most 76 ids; reported to Moonkale |
+| E-1 part 5 | macros: what a module-level macro call makes in Julia (by world age) against Sophia's definitions, and whether the id sees the macro ([[Julia Conformance]]) | LinearAlgebra: 834 forms, 1 753 methods: 501 in definitions Sophia knows, 1 155 in 347 `@eval` templates, 97 left open; **202 definitions wrapped by a macro that changes them have the id they would have without it** (wrong, reported to Moonkale); 3 `@static` definitions not made on Linux |
 | E-AD-0 | cost of producing vs running D(f), six AD systems (Reactant on CPU) | producing costs 10² to 10⁶ runs; 0.1–5 s per function and signature, paid again every Julia session |
 
 | E-AD-1 | first call split; restore a compiled derivative in a fresh process | Reactant: transformation 55 ms, XLA 34 ms, Julia compiling 1.9 s + 12 s start-up; restored executable runs bit-identically in a new process (23 ms restore vs 12.6 s compile). Enzyme via pkgimage: segfault |
@@ -66,6 +70,7 @@
 - **Measures:** methods recovered; cost of expansion; size of the expansions.
 - **Fails if:** expansions are not reproducible from the recorded inputs (hidden state).
 - **Teaches:** derived programs with provenance, on the cheapest possible transformation.
+- **Measured so far (E-1 part 5, 2026-11-18):** of the 1 753 methods LinearAlgebra's module-level macro calls make, 1 155 come from 347 `@eval` templates and 97 from macros whose output Sophia does not see at all (`@deprecate`, `@commutative`, `@enum`, constructors). The 1 059 of the hypothesis was counted differently (part 2); expansion would first have to cover the templates, whose inputs are the loop's values.
 
 ### E-5 Rules vs derived derivatives (ChainRules, ForwardDiff, Zygote)
 

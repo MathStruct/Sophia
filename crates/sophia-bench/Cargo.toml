@@ -40,3 +40,7 @@ path = "src/bin/sophia-bench-mcp.rs"
 [[bin]]
 name = "sophia-mm-check"
 path = "src/bin/sophia-mm-check.rs"
+
+[[bin]]
+name = "sophia-mm-trust"
+path = "src/bin/sophia-mm-trust.rs"

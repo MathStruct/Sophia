@@ -1,0 +1,89 @@
+binding	Mac.jl	22	function	Mac.inl
+binding	Mac.jl	23	function	Mac.noinl
+binding	Mac.jl	26	function	Mac.getit
+binding	Mac.jl	27	function	Mac.gen
+binding	Mac.jl	32	function	Mac.kept
+binding	Mac.jl	35	function	Mac.defarg
+binding	Mac.jl	38	function	Mac.tw
+binding	Mac.jl	38	function	Mac.tw_neg
+binding	Mac.jl	39	function	Mac.old
+binding	Mac.jl	40	type	Mac.Color
+binding	Mac.jl	40	value	Mac.green
+binding	Mac.jl	40	value	Mac.red
+binding	Mac.jl	43	type	Mac.K
+binding	Mac.jl	49	function	Mac.one
+binding	Mac.jl	49	function	Mac.two
+binding	Mac.jl	52	function	Mac.tmpl
+binding	Mac.jl	57	function	Mac.evald
+binding	Mac.jl	60	function	Mac.plat
+binding	Mac.jl	67	function	Mac.documented
+binding	Mac.jl	72	function	Mac.same_a
+binding	Mac.jl	72	function	Mac.same_b
+binding	Mac.jl	77	function	Mac.uni
+binding	Mac.jl	78	function	Mac.uni_after
+binding	Mac.jl	80	function	Mac.paren
+binding	Mac.jl	87	function	Mac.Dm.dm
+binding	Mac.jl	89	function	Mac.after_dm
+binding	Mac.jl	93	function	Mac.Bm.bm
+binding	Mac.jl	96	function	Mac.direct
+form	Mac.jl	22	Mac	Base.@inline	changed
+form	Mac.jl	23	Mac	Base.@noinline	changed
+form	Mac.jl	26	Mac	Base.@propagate_inbounds	changed
+form	Mac.jl	27	Mac	Base.@generated	changed
+form	Mac.jl	32	Mac	Mac.@same	same
+form	Mac.jl	35	Mac	Base.@inline	changed
+form	Mac.jl	38	Mac	Mac.@twice	-
+form	Mac.jl	39	Mac	Base.@deprecate	-
+form	Mac.jl	40	Mac	Base.Enums.@enum	-
+form	Mac.jl	43	Mac	Base.@kwdef	changed
+form	Mac.jl	49	Mac	for	-
+form	Mac.jl	52	Mac	for	-
+form	Mac.jl	57	Mac	Base.@eval	same
+form	Mac.jl	60	Mac	Base.@static	-
+form	Mac.jl	67	Mac	Core.@doc	doc
+form	Mac.jl	72	Mac	Base.@inline	changed
+form	Mac.jl	72	Mac	Base.@noinline	changed
+form	Mac.jl	77	Mac	Mac.@same2	same
+form	Mac.jl	78	Mac	Base.@inline	changed
+form	Mac.jl	80	Mac	Mac.@same	same
+form	Mac.jl	83	Mac	Base.@inline	changed
+form	Mac.jl	87	Mac.Dm	Base.@inline	changed
+form	Mac.jl	89	Mac	Base.@inline	changed
+form	Mac.jl	93	Mac.Bm	Base.@inline	changed
+form	Mac.jl	96	Mac	Base.@eval	-
+method	Mac.jl	22	Mac.inl	Mac.jl:22
+method	Mac.jl	23	Mac.noinl	Mac.jl:23
+method	Mac.jl	26	Mac.getit	Mac.jl:26
+method	Mac.jl	27	Mac.gen	Mac.jl:27
+method	Mac.jl	32	Mac.kept	Mac.jl:32
+method	Mac.jl	35	Mac.defarg	Mac.jl:35
+method	Mac.jl	35	Mac.defarg	Mac.jl:35
+method	Mac.jl	38	Mac.tw	Mac.jl:9
+method	Mac.jl	38	Mac.tw_neg	Mac.jl:10
+method	Mac.jl	39	Mac.old	Mac.jl:39
+method	Mac.jl	40	Base.Enums._enum_hash	Mac.jl:40
+method	Mac.jl	40	Base.Enums.namemap	Mac.jl:40
+method	Mac.jl	40	Base.instances	Mac.jl:40
+method	Mac.jl	40	Base.typemax	Mac.jl:40
+method	Mac.jl	40	Base.typemin	Mac.jl:40
+method	Mac.jl	40	Mac.Color	Mac.jl:40
+method	Mac.jl	43	Mac.K	Mac.jl:43
+method	Mac.jl	43	Mac.K	Mac.jl:44
+method	Mac.jl	43	Mac.K	Mac.jl:44
+method	Mac.jl	49	Mac.one	Mac.jl:50
+method	Mac.jl	49	Mac.two	Mac.jl:50
+method	Mac.jl	52	Mac.tmpl	Mac.jl:53
+method	Mac.jl	52	Mac.tmpl	Mac.jl:53
+method	Mac.jl	57	Mac.evald	Mac.jl:57
+method	Mac.jl	60	Mac.plat	Mac.jl:63
+method	Mac.jl	67	Mac.documented	Mac.jl:68
+method	Mac.jl	72	Mac.same_a	Mac.jl:72
+method	Mac.jl	72	Mac.same_b	Mac.jl:72
+method	Mac.jl	77	Mac.uni	Mac.jl:77
+method	Mac.jl	78	Mac.uni_after	Mac.jl:78
+method	Mac.jl	80	Mac.paren	Mac.jl:80
+method	Mac.jl	83	(::Type)	Mac.jl:83
+method	Mac.jl	87	Mac.Dm.dm	Mac.jl:87
+method	Mac.jl	89	Mac.after_dm	Mac.jl:89
+method	Mac.jl	93	Mac.Bm.bm	Mac.jl:93
+method	Mac.jl	96	Mac.direct	Mac.jl:96

@@ -2,10 +2,66 @@
 
 > Recorded benchmark runs, newest first. Each entry gives the date, the commit, the machine (CPU, RAM, OS, storage), the command, and the table produced by `sophia-bench-report`. A note follows each entry with what the numbers mean for the hypotheses of the [[Benchmark Plan]]: confirmed, refuted, or unclear.
 
-## 2026-11-18: B-065, B-11 through `sophia-mcp`: not measured, to be redone
+## 2026-11-19: B-021, E-0 proof trust records on set.mm
 
-- **No numbers recorded.** The first run of `sophia-bench-mcp` ([[sophia-bench-mcp]]) ran while other sessions held the machine at a load average of about 12 on 8 threads; its results are inconsistent (a store-independent process start took 1.2 to 4.3 ms between backends) and are discarded.
-- **To be redone** (Daniel, 2026-11-18) on an idle machine, when benchmarking is allowed again ([[Backlog]], B-065). The bench prints the load average before and after each backend; record it with the numbers.
+- Machine as below; load average 0.7 before, 1.0 after. Commit: `04cc74d` with the uncommitted B-021 (`sophia_ingest::trust`, [[trust]]).
+- Command ([[sophia-mm-trust]]): `cargo build --release -p sophia-bench --bin sophia-mm-trust`, then `./target/release/sophia-mm-trust --exe $SOPHIA_CORPORA/metamath-exe/metamath $SOPHIA_CORPORA/set.mm/set.mm --db set --runs 5` (metamath.exe 0.200.pre, built from metamath-exe `9898f5d`; set.mm at `7d02250`, 2026-10-19). Raw output: `meta/scratchpad/b021/2026-11-19-set.md`. Whole run 71 s wall clock, 787 MB peak resident.
+
+| measure | value |
+|---|---|
+| assertions / distinct proofs | 51 159 / 48 035 |
+| ingest into SQLite with the source manifest | 44.1 s |
+| `verify proof *` in metamath.exe, reading the file included | 3.54 s |
+| proofs reported failed | 0 |
+| proof records, content bytes | 86.9 MB |
+| check annotations: logical bytes (estimate) / on disk (SQLite file + WAL growth) | 11.4 MB / 21.9 MB (13 % / 25 % of the proofs) |
+| annotating 48 035 proofs, one transaction | 105 ms |
+| query: proofs resting only on checked proofs | 48 035, 1.01 s (median of 5) |
+| query: proofs resting on an unchecked one | 0, 0.44 s |
+| simulated failure of `a1i` | 47 862 proofs tainted, 173 clean |
+
+### What this says
+
+- **E-0 does not fail on either criterion.** The trust records cost a quarter of the proofs they annotate on disk (an eighth logically), not more; "which theorems rest only on checked proofs" is expressible as a query and runs in about a second on the whole of set.mm.
+- **With a limit:** the query trusts any `checked` annotation. Which checker and which version are stored in the annotation but not visible to queries (`annotation(a, kind, subject)` has neither), so a policy such as "only metamath.exe ≥ 0.198" cannot be written yet (proposal B-081, [[trust]]).
+- **One bad proof reaches almost everything:** a failure of `a1i` (an early inference) would taint 99.6 % of set.mm's proofs. Taint is computed upward through the references in one pass, linear in the references.
+- **metamath.exe says "All proofs in the database were verified" even after an error** (checked on a broken one-line proof); only its `?Error … label "X"` lines are a verdict, and `sophia-mm-trust` reads those.
+
+## 2026-11-19: B-065 and B-066, B-11 through `sophia-mcp`
+
+- Machine: AMD Ryzen 7 7800X3D, 8 threads, 30 GiB RAM, Linux 7.3.4-arch1-2. Load average 0.8 to 2.3 during the runs (printed per backend; other sessions idle). The run of 2026-11-18 (load 12) is discarded.
+- Commit: `04cc74d` on `dev-danielb` with the uncommitted B-071 to B-078 (Julia conformance; no change to the query or MCP path). "After B-066": the same plus B-066's change to `run_bounded`.
+- Commands ([[sophia-bench-mcp]]): `cargo build --release -p sophia-mcp --all-features`, then `./target/release/sophia-bench-mcp --size 10000 --runs 5` and `… --size 100000 --runs 5 --backends sqlite,redb,lmdb`; after B-066 the first again. Raw output: `meta/scratchpad/b065/2026-11-19-*.md`.
+
+### Fixed costs, median ms (10⁴; 10⁵ alike except where noted)
+
+| backend | open read-only | worker process alone | empty query through the worker, before → after B-066 | MCP `query`, empty, after | MCP `list` | server start + `initialize` |
+|---|---|---|---|---|---|---|
+| SQLite | 0.34 (10⁵: 0.71) | 1.31 | 2.16 → 1.88 | 1.95 | 0.33 (10⁵: 3.9) | 2.1 |
+| redb | 0.04 | 1.30 | 2.16 → 1.54 | 1.64 | 0.07 | 1.7–1.9 |
+| LMDB | 0.05 | 1.33 | 2.15 → 1.49 | 1.58 | 0.07 | 1.7–1.8 |
+| DuckDB | 5.9 | 1.30 | 10.4 → 9.4 | 8.8 | 0.69 | 7.9–8.6 |
+
+### Workloads, median ms, before B-066 (in-process native → worker → `run_stored` → MCP `run`)
+
+| workload | SQLite 10⁴ | LMDB 10⁴ | SQLite 10⁵ | redb 10⁵ | LMDB 10⁵ |
+|---|---|---|---|---|---|
+| direct dependants | 0.027 → 2.17 → 2.23 → 2.34 | 0.006 → 2.16 → 2.19 → 2.30 | 0.026 → 2.17 → 2.24 → 2.35 | 0.007 → 2.16 → 2.20 → 2.31 | 0.006 → 2.16 → 2.20 → 2.30 |
+| transitive dependencies (274; 10⁵: 1 000 rows, capped) | 1.18 → 4.26 → 8.27 → 9.17 | 1.23 → 4.25 → 5.68 → 6.34 | 7.34 → 10.5 → 23.9 → 25.3 | 6.60 → 20.8 → 26.3 → 28.3 | 5.30 → 12.5 → 16.1 → 17.8 |
+| count by kind | 7.27 → 12.5 → 12.5 → 12.6 | 2.81 → 6.27 → 6.31 → 6.41 | 78.2 → 89.1 → 87.0 → 87.3 | 30.1 → 45.3 → 45.4 → 43.6 | 25.8 → 37.4 → 37.4 → 35.4 |
+| unreferenced definitions | 12.6 → 18.6 → 18.7 → 18.9 | 7.45 → 14.5 → 14.5 → 14.7 | 133 → 151 → 149 → 149 | 98.2 → 139 → 139 → 139 | 81.4 → 112 → 110 → 112 |
+| names by prefix (100) | 0.141 → 2.20 → 2.25 → 2.38 | 0.093 → 2.19 → 2.23 → 2.34 | 0.202 → 2.22 → 2.26 → 2.39 | 0.100 → 2.20 → 2.26 → 2.38 | 0.084 → 2.20 → 2.24 → 2.35 |
+
+After B-066 (10⁴, worker column): SQLite 1.84 / 3.93 / 10.3 / 17.5 / 2.11, LMDB 1.49 / 3.52 / 5.52 / 12.6 / 1.65 for the same five rows. DuckDB (10⁴ only): transitive dependencies 136 ms in process, 152 through the worker, 367 through `run_stored`.
+
+### What this says
+
+- **The worker's floor is the process start.** A worker that answers nothing costs 1.3 ms on every backend; an empty query through it cost 2.16 ms before B-066 because the caller polled `try_wait` every 2 ms: every worker time sat on a step of about 2.08 ms (2.16, 4.25, 6.3, 8.3, … 18.6). After B-066 (wait for end of file on the worker's pipes) the empty query costs 1.49 ms on LMDB and 1.54 ms on redb, about 0.2 ms over the process (opening and re-preparing), 1.88 ms on SQLite (its open is 0.34 ms). B-066's acceptance ("about the process start") holds.
+- **MCP's own protocol costs about 0.1 ms** (MCP `run` against `run_stored`, every backend and size). The agent server is not where the time goes.
+- **The `ids` description is the server's cost:** `run_stored` adds up to 13 ms on 1 000-row answers over the worker (SQLite 10⁵: 10.5 → 23.9 ms; LMDB 12.5 → 16.1 ms), one `Interface::node` read per distinct id. Describing them in one read transaction is proposal B-082.
+- **Whole-relation queries pay a cold process:** the worker runs them 10 to 40 % slower than in-process (LMDB 10⁵ unreferenced definitions 81 → 112 ms; redb 98 → 139 ms): a fresh process has no warm cache. The hard memory bound costs this; an in-process run under the executor's own estimate does not.
+- **DuckDB stays out of the interactive range:** 5.9 ms to open, about 9 ms for an empty query through the worker, 370 ms for a 274-row closure through the server.
+- **MCP `list` on SQLite grows with the store** (0.33 ms at 10⁴, 3.9 ms at 10⁵; redb and LMDB 0.07 ms at both): not investigated.
 
 ## 2026-11-18: B-014, the set-oriented native executor (B-17 re-run)
 

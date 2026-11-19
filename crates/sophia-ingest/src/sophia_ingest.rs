@@ -2,9 +2,11 @@
 //! Metamath first. See `sophia_ingest.md`.
 
 pub mod code;
+pub mod conformance;
 pub mod metamath;
 pub mod module;
 pub mod source;
+pub mod trust;
 
 use std::collections::{BTreeMap, HashMap};
 

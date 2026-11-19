@@ -8,10 +8,10 @@
 
 | Construct | Example | What Sophia stores | Correct? |
 |---|---|---|---|
-| macro call around a definition | `@inline f(x) = …`, `@propagate_inbounds function …` | the definition, hashed as written (the macro name is part of the syntax) | as source, yes; as semantics, approximate: the macro may change the definition |
+| macro call around a definition | `@inline f(x) = …`, `@propagate_inbounds function …` | the definition **without the macro**: the unit is the node inside the macro call, so the macro's name and arguments are in no id (measured 2026-11-18, [[Julia Conformance]] part 5; this row said earlier that the macro name was part of the syntax, which was not checked and is false) | **wrong**: `@inline f`, `@generated f` and plain `f` share one id although Julia compiles different methods; reported to Moonkale (B-075) |
 | macro call producing definitions | `@deprecate f(x) g(x)` | nothing for `f` (since v7 also no spurious unit from a keyword default inside it) | honest: unknown |
-| `@eval` loop | `for f in (:sin, :cos); @eval Base.$f(x::T) = …; end` | the loop is not a unit; a qualified head with `$` belongs to no generic function | honest: unknown |
-| `@generated` function | `@generated function f(x) … end` | the generator as a function | the stored object is the generator, not the methods it produces per type |
+| `@eval` loop | `for f in (:sin, :cos); @eval Base.$f(x::T) = …; end` | the loop is not a unit; the template inside it is (one definition, with `$` in it); a qualified head with `$` belongs to no generic function | approximates: in LinearAlgebra 347 templates stand for 1 155 methods ([[Julia Conformance]] part 5) |
+| `@generated` function | `@generated function f(x) … end` | the generator as a plain function, with the plain function's id | **wrong** (the id, as above); the stored object is the generator, not the methods it produces per type |
 | macro definition | `macro m(ex) … end` | a unit of kind macro | yes |
 | runtime `eval` / `include` with a computed path | `include(joinpath(dir, "x.jl"))` | dynamic include recorded; functions of that module stay open | honest |
 
