@@ -164,3 +164,36 @@ fn moonkale_fixtures_verify_under_every_moonkale_normaliser() {
         assert!(n > 10, "{n} records under {norm}");
     }
 }
+
+/// A refusal names the construct the normal form refuses (B-023, E-2): the
+/// Rust loops, matches and closures WP-66 v8 refuses were reported only as
+/// `UnsupportedSyntax`, which hid why matrixmultiply's gemm loop, packing
+/// and macro-kernel get no id. A Julia `for` loop is not refused.
+#[test]
+fn refusals_name_the_refused_rust_construct() {
+    let cases = [
+        ("fn f(n: usize) -> usize { let mut s = 0; for i in 0..n { s += i; } s }", "for_expression"),
+        ("fn f(x: Option<u8>) -> u8 { match x { Some(v) => v, None => 0 } }", "match_expression"),
+        ("fn f(v: &[u8]) -> usize { v.iter().map(|x| *x as usize).count() }", "closure_expression"),
+        ("fn f(mut x: Option<u8>) { while let Some(_) = x { x = None; } }", "let_condition"),
+    ];
+    for (src, want) in cases {
+        let f = file("rust", src).unwrap();
+        assert!(f.records.is_empty(), "{src}");
+        assert_eq!(f.refused.iter().map(|(_, w)| w.as_str()).collect::<Vec<_>>(), [want], "{src}");
+    }
+    let jl = file("julia", "function f(n)\n  s = 0\n  for i in 1:n\n    s += i\n  end\n  s\nend\n").unwrap();
+    assert!(jl.refused.is_empty() && jl.records.len() == 1);
+}
+
+/// The explanation is the first refused construct in source order (Mistral's
+/// F1 on B-023: the walk popped the last child first), and a `let`-`else`
+/// is named too.
+#[test]
+fn a_refusal_names_the_first_refused_construct() {
+    let f = file("rust", "fn f(x: u8) -> u8 { for _i in 0..2 {} match x { _ => 0 } }").unwrap();
+    assert_eq!(f.refused.iter().map(|(_, w)| w.as_str()).collect::<Vec<_>>(), ["for_expression"]);
+    let f = file("rust", "fn f(x: Option<u8>) -> u8 { let Some(v) = x else { return 0 }; v }").unwrap();
+    assert!(f.records.is_empty());
+    assert_eq!(f.refused.iter().map(|(_, w)| w.as_str()).collect::<Vec<_>>(), ["let_else"]);
+}

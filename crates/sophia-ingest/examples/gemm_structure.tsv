@@ -1,0 +1,36 @@
+# E-2 role labels (the oracle): corpus, file, definition name, role. Made by hand
+# from the sources (2026-11-19), before any predicate was run. Every definition of
+# that name in that file gets the role. Roles follow the BLIS decomposition:
+#   driver       the blocking loops over nc, kc, mc panels that call packing and the macro-kernel
+#   pack         copies a block of A or B into a contiguous buffer
+#   macrokernel  the loops over nr, mr tiles around the micro-kernel
+#   microkernel  computes one mr x nr tile of C from packed panels
+#   naive        an unblocked loop nest computing C (no packing, no tiling)
+# matrixmultiply 0.3.10 (crates.io)
+matrixmultiply	gemm.rs	gemm_loop	driver
+matrixmultiply	gemm.rs	gemm_packed	macrokernel
+matrixmultiply	packing.rs	pack_impl	pack
+matrixmultiply	cgemm_common.rs	pack_complex	pack
+matrixmultiply	sgemm_kernel.rs	kernel_fallback_impl	microkernel
+matrixmultiply	sgemm_kernel.rs	kernel_x86_avx	microkernel
+matrixmultiply	sgemm_kernel.rs	kernel_target_neon	microkernel
+matrixmultiply	dgemm_kernel.rs	kernel_fallback_impl	microkernel
+matrixmultiply	dgemm_kernel.rs	kernel_x86_avx	microkernel
+matrixmultiply	dgemm_kernel.rs	kernel_target_neon	microkernel
+matrixmultiply	cgemm_common.rs	kernel_fallback_impl_complex	microkernel
+# Octavian.jl 83f70f1b (GitHub master, 2025-10-21). Its micro-kernel is generated
+# by LoopVectorization from the @turbo loops of the macro-kernels: none in source.
+Octavian	matmul.jl	matmul_st_pack_A_and_B!	driver
+Octavian	matmul.jl	matmul_st_only_pack_A!	driver
+Octavian	matmul.jl	sync_mul!	driver
+Octavian	macrokernels.jl	loopmul!	macrokernel
+Octavian	macrokernels.jl	ploopmul!	macrokernel
+Octavian	macrokernels.jl	packamul!	macrokernel
+Octavian	macrokernels.jl	packamul!	pack
+Octavian	macrokernels.jl	packaloopmul!	macrokernel
+Octavian	macrokernels.jl	inlineloopmul!	macrokernel
+Octavian	utils.jl	unsafe_copyto_turbo!	pack
+# LinearAlgebra matmul.jl, Julia 1.13.1 stdlib: no blocking or packing at all.
+matmul	matmul.jl	_generic_matmatmul_nonadjtrans!	naive
+matmul	matmul.jl	_generic_matmatmul_generic!	naive
+matmul	matmul.jl	_generic_matmatmul_adjtrans!	naive

@@ -13,7 +13,7 @@
   - `refs` are the targets outside the definition's recursive group.
   
   `Record::verify` does not apply: it knows only Sophia's own hashing rule, and a per-normaliser verifier is part of the language plug-in (SPEC-001 §3).
-- **Refusals:** a definition the normal form refuses is skipped. References to it are dropped from the others, which are then normalised again, and the refusal is explained by the first refused construct inside it.
+- **Refusals:** a definition the normal form refuses is skipped. References to it are dropped from the others, which are then normalised again, and the refusal is explained by the first refused construct inside it. The explanation walks the definition in source order and names the constructs of `REFUSED` (v8's list, Rust's `for_expression`, `match_expression`, `closure_expression`, `let_condition` included since B-023) and a Rust `let … else` (`let_else`); a kind refused in one language but accepted in another (`for_statement`) is not listed, so such a refusal stays `UnsupportedSyntax`. Tests: `refusals_name_the_refused_rust_construct`, `a_refusal_names_the_first_refused_construct` (`tests/code.rs`).
 
 **Checked against Moonkale's golden fixtures:**
 - with Moonkale's spans, all digests are equal in all three languages;

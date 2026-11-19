@@ -1,13 +1,13 @@
 #overview
 
-> Rust in Sophia: identified through Moonkale's WP-66 normal form, resolved only within a file. Planned next: `matrixmultiply`, for a cross-language comparison with Julia's linear algebra (B-16 rung 3). 2026-10-20.
+> Rust in Sophia: identified through Moonkale's WP-66 normal form, resolved only within a file. The cross-language comparison with `matrixmultiply` (E-2, 2026-11-19) found that the normal form refuses every Rust function with a loop: [[Cross-Language Gemm Structure]]. 2026-10-20, updated 2026-11-19.
 >
 > Sources: Moonkale `moonkale-content-id` (Rust normal form); `crates/sophia-ingest/src/code.rs`; `tests/code.rs` (Moonkale's golden fixtures); the Rust Reference (name resolution, traits, macros); [[Real Code Corpora]] §2.
 
 | Level | Status | Evidence |
 |---|---|---|
 | L1 Parsed | yes: tree-sitter-rust via arborium | golden fixtures |
-| L2 Normalised | yes: WP-66, identical ids to Moonkale | `tests/code.rs`: every Rust digest in Moonkale's `references.tsv` |
+| L2 Normalised | **partly**: WP-66, identical ids to Moonkale, but v8 refuses `for`, `match`, closures, `while let` and `let`-`else` outright: in matrixmultiply 0.3.10, 0 of 18 functions with a loop get an id, 210 of 220 without one do (2026-11-19, [[Cross-Language Gemm Structure]]); reported to Moonkale | `tests/code.rs`: every Rust digest in Moonkale's `references.tsv`; `refusals_name_the_refused_rust_construct` |
 | L3 Resolved | **same-file names only**, by spelling | struct expressions are uses since v3 |
 | L4–L6 | no | — |
 

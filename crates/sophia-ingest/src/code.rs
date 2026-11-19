@@ -212,10 +212,18 @@ pub fn identify(
     Ok((parts, identities(&units, budget)?))
 }
 
-/// Node kinds the WP-66 v4 normal form still refuses inside a definition
-/// (some only in some languages), from Moonkale's `normalize.rs`. Used only
-/// to explain refusals; the normaliser's own error is authoritative.
-const REFUSED: [&str; 15] = [
+/// Node kinds the WP-66 normal form still refuses inside a definition
+/// (some only in some languages), from Moonkale's `normalize.rs` (v8). Used
+/// only to explain refusals; the normaliser's own error is authoritative.
+/// Kinds it refuses in one language but accepts in another (`for_statement`:
+/// refused in Python, a scope in Julia) are left out, since this list does
+/// not know the language; the Rust kinds below exist only in Rust's grammar
+/// (`while let` is a `let_condition`; `let … else` is checked in `reason`).
+const REFUSED: [&str; 19] = [
+    "for_expression",
+    "match_expression",
+    "closure_expression",
+    "let_condition",
     "named_argument",
     "global_statement",
     "macro_definition",
@@ -233,19 +241,25 @@ const REFUSED: [&str; 15] = [
     "with_statement",
 ];
 
-/// Why a definition was refused: the first refused construct inside it, or
-/// the error.
+/// Why a definition was refused: the first refused construct inside it (in
+/// source order), or the error.
 pub(crate) fn reason(node: Syntax, err: &moonkale_content_id::ContentIdError) -> String {
     let mut stack = vec![node];
     while let Some(n) = stack.pop() {
         if n.id() != node.id() && REFUSED.contains(&n.kind()) {
             return n.kind().to_string();
         }
+        // Rust `let … else`: a `let_declaration` with an `alternative`.
+        if n.kind() == "let_declaration" && n.child_by_field_name("alternative").is_some() {
+            return "let_else".into();
+        }
         if n.is_error() || n.is_missing() {
             return "syntax error".into();
         }
         let mut c = n.walk();
-        stack.extend(n.children(&mut c));
+        // Reversed, so the walk is in source order: the first refused construct.
+        let children: Vec<_> = n.children(&mut c).collect();
+        stack.extend(children.into_iter().rev());
     }
     format!("{err:?}")
 }
