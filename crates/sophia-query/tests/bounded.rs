@@ -158,3 +158,51 @@ fn review_findings() {
     let out = run_bounded(&Bound::new(WORKER, 4 * MIB), &store, &prefix, &big, unlimited(), Strategy::Auto);
     assert!(matches!(out, Err(Error::MemoryBound { .. })), "{out:?}");
 }
+
+/// The wall-clock deadline (B-066): a worker that hangs is killed once
+/// `deadline + grace` has passed, whether it keeps its pipes open (the caller
+/// waits for their end of file) or closes them first and then hangs (the
+/// caller waits for its exit). Both stand-ins are shell scripts that ignore
+/// the request.
+#[test]
+fn hanging_worker_is_killed_at_the_deadline() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let store = StoreFile::Sqlite(dir.path().join("unused.sqlite"));
+    let light = prepare_text(LIGHT).unwrap();
+    let limits = Limits { deadline: Some(Duration::from_millis(100)), ..unlimited() };
+    for (name, script) in [("open", "#!/bin/sh\nexec sleep 30\n"), ("closed", "#!/bin/sh\nexec 0<&- 1>&- 2>&-\nexec sleep 30\n")] {
+        let worker = dir.path().join(name);
+        std::fs::write(&worker, script).unwrap();
+        std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let bound = Bound { grace: Duration::from_millis(100), ..Bound::new(&worker, BOUND) };
+        let start = std::time::Instant::now();
+        let out = run_bounded(&bound, &store, &light, &[], limits, Strategy::Auto);
+        let took = start.elapsed();
+        assert!(matches!(out, Err(Error::Limit(ref m)) if m.contains("killed")), "{name}: {out:?}");
+        assert!(took >= Duration::from_millis(200) && took < Duration::from_secs(10), "{name}: {took:?}");
+    }
+}
+
+/// Found by Mistral's review of B-066 (2026-11-19): a worker that forks a
+/// child inheriting its pipes and then hangs. Killing the worker leaves the
+/// child holding the pipes, so they never reach end of file; the caller must
+/// still return `Limit` at the deadline instead of waiting on its readers.
+#[test]
+fn a_grandchild_holding_the_pipes_does_not_hold_the_caller() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let store = StoreFile::Sqlite(dir.path().join("unused.sqlite"));
+    let worker = dir.path().join("forker");
+    std::fs::write(&worker, "#!/bin/sh\nsleep 30 &\nexec sleep 30\n").unwrap();
+    std::fs::set_permissions(&worker, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let bound = Bound { grace: Duration::from_millis(100), ..Bound::new(&worker, BOUND) };
+    let limits = Limits { deadline: Some(Duration::from_millis(100)), ..unlimited() };
+    let light = prepare_text(LIGHT).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(run_bounded(&bound, &store, &light, &[], limits, Strategy::Auto));
+    });
+    let out = rx.recv_timeout(Duration::from_secs(10)).expect("run_bounded still waiting 10 s after deadline + grace (200 ms)");
+    assert!(matches!(out, Err(Error::Limit(ref m)) if m.contains("killed")), "{out:?}");
+}

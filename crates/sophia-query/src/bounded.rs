@@ -7,6 +7,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use sophia_hash::canonical::{Reader, Writer};
@@ -88,44 +89,76 @@ pub fn run_bounded(bound: &Bound, store: &StoreFile, p: &Prepared, params: &[Val
         .spawn()
         .map_err(|e| Error::Worker(format!("cannot start {}: {e}", bound.worker.display())))?;
     let mut stdin = child.stdin.take().expect("piped");
-    let mut stdout = child.stdout.take().expect("piped");
-    let mut stderr = child.stderr.take().expect("piped");
+    let stdout = child.stdout.take().expect("piped");
+    let stderr = child.stderr.take().expect("piped");
     // The request goes in on its own thread: a worker that dies early must
     // not leave the caller blocked on a full pipe.
     let writer = std::thread::spawn(move || {
         let _ = stdin.write_all(&request);
     });
-    let out = std::thread::spawn(move || {
-        let mut v = Vec::new();
-        let _ = stdout.read_to_end(&mut v);
-        v
-    });
-    let err = std::thread::spawn(move || {
-        let mut v = Vec::new();
-        let _ = stderr.read_to_end(&mut v);
-        v
-    });
+    // Each reader reports when its pipe reaches end of file: the worker
+    // closes both when it exits, so the caller wakes as soon as the answer
+    // is complete instead of on a polling tick (B-066).
+    let (closed_tx, closed_rx) = mpsc::channel::<()>();
+    let reader = |mut pipe: Box<dyn Read + Send>, tx: mpsc::Sender<()>| {
+        std::thread::spawn(move || {
+            let mut v = Vec::new();
+            let _ = pipe.read_to_end(&mut v);
+            let _ = tx.send(());
+            v
+        })
+    };
+    let out = reader(Box::new(stdout), closed_tx.clone());
+    let err = reader(Box::new(stderr), closed_tx);
     // `None` (no deadline, or one too far to represent) waits for the worker.
     let wait_until = limits.deadline.and_then(|d| Instant::now().checked_add(d)?.checked_add(bound.grace));
+    let past_deadline = || wait_until.is_some_and(|t| Instant::now() >= t);
     let mut killed = false;
+    let mut open = 2;
+    while open > 0 {
+        let r = match wait_until {
+            None => closed_rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
+            Some(t) => closed_rx.recv_timeout(t.saturating_duration_since(Instant::now())),
+        };
+        match r {
+            Ok(()) => open -= 1,
+            Err(RecvTimeoutError::Timeout) => {
+                killed = true;
+                break;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    // Both pipes are closed: the worker has exited or is exiting. A worker
+    // that closed them and still runs is waited for up to the deadline; the
+    // pause grows from 20 µs, since an exiting worker is reaped within a few.
+    let mut pause = Duration::from_micros(20);
     let status = loop {
+        if killed {
+            let _ = child.kill();
+            break child.wait().map_err(|e| Error::Worker(e.to_string()))?;
+        }
         if let Some(s) = child.try_wait().map_err(|e| Error::Worker(e.to_string()))? {
             break s;
         }
-        if wait_until.is_some_and(|t| Instant::now() > t) {
-            let _ = child.kill();
+        if past_deadline() {
             killed = true;
-            break child.wait().map_err(|e| Error::Worker(e.to_string()))?;
+            continue;
         }
-        std::thread::sleep(Duration::from_millis(2));
+        std::thread::sleep(pause);
+        pause = (pause * 2).min(Duration::from_millis(2));
     };
-    let _ = writer.join();
-    let out = out.join().unwrap_or_default();
-    let err = err.join().unwrap_or_default();
-    let err = String::from_utf8_lossy(&err[err.len().saturating_sub(STDERR_TAIL)..]).into_owned();
+    // The writer is never joined, and after a kill neither are the readers:
+    // a process the worker forked can hold the pipes open past its death
+    // (Mistral's review of B-066), and joining would wait for it. Such a
+    // thread ends when the last holder of its pipe exits.
+    drop(writer);
     if killed {
         return Err(Error::Limit("wall-clock deadline: the worker was killed".into()));
     }
+    let out = out.join().unwrap_or_default();
+    let err = err.join().unwrap_or_default();
+    let err = String::from_utf8_lossy(&err[err.len().saturating_sub(STDERR_TAIL)..]).into_owned();
     if status.success() {
         return decode_response(&out, bound.max_memory);
     }

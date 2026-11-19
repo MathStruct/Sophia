@@ -18,4 +18,4 @@ cargo run --release -p sophia-bench --bin sophia-bench-mcp -- --size 100000 --ru
 
 ## Results
 
-None yet. The run of 2026-11-18 was spoiled by load from other sessions and discarded; **it is to be redone** on an idle machine (B-065, [[Benchmark Results]]).
+2026-11-19 (B-065, and again after B-066): [[Benchmark Results]]. The run of 2026-11-18 was spoiled by load from other sessions and discarded.
