@@ -2234,3 +2234,311 @@ pub fn parse_ledger(dir: &Path, truth: &str) -> Result<ParseLedger, ModuleError>
     ledger.rows.sort_by(|a, b| (&a.file, a.name_byte, &a.name).cmp(&(&b.file, b.name_byte, &b.name)));
     Ok(ledger)
 }
+
+// ---------------------------------------------------------------------------
+// Part 9: include order.
+
+/// What Sophia's include discovery (`module::discover`) says about one
+/// file, against the files Julia evaluates when it loads the package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IncludeOutcome {
+    /// Julia evaluates the file once, into the module Sophia puts it in.
+    Knows,
+    /// Julia evaluates the file into the modules Sophia reads it into, but
+    /// more often: Sophia reads it once per module. Each evaluation defines
+    /// the same methods again, so the methods Julia keeps are the ones
+    /// Sophia reads.
+    ApproxRepeated,
+    /// As `Knows`, but Sophia's path is not in normal form
+    /// (`sub/../norm.jl`), while Julia's is (`normpath`).
+    ApproxPath,
+    /// Julia evaluates the file, Sophia did not discover it, and Sophia
+    /// recorded a dynamic include in a module Julia evaluates it into:
+    /// Sophia states that module may have definitions it cannot see.
+    OpenDynamic,
+    /// Sophia discovered the file, but the modules Julia evaluates it into
+    /// are not the ones Sophia reads it into.
+    WrongModule,
+    /// Julia evaluates the file, and Sophia neither discovered it nor
+    /// recorded a dynamic include in its module: Sophia states that module
+    /// complete without it (`M.include("x.jl")`, `Base.include(M, …)`).
+    WrongMissed,
+    /// Sophia discovered the file and reads its definitions as the
+    /// package's; Julia does not evaluate it when it loads the package (a
+    /// branch removed by `@static`, a function nobody calls, quoted code).
+    WrongExtra,
+}
+
+/// One file: Julia's evaluations of it and Sophia's reading.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncludeRow {
+    /// Relative to `src/`, in normal form; `outside:<path>` when not under it.
+    pub file: String,
+    /// The modules Julia evaluates it into, in order (`""` for the root
+    /// file, which Julia evaluates in `Main`).
+    pub julia: Vec<String>,
+    /// The modules Sophia reads it into, in discovery order (empty when
+    /// not discovered).
+    pub sophia: Vec<String>,
+    pub outcome: IncludeOutcome,
+}
+
+/// Where Sophia places one of Julia's methods.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlaceOutcome {
+    /// A Sophia definition covers the method's line, in Julia's module.
+    Knows,
+    /// The method's file is undiscovered and its module has a dynamic include.
+    OpenDynamic,
+    /// A Sophia definition covers the method's line in another module.
+    WrongModule,
+    /// The method's file is undiscovered, and Sophia states the module
+    /// complete without it.
+    WrongMissed,
+}
+
+/// One method of Julia's: where it was defined, and where Sophia puts it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceRow {
+    pub file: String,
+    pub line: usize,
+    pub module: String,
+    pub name: String,
+    pub outcome: PlaceOutcome,
+    pub detail: String,
+}
+
+#[derive(Debug, Default)]
+pub struct IncludeLedger {
+    pub files: Vec<IncludeRow>,
+    pub methods: Vec<PlaceRow>,
+    /// Files both evaluate in a different relative order: Julia's order of
+    /// first evaluation against Sophia's discovery order, the files outside
+    /// a longest common subsequence of the two.
+    pub moved: Vec<String>,
+    /// Julia's methods in discovered files at lines no Sophia definition
+    /// covers (macro output, default constructors: parts 2 and 5).
+    pub methods_outside: usize,
+    /// Sophia's definitions in files Julia does not evaluate.
+    pub extra_definitions: usize,
+    pub malformed: usize,
+}
+
+impl IncludeLedger {
+    pub fn file_tally(&self) -> BTreeMap<IncludeOutcome, usize> {
+        let mut t = BTreeMap::new();
+        for r in &self.files {
+            *t.entry(r.outcome).or_default() += 1;
+        }
+        t
+    }
+    pub fn method_tally(&self) -> BTreeMap<PlaceOutcome, usize> {
+        let mut t = BTreeMap::new();
+        for r in &self.methods {
+            *t.entry(r.outcome).or_default() += 1;
+        }
+        t
+    }
+}
+
+/// `path` with `.` and `..` resolved lexically, as Julia's `normpath`.
+fn lexical_normal(path: &Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for c in path.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !out.pop() {
+                    out.push("..");
+                }
+            }
+            c => out.push(c.as_os_str()),
+        }
+    }
+    out
+}
+
+/// A file's key in the ledger: relative to `srcdir` in normal form, or
+/// `outside:<absolute path>`.
+fn include_key(srcdir: &Path, path: &Path) -> String {
+    let normal = lexical_normal(path);
+    match normal.strip_prefix(srcdir) {
+        Ok(rel) => rel.to_string_lossy().into_owned(),
+        Err(_) => format!("outside:{}", normal.display()),
+    }
+}
+
+/// As `include_key`, through the file's canonical path when it exists, so
+/// that one file reached by two spellings (a symbolic link) is one key.
+fn canonical_key(srcdir: &Path, path: &Path) -> String {
+    match path.canonicalize() {
+        Ok(c) => include_key(srcdir, &c),
+        Err(_) => include_key(srcdir, path),
+    }
+}
+
+/// A file as `includes.jl` prints it, as a ledger key.
+fn julia_key(srcdir: &Path, file: &str) -> String {
+    match file.strip_prefix("outside:") {
+        Some(abs) => canonical_key(srcdir, Path::new(abs)),
+        None => canonical_key(srcdir, &srcdir.join(file)),
+    }
+}
+
+/// The items of `a` outside one longest common subsequence of `a` and `b`.
+fn outside_lcs(a: &[String], b: &[String]) -> Vec<String> {
+    let (n, m) = (a.len(), b.len());
+    let mut t = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            t[i][j] = if a[i] == b[j] { t[i + 1][j + 1] + 1 } else { t[i + 1][j].max(t[i][j + 1]) };
+        }
+    }
+    let (mut i, mut j, mut out) = (0, 0, Vec::new());
+    while i < n && j < m {
+        if a[i] == b[j] {
+            i += 1;
+            j += 1;
+        } else if t[i + 1][j] >= t[i][j + 1] {
+            out.push(a[i].clone());
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    out.extend(a[i..].iter().cloned());
+    out
+}
+
+/// Part 9 (include order): the package at `dir` against the output of
+/// `includes.jl` for it.
+pub fn include_ledger(dir: &Path, truth: &str) -> Result<IncludeLedger, ModuleError> {
+    use std::collections::BTreeSet;
+    let dir = dir.canonicalize().map_err(|e| ModuleError::Io(e.to_string()))?;
+    let (_, root) = module::package_root(&dir).ok_or_else(|| ModuleError::Io("no Project.toml and src/<name>.jl".into()))?;
+    let srcdir = dir.join("src");
+    let d = module::discover(&root)?;
+    let ingested = module::ingest(&d)?;
+    let mut ledger = IncludeLedger::default();
+
+    // Julia's side.
+    let mut events: Vec<(usize, String, String)> = Vec::new();
+    let mut methods: Vec<(String, usize, String, String)> = Vec::new();
+    for line in truth.lines().filter(|l| !l.is_empty()) {
+        let c: Vec<&str> = line.split('\t').collect();
+        match c.as_slice() {
+            ["include", seq, m, file] if !file.is_empty() && !m.is_empty() => match seq.parse() {
+                Ok(seq) => events.push((seq, if *m == "-" { String::new() } else { m.to_string() }, julia_key(&srcdir, file))),
+                Err(_) => ledger.malformed += 1,
+            },
+            ["method", file, line, m, name] if !file.is_empty() && !m.is_empty() && !name.is_empty() => match line.parse() {
+                Ok(l) => {
+                    methods.push((julia_key(&srcdir, file), l, if *m == "-" { String::new() } else { m.to_string() }, name.to_string()))
+                }
+                Err(_) => ledger.malformed += 1,
+            },
+            _ => ledger.malformed += 1,
+        }
+    }
+    events.sort();
+    if events.windows(2).any(|w| w[0].0 == w[1].0) {
+        ledger.malformed += 1;
+        events.dedup_by(|b, a| a.0 == b.0);
+    }
+
+    // Sophia's side: each discovered file's key, raw path and module.
+    let sophia: Vec<(String, bool, String)> = d
+        .files
+        .iter()
+        .map(|f| {
+            let p = Path::new(&f.path);
+            (canonical_key(&srcdir, p), lexical_normal(p) != p, f.base_module.join("."))
+        })
+        .collect();
+    let dynamic: BTreeSet<String> = d.dynamic.iter().map(|(_, m)| m.join(".")).collect();
+
+    let mut keys: BTreeSet<String> = sophia.iter().map(|s| s.0.clone()).collect();
+    keys.extend(events.iter().map(|e| e.2.clone()));
+    let mut row_of: HashMap<String, IncludeOutcome> = HashMap::new();
+    for key in keys {
+        let julia: Vec<String> = events.iter().filter(|e| e.2 == key).map(|e| e.1.clone()).collect();
+        let mine: Vec<&(String, bool, String)> = sophia.iter().filter(|s| s.0 == key).collect();
+        let modules: Vec<String> = mine.iter().map(|s| s.2.clone()).collect();
+        let (theirs, ours): (BTreeSet<&String>, BTreeSet<&String>) = (julia.iter().collect(), modules.iter().collect());
+        let outcome = if mine.is_empty() {
+            if julia.iter().all(|m| dynamic.contains(m)) { IncludeOutcome::OpenDynamic } else { IncludeOutcome::WrongMissed }
+        } else if julia.is_empty() {
+            IncludeOutcome::WrongExtra
+        } else if theirs != ours {
+            IncludeOutcome::WrongModule
+        } else if julia.len() > modules.len() {
+            IncludeOutcome::ApproxRepeated
+        } else if mine.iter().any(|s| s.1) {
+            IncludeOutcome::ApproxPath
+        } else {
+            IncludeOutcome::Knows
+        };
+        row_of.insert(key.clone(), outcome);
+        ledger.files.push(IncludeRow { file: key, julia, sophia: modules, outcome });
+    }
+
+    // Order: files both read, by first evaluation and by discovery.
+    let both: BTreeSet<&String> = sophia.iter().map(|s| &s.0).filter(|k| events.iter().any(|e| &e.2 == *k)).collect();
+    let mut julia_order: Vec<String> = Vec::new();
+    for e in &events {
+        if both.contains(&e.2) && !julia_order.contains(&e.2) {
+            julia_order.push(e.2.clone());
+        }
+    }
+    let mut sophia_order: Vec<String> = Vec::new();
+    for s in &sophia {
+        if both.contains(&s.0) && !sophia_order.contains(&s.0) {
+            sophia_order.push(s.0.clone());
+        }
+    }
+    ledger.moved = outside_lcs(&julia_order, &sophia_order);
+
+    // Sophia's definitions (identified or refused), by file: lines and module.
+    let line_of = |f: usize, byte: usize| d.files[f].text[..byte].matches('\n').count() + 1;
+    let mut defs: HashMap<String, Vec<(usize, usize, usize, String)>> = HashMap::new();
+    for x in &ingested.module.definitions {
+        let f = x.key.0 as usize;
+        let (first, last) = (line_of(f, x.key.1), line_of(f, x.key.2));
+        defs.entry(sophia[f].0.clone()).or_default().push((first, last, x.key.2 - x.key.1, x.module.join(".")));
+    }
+    ledger.extra_definitions =
+        ledger.files.iter().filter(|r| r.outcome == IncludeOutcome::WrongExtra).map(|r| defs.get(&r.file).map_or(0, Vec::len)).sum();
+
+    for (file, line, m, name) in methods {
+        // An undiscovered file's method is open when its own module has a
+        // dynamic include, whatever other modules evaluate the file.
+        let (outcome, detail) = match row_of.get(&file) {
+            None | Some(IncludeOutcome::WrongMissed | IncludeOutcome::OpenDynamic) if dynamic.contains(&m) => {
+                (PlaceOutcome::OpenDynamic, "file not discovered; dynamic include".to_string())
+            }
+            None | Some(IncludeOutcome::WrongMissed | IncludeOutcome::OpenDynamic) => {
+                (PlaceOutcome::WrongMissed, "file not discovered".to_string())
+            }
+            Some(_) => {
+                // The innermost definitions around the line: one per
+                // module the file is read into.
+                let around: Vec<&(usize, usize, usize, String)> =
+                    defs.get(&file).map_or(Vec::new(), |v| v.iter().filter(|x| x.0 <= line && line <= x.1).collect());
+                let Some(inner) = around.iter().map(|x| x.2).min() else {
+                    ledger.methods_outside += 1;
+                    continue;
+                };
+                let modules: Vec<&str> = around.iter().filter(|x| x.2 == inner).map(|x| x.3.as_str()).collect();
+                if modules.contains(&m.as_str()) {
+                    (PlaceOutcome::Knows, m.clone())
+                } else {
+                    (PlaceOutcome::WrongModule, format!("Sophia: {}", modules.join(", ")))
+                }
+            }
+        };
+        ledger.methods.push(PlaceRow { file, line, module: m, name, outcome, detail });
+    }
+    ledger.methods.sort_by(|a, b| (&a.file, a.line, &a.module, &a.name).cmp(&(&b.file, b.line, &b.module, &b.name)));
+    Ok(ledger)
+}

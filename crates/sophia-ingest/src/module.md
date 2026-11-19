@@ -5,7 +5,7 @@
 > Sources: [[SPEC-008 Module-Level Julia Resolution]]; Moonkale `packages/services/content-id/src/julia.rs` (`dacef2e6`, v7: nothing inside a call is a unit). code: `module.rs`, `tests/module.rs` (against `golden-moonkale/module.tsv`), `examples/generic_calls.rs`
 
 - `package_root(dir)`: `src/<name>.jl` from `Project.toml` (the caller's job, SPEC-008 §4).
-- `discover(root)`: reads the files in include order with the crate's `includes`; literal includes only, others recorded as dynamic; bounded by the crate's constants.
+- `discover(root)`: reads the files in include order with the crate's `includes`; literal includes only, others recorded as dynamic; bounded by the crate's constants. A file is read once per module it is included into (2026-11-19, [[Julia Conformance]] part 9: before, a file included into two modules was read once, into the first). An include of a missing file fails the whole discovery, even in a branch Julia never evaluates (part 9, left open).
 - `ingest`:
   - calls `julia::module`, which resolves and identifies the whole module under one module budget;
   - rebuilds each identified definition's canonical parts from the crate's references, for the record bytes (the same input gives the same encoding);

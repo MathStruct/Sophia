@@ -68,20 +68,23 @@ pub struct Discovered {
 }
 
 /// Reads a module from its root file, following literal includes in order
-/// (depth first, as Julia evaluates them).
+/// (depth first, as Julia evaluates them). A file is read once per module
+/// it is included into: Julia evaluates `include("x.jl")` in each module
+/// that calls it, and a second include into the same module defines the
+/// same methods again ([[Julia Conformance]] part 9).
 pub fn discover(root: &Path) -> Result<Discovered, ModuleError> {
     let mut d = Discovered::default();
     let mut bytes = 0usize;
-    let mut seen: HashSet<PathBuf> = HashSet::new();
+    let mut seen: HashSet<(PathBuf, Vec<String>)> = HashSet::new();
     fn visit(
         path: &Path,
         base: Vec<String>,
         d: &mut Discovered,
         bytes: &mut usize,
-        seen: &mut HashSet<PathBuf>,
+        seen: &mut HashSet<(PathBuf, Vec<String>)>,
     ) -> Result<(), ModuleError> {
         let canon = path.canonicalize().map_err(|e| ModuleError::Io(format!("{}: {e}", path.display())))?;
-        if !seen.insert(canon) {
+        if !seen.insert((canon, base.clone())) {
             return Ok(());
         }
         if d.files.len() >= MAX_MODULE_FILES {

@@ -1,0 +1,38 @@
+include	0	-	Inc.jl
+include	1	Inc	a.jl
+include	10	Inc	norm.jl
+include	11	Inc	qualified.jl
+include	12	Inc	baseinc.jl
+include	13	Inc.Dyn	dyn/joined.jl
+include	14	Inc.Dyn	dyn/looped.jl
+include	15	Inc.Dyn	dyn/mapped.jl
+include	16	Inc	late.jl
+include	2	Inc	sub/b.jl
+include	3	Inc	sub/c.jl
+include	4	Inc.Deep	sub/deep.jl
+include	5	Inc.Inner	inner.jl
+include	6	Inc	twice.jl
+include	7	Inc.Other	twice.jl
+include	8	Inc	again.jl
+include	9	Inc	again.jl
+method	Inc.jl	39	Inc	shared
+method	Inc.jl	40	Inc	use_shared
+method	Inc.jl	5	Inc	root_first
+method	Inc.jl	56	Inc	never_called
+method	Inc.jl	61	Inc	root_last
+method	Inc.jl	9	Inc	load_late
+method	a.jl	1	Inc	a_f
+method	again.jl	1	Inc	again_f
+method	baseinc.jl	1	Inc	baseinc_f
+method	dyn/joined.jl	1	Inc.Dyn	joined_f
+method	dyn/looped.jl	1	Inc.Dyn	looped_f
+method	dyn/mapped.jl	1	Inc.Dyn	mapped_f
+method	inner.jl	1	Inc.Inner	inner_f
+method	late.jl	1	Inc	late_f
+method	norm.jl	1	Inc	norm_f
+method	qualified.jl	1	Inc	shared
+method	sub/b.jl	1	Inc	b_f
+method	sub/c.jl	1	Inc	c_f
+method	sub/deep.jl	1	Inc.Deep	deep_f
+method	twice.jl	1	Inc	tw
+method	twice.jl	1	Inc.Other	tw
