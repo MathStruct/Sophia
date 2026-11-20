@@ -37,6 +37,7 @@ Answering the third question "no" never changes the first two: a dropped object 
 | [[AD as a Materialization Case]] | automatic differentiation: source, transformation, derived program, compiled artifact; when each deserves to be kept |
 | [[Storage Measurements]] | what to measure, and the experiments that decide the open questions |
 | [[Lean Layout Measurements]] | M-1 and M-2 measured: how small the store gets, what rebuilding costs, and a layout proposal for Daniel |
+| [[Fact Cache Experiment]] | B-035 part 1: fact cache hits along histories and in fresh worktrees, size, lookup cost; part 2 (expensive facts) open |
 
 ## The headline finding (2026-10-20)
 

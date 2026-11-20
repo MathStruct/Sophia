@@ -59,6 +59,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `examples/lean_export_stats.rs` | [[lean_export_stats]] | measures a lean4export file (statements, programs, proofs) |
 | | `examples/lean_statements.rs` | [[lean_statements]] | E-10: repeated Lean statements by level of equality and cause; statement vs proof dependencies; axioms behind theorems |
 | | `examples/lean_layout.rs` | [[lean_layout]] | M-1, M-2: lean copies of a SQLite store, verified by rebuilding from their sources; rebuild costs per file and definition |
+| | `examples/fact_cache.rs` | [[fact_cache]] | B-035: fact cache hit rates over git histories and fresh checkouts; cache store size and lookup time |
 | | `examples/gemm_structure.rs`, `examples/gemm_structure.tsv` (role labels) | [[gemm_structure]] | E-2: name-free loop predicates on Rust and Julia gemm code, on the source and in the store, against role labels ([[Cross-Language Gemm Structure]]) |
 | | `examples/julia_conformance.rs`, `tests/julia-semantics/methods.jl` | [[julia_conformance]], [[methods]] | Sophia's generic-function grouping against Julia's own method table ([[Julia Conformance]]) |
 | | `src/conformance.rs`, `examples/julia_dispatch.rs`, `tests/dispatch.rs`, `tests/julia-semantics/calls.jl`, `tests/julia-semantics/dispatch/` | [[conformance]], [[julia_dispatch]], [[calls]] | part 3 of the conformance suite: what Sophia says a name in a body refers to, against Julia's lowered code ([[Julia Conformance]]) |
