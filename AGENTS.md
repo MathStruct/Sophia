@@ -89,8 +89,8 @@ questions that come up while implementing or discussing the theory go in
 Keep `vault/Status.md` current.
 
 **One task per session.** Sessions are kept short to save tokens. Start by reading the "Next
-session" section at the top of `vault/Status.md`; it names the task (a `B-nnn` row of
-`vault/Backlog/Backlog.md`) and what to read for it; then read `HANDOFF-from-moonkale.md` in the
+session" section at the top of `vault/Status.md`; it names the task (a `B-nnn` row in one of the
+section notes of `vault/Backlog/`, indexed by `Backlog.md`) and what to read for it; then read `HANDOFF-from-moonkale.md` in the
 main checkout's root if it exists (see "Moonkale" below). When the task is finished, close it as
 `vault/Backlog/Backlog.md` describes: the row moves to the month's `Backlog Done <yyyy-mm>.md`,
 the "Next session" section is **overwritten** with the next task, Moonkale gets a handoff entry if

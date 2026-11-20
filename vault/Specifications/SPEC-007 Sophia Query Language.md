@@ -431,4 +431,4 @@ Aggregates (`sum`, `min`, `max`) are not functions: they belong to `select` besi
 
 ### 13.11 Build plan
 
-Rows B-067 to B-070 in [[Backlog]]. B-067 is the mechanism with `startswith` as its only function and no change of behaviour except the ids; the library, the termination check and sophialang functions follow.
+Rows B-067 to B-070 in [[Backlog Query Engine]]. B-067 is the mechanism with `startswith` as its only function and no change of behaviour except the ids; the library, the termination check and sophialang functions follow.
