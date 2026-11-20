@@ -36,6 +36,7 @@ Answering the third question "no" never changes the first two: a dropped object 
 | [[Compression]] | shrinking what *is* kept, independent of identity |
 | [[AD as a Materialization Case]] | automatic differentiation: source, transformation, derived program, compiled artifact; when each deserves to be kept |
 | [[Storage Measurements]] | what to measure, and the experiments that decide the open questions |
+| [[Lean Layout Measurements]] | M-1 and M-2 measured: how small the store gets, what rebuilding costs, and a layout proposal for Daniel |
 
 ## The headline finding (2026-10-20)
 

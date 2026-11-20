@@ -2206,6 +2206,7 @@ version = "0.1.12"
 dependencies = [
  "blake3",
  "moonkale-content-id",
+ "rusqlite",
  "serde_json",
  "sha2",
  "sophia-hash",

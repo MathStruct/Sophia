@@ -78,4 +78,4 @@ This makes items 1 and 2 of [[Compression]] **safe to try**, as measurements on 
 
 ## What is not changed yet
 
-Nothing in the storage layout has been changed on the strength of this page (SR-126). The first change, when Daniel agrees, would be the cheapest and least risky one: drop the `refs` blob where an edge table exists (SP-011 option 2), then measure the rest.
+Nothing in the storage layout has been changed on the strength of this page (SR-126). M-1 and M-2 were measured on fresh stores on 2026-11-20. The results and a layout proposal are in [[Lean Layout Measurements]]. The first change, when Daniel agrees, would be the cheapest and least risky one: drop the `refs` blob where an edge table exists (SP-011 option 2), then measure the rest.
