@@ -1,0 +1,116 @@
+E-7 (B-028), 2026-11-19, Julia 1.12.7 (julia112), Lux 1.31.6, Reactant 0.2.295 (CPU build, Reactant_jll 0.0.424), Enzyme 0.13.216, Optimisers 0.4.11, Linux x86-64.
+Model Chain(Dense(4=>32,tanh), Dense(32=>32,tanh), Dense(32=>1)), 1249 Float32 parameters, batch 64, Adam(0.01), 200 steps.
+Artifacts under $SOPHIA_CORPORA/e7-2/{a,b,c,p}. Five Julia processes for the Reactant side (run a, b, c, p; load a) and one for plain.
+"median" is the 100th of 200 sorted samples. Reactant step times include reading the loss back to the host.
+
+== lux_train_step.jl run a ==
+E-7 run, plain session; Julia 1.12.7, Lux 1.31.6, Reactant 0.2.295, Enzyme 0.13.216
+parameters: 1249 Float32; batch 64; 200 steps
+Julia + packages loaded:             3795.8 ms
+Reactant session start-up:          14335.9 ms
+derive StableHLO, first:            18243.7 ms  (Julia compiling:   17903.6 ms)
+derive StableHLO, Julia warm:         317.4 ms
+@compile (derive + XLA):             1920.8 ms  => XLA compile ≈    1603.4 ms
+@compile again, same process:         418.9 ms
+@compile, batch 128:                  394.3 ms
+first execution:                      400.8 ms
+step, min / median of 200:            46.6 µs /      51.2 µs
+loss: first 0.83691406, last 3.5402005e-5
+sizes: StableHLO 17933 B, HLO 42898 B, executable 121197 B (batch 128: 119245 B), glue 19548 B
+same process, compiled twice: executable identical: false, StableHLO identical: true, HLO identical: true
+sha256/16: stablehlo 2f4a8694e11c0905  hlo 4f4c937b825729f1  executable 0d14de31f17cef5e  glue 562dab6754008b76  final params cf67790310ca76f5
+
+== lux_train_step.jl run b ==
+E-7 run, plain session; Julia 1.12.7, Lux 1.31.6, Reactant 0.2.295, Enzyme 0.13.216
+parameters: 1249 Float32; batch 64; 200 steps
+Julia + packages loaded:             3707.3 ms
+Reactant session start-up:          14087.5 ms
+derive StableHLO, first:            17940.9 ms  (Julia compiling:   17603.3 ms)
+derive StableHLO, Julia warm:         315.9 ms
+@compile (derive + XLA):             1946.4 ms  => XLA compile ≈    1630.5 ms
+@compile again, same process:         427.9 ms
+@compile, batch 128:                  395.0 ms
+first execution:                      404.3 ms
+step, min / median of 200:            48.2 µs /      56.5 µs
+loss: first 0.83691406, last 3.5402005e-5
+sizes: StableHLO 17933 B, HLO 42898 B, executable 121197 B (batch 128: 119245 B), glue 19548 B
+same process, compiled twice: executable identical: false, StableHLO identical: true, HLO identical: true
+sha256/16: stablehlo 2f4a8694e11c0905  hlo 4f4c937b825729f1  executable 7008826a9e2b9bde  glue 562dab6754008b76  final params cf67790310ca76f5
+
+== lux_train_step.jl run c ==
+E-7 run, plain session; Julia 1.12.7, Lux 1.31.6, Reactant 0.2.295, Enzyme 0.13.216
+parameters: 1249 Float32; batch 64; 200 steps
+Julia + packages loaded:             3778.3 ms
+Reactant session start-up:          14253.9 ms
+derive StableHLO, first:            17958.0 ms  (Julia compiling:   17603.1 ms)
+derive StableHLO, Julia warm:         317.3 ms
+@compile (derive + XLA):             1897.8 ms  => XLA compile ≈    1580.5 ms
+@compile again, same process:         418.6 ms
+@compile, batch 128:                  411.7 ms
+first execution:                      398.9 ms
+step, min / median of 200:            47.0 µs /      50.3 µs
+loss: first 0.83691406, last 3.5402005e-5
+sizes: StableHLO 17933 B, HLO 42898 B, executable 121197 B (batch 128: 119245 B), glue 19548 B
+same process, compiled twice: executable identical: false, StableHLO identical: true, HLO identical: true
+sha256/16: stablehlo 2f4a8694e11c0905  hlo 4f4c937b825729f1  executable f73588b944475eeb  glue 562dab6754008b76  final params cf67790310ca76f5
+
+== lux_train_step.jl run p perturb ==
+E-7 run, perturbed session; Julia 1.12.7, Lux 1.31.6, Reactant 0.2.295, Enzyme 0.13.216
+parameters: 1249 Float32; batch 64; 200 steps
+Julia + packages loaded:             3692.9 ms
+Reactant session start-up:          14059.5 ms
+derive StableHLO, first:             9959.7 ms  (Julia compiling:    9628.4 ms)
+derive StableHLO, Julia warm:         332.7 ms
+@compile (derive + XLA):             1550.0 ms  => XLA compile ≈    1217.3 ms
+@compile again, same process:         421.2 ms
+@compile, batch 128:                  389.4 ms
+first execution:                      401.6 ms
+step, min / median of 200:            47.0 µs /      49.6 µs
+loss: first 0.83691406, last 3.5402005e-5
+sizes: StableHLO 17933 B, HLO 42898 B, executable 121197 B (batch 128: 119245 B), glue 19548 B
+same process, compiled twice: executable identical: false, StableHLO identical: true, HLO identical: true
+sha256/16: stablehlo 2f4a8694e11c0905  hlo 4f4c937b825729f1  executable 6d1d4092cd5e2146  glue 562dab6754008b76  final params cf67790310ca76f5
+
+== lux_train_step.jl load a ==
+E-7 load (fresh process) of /home/daniel/.cache/sophia-corpora/e7-2/a
+Julia + packages loaded:             3777.7 ms
+restore executable + glue:             71.7 ms
+parameters to device:                1591.7 ms
+first execution after restore:        646.5 ms
+step, min / median of 200:            51.9 µs /      55.5 µs
+same losses as the saving process, bitwise:  true
+same final parameters, bitwise:              true (max |Δ| = 0.0)
+for comparison, @compile here:      32375.4 ms
+
+== lux_train_step.jl plain ==
+E-7 plain (no Reactant): Julia + packages loaded    3801.2 ms
+first step, from the call of plain() (Julia compiles the step and Enzyme's derivative):   41964.8 ms
+step, min / median of 200:      25.4 µs /      28.8 µs
+loss: first 0.83691406, last 3.5402034e-5
+
+== lux_train_step.jl compare a b c p ==
+run                                      stablehlo.mlir     hlo.txt            executable.bin     trajectory
+a 2f4a8694e11c0905   4f4c937b825729f1   0d14de31f17cef5e   f536fc982544fd9d
+b 2f4a8694e11c0905   4f4c937b825729f1   7008826a9e2b9bde   f536fc982544fd9d
+c 2f4a8694e11c0905   4f4c937b825729f1   f73588b944475eeb   f536fc982544fd9d
+p 2f4a8694e11c0905   4f4c937b825729f1   6d1d4092cd5e2146   f536fc982544fd9d
+
+== python3 -I executable_objects.py, first and second compile of each process ==
+a/executable.bin: 121197 B, 33 objects; whole 0d14de31f17cef5e, entries sorted b6efc91b12723946
+b/executable.bin: 121197 B, 33 objects; whole 7008826a9e2b9bde, entries sorted b6efc91b12723946; vs first: 0 bytes differ
+c/executable.bin: 121197 B, 33 objects; whole f73588b944475eeb, entries sorted b6efc91b12723946; vs first: 0 bytes differ
+p/executable.bin: 121197 B, 33 objects; whole 6d1d4092cd5e2146, entries sorted 9bc21d4d45136d26; vs first: 59 bytes differ, 1 x (after byte 0x28: 2 -> 4), 58 x (after byte 0x18: 2 -> 4)
+a/executable-again.bin: 121197 B, 33 objects; whole 5cf681afa9709ed6, entries sorted 9bc21d4d45136d26; vs first: 59 bytes differ, 1 x (after byte 0x28: 2 -> 4), 58 x (after byte 0x18: 2 -> 4)
+b/executable-again.bin: 121197 B, 33 objects; whole 33687cf1fda9af5f, entries sorted 9bc21d4d45136d26; vs first: 59 bytes differ, 1 x (after byte 0x28: 2 -> 4), 58 x (after byte 0x18: 2 -> 4)
+c/executable-again.bin: 121197 B, 33 objects; whole aa80ae8a700880e0, entries sorted 9bc21d4d45136d26; vs first: 59 bytes differ, 1 x (after byte 0x28: 2 -> 4), 58 x (after byte 0x18: 2 -> 4)
+p/executable-again.bin: 121197 B, 33 objects; whole 9de7c1e95327fcae, entries sorted ce6e72b7bf4f656c; vs first: 59 bytes differ, 1 x (after byte 0x28: 2 -> 6), 58 x (after byte 0x18: 2 -> 6)
+
+== thunk.jls (glue, argument types, tag, versions) ==
+6dc0cf0f56c61280  a/thunk.jls
+6dc0cf0f56c61280  b/thunk.jls
+6dc0cf0f56c61280  c/thunk.jls
+f9f4beee7ceff12f  p/thunk.jls
+20456 a/thunk.jls
+20456 b/thunk.jls
+20456 c/thunk.jls
+20456 p/thunk.jls

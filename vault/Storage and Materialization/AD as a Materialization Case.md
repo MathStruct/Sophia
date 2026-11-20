@@ -124,3 +124,28 @@ So for this function the transformation and the XLA compile are small; the cost 
 1. A persistable compiled artifact is not one blob: executable, calling glue, argument types, and the environment (versions, host) are all part of it, and the environment belongs in its id.
 2. The derived *program* (StableHLO, 1.2 KB) is small and portable; the *executable* (11 KB) is fast to restore but host- and version-bound. Keep the program as the durable object and the executable as a cache keyed by A.
 3. Whether persisting pays depends on where the time goes; here it is Julia compiling, which only an executable-level cache avoids.
+
+## E-5: a derivative's key before it is built (2026-11-19)
+
+[[Semantic Boundary Experiments]] §E-5, B-026 (Zygote 0.7.18, Julia 1.12.7; [[derivative]], [[derivatives]]). On a fixture package in ten variants, three keys for id(D(f)), none of which runs Zygote, against the derived programs Zygote builds (per reached `_pullback` instance, the text of what Zygote runs there: its generators' IR, a rule with its pullback, or a hand-written adjoint):
+
+1. **Input addressing works once the rule world is a method-table fact.** The store alone (the closure's ids and the package's own rules) is unsound: rules made by macros (`@non_differentiable`) and rules from other packages change D(f) without changing the key. Adding every rule method that names a closure function leaves one hole, a rule for a function outside the package (`Base.sin`); whole rule tables close it but re-key every derivative whenever any rule anywhere is added. The rule world in the key above is therefore *the rules for every function D(f) can reach, inside the store or not*, recorded from Julia and citing its world.
+2. **Julia's own session is what goes stale.** A rule added to a running session is seen by Zygote's generators but not by the pullbacks it already compiled (0 calls of the new rule, against 8 in a fresh process). An input-addressed derivative is right where the session cache is not.
+3. **The transformation is cheap; compiling is not.** Zygote's own calls are about 3.3 % of a first gradient, measured with its cache emptied (E-AD-0 mixed the two): the derived program, not its compiled form, is the object that is cheap to rebuild, which agrees with E-AD-1.
+
+## E-6: one derivative at two layers (2026-11-19)
+
+[[Semantic Boundary Experiments]] §E-6, B-027 (Zygote 0.7.18, Enzyme 0.13.216, Julia 1.12.7; [[layers]], [[layer_programs]]). On E-5's `base` fixture, the gradient of each function at `Float64` and `Float32` at both layers:
+
+1. **Both derived programs fit the store as it is.** Zygote's program is a `julia-ir` record that references its pieces, and Enzyme's module is an `llvm-ir` record. Each has a fact about f (its closure as inputs), and an `equivalent-tested` annotation on the pair carries the numerical test. This held for 18 of 20 gradients, on four backends. This is the table above's "backend X and Y agree on f's gradient" as tested evidence, and the first real use of [[Equivalence and Witnesses]].
+2. **The layers are siblings, not a lowering.** Both programs are derived from f, by different tools with different rule worlds. Zygote calls `h`'s `rrule`; Enzyme differentiates `exp` itself. They agree to within one ulp. So the relation between them is a claim with evidence, not a `LOWERS_TO` edge.
+3. **An LLVM module as Julia prints it is session state.** It embeds addresses of Julia objects and numbers names by session. Its text becomes an identity only after normalising both, by pointer position and by name. Enzyme's modules are 8.7 times Zygote's stored programs, mostly the callees they carry (`sin`'s implementation). That is a reason to keep D(f) at the Julia-IR layer and rebuild the LLVM one, as the "When to keep what" table already says for D(f) as IR.
+
+
+## E-7: a compiled training step (2026-11-19)
+
+[[Semantic Boundary Experiments]] §E-7, B-028 (Lux 1.31.6, Reactant 0.2.295 on the CPU, Enzyme 0.13.216, Julia 1.12.7; [[lux_train_step]], [[executable_objects]]). One Adam step of a small MLP with its Enzyme gradient, compiled by Reactant in four fresh processes and restored in a fifth:
+
+1. **E-AD-1 holds at the size of a training step.** The first step in a fresh process costs about 35 s after loading packages, almost all of it Reactant's start-up and Julia compiling the tracer. Everything after the trace, XLA included, is at most about 0.1 s, and a step is 47 µs. A restored executable and its glue train 200 steps bitwise identically to the saving process, and are ready after about 2.3 s.
+2. **The program is reproducible. The executable is reproducible only up to a canonical form.** StableHLO, optimised HLO, the glue's body and the trajectory are identical across processes and session histories. The serialised executable is not. Its object files come in the order XLA's parallel compile finished them, and it carries XLA's module id, a counter of the session. With the objects sorted and that id set aside, the executables are identical. The glue's tag is a session counter too.
+3. **So the derived program is the identity, and the executable is a cache under it.** This is the split this note proposed after E-AD-1 ("keep the program as the durable object and the executable as a cache keyed by A"). A would be the program's id plus Julia, Reactant, Reactant_jll and the host. That key is a proposal (B-093), not yet tested by compiling from stored text. A nonce is not needed, but the executable's bytes are no proof of what produced them.

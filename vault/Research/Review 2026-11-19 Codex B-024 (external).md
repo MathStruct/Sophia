@@ -1,0 +1,21 @@
+#review #external
+
+> **Codex's review of B-024 (E-3, dispatch facts and invalidation), 2026-11-19, defects only.** Four findings, each with a probe it ran in Julia 1.13.1 or against the Rust lattice; its `cargo test` could not start (the target directory it was given was read-only in its sandbox). All four were right and reproduced by a test that failed before the fix; two of them (`invoke`, same-location replacement) changed the oracle, so the fixture and LinearAlgebra runs were redone. Fixing `invoke` showed a fifth defect of the same kind, found by me: the truth for an `invoke` call must be the one method chosen for its signature, not every method a call could reach. A **second pass** over the fixes (same day, narrow scope) found two more, both right: an unsound overlap introduced by one of my LinearAlgebra refinements, and `invoke` calls not followed to their callee. Following them exposed two more of mine: instances that print alike (an `invoke`-made instance and the ordinary one) were merged under one name, and such an instance got a `self` fact it should not have; with both fixed, the apparent "Julia invalidates an instance whose dispatch did not change" disappeared.
+>
+> Sources: `codex exec -s workspace-write` with a brief naming the requirement and the files (no reasoning sent). code: `crates/sophia-ingest/tests/julia-semantics/dispatch_facts.jl`, `src/invalidation.rs`, `tests/invalidation.rs`; [[Dispatch Invalidation]].
+
+| # | finding | right? | what was done |
+|---|---|---|---|
+| 1 | `overlap(Type{Union{}}, Type{Union{}})` answered no (the `Bottom` arm came first); `Type{Union{}}` is a singleton | **right**: unit test `type_of_bottom_overlaps_itself` failed | `Type{X}` against `Type{Y}` overlaps when either side is `Union{}` or a variable, or they are equal; then as before |
+| 2 | the encoder drops a type variable's lower bound, so `Type{T} where T>:Int` became `t tv any` and `subtype(Type{Float64}, …)` answered yes | **right** (Julia: `Type{Float64} <: (Type{T} where T>:Int)` is false) | a variable with a lower bound is encoded `unk` (overlaps everything, a supertype of nothing); unit test added |
+| 3 | `invoke(f, T, x)` is a builtin call and was skipped, so a caller using `invoke` had no fact and no rule reached it | **right**: fixture `use_invoke` with change `area_shape_redefined`; test `an_invoke_call_is_a_fact` failed | `invoke` calls are facts of kind `invoke` on signature `T`; their truth is `Base._which(T)` (the fifth defect); the specificity rule also drops an `invoke` fact when the new method is surely strictly smaller than `T` |
+| 4 | methods were named `module.name@file:line`, so a method re-evaluated at its own location (as Revise does) looked unchanged | **right**: fixture change `area_shape_revised`; test `a_method_replaced_at_its_own_location_changes_its_calls` failed (0 changed calls) | ids carry the method's `primary_world` |
+
+**Second pass** (`codex exec`, brief: the requirement and the changed parts only):
+
+| # | finding | right? | what was done |
+|---|---|---|---|
+| 5 | two ground `Type{X}` were compared by structure, but `Tuple{T} where T<:Real` (encoded by its spelling) equals `Tuple{Real}` (encoded as a tuple): `overlap` said no | **right**: unit test with both encodings failed | equality only between named types whose spelling has no `Tuple{`, `Union{` or `where`; a named `Core.Tuple` overlaps tuple types |
+| 6 | an `invoke` fact was recorded but its callee not followed, so a method added inside the invoked function (`Helper.h(::Int)` under `Helper.g`) never reached the caller | **right**: fixture `use_helper` with change `helper_h_int`; test `an_invoke_call_is_followed_to_the_invoked_instance` failed (and `julia_unrecorded` was 1) | the edge goes to the invoked method specialised on the actual argument types (`jl_type_intersection_with_env`, `specialize_method`) |
+
+Mine, found while fixing 6: instance names are now `<printed> in <method id>` (two instances printed alike), and a `self` fact is recorded only when the instance's method is among what its own argument types reach. The LinearAlgebra runs were redone after each oracle change; the final numbers are in [[Dispatch Invalidation]].

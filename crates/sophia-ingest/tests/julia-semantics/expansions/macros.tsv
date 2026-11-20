@@ -1,0 +1,81 @@
+binding	Exp.jl	101	function	Exp.qgen_f
+binding	Exp.jl	106	function	Exp.five
+binding	Exp.jl	16	function	Exp.half
+binding	Exp.jl	19	function	Exp.arity
+binding	Exp.jl	24	function	Exp.applyg
+binding	Exp.jl	34	function	Exp.c1
+binding	Exp.jl	43	function	Exp.tw
+binding	Exp.jl	43	function	Exp.tw_neg
+binding	Exp.jl	46	function	Exp.older
+binding	Exp.jl	47	type	Exp.Fruit
+binding	Exp.jl	47	value	Exp.apple
+binding	Exp.jl	47	value	Exp.banana
+binding	Exp.jl	48	type	Exp.Opts
+binding	Exp.jl	53	function	Exp.inl
+binding	Exp.jl	56	function	Exp.docd
+binding	Exp.jl	58	function	Exp.d1
+binding	Exp.jl	58	function	Exp.d2
+binding	Exp.jl	66	function	Exp.s1
+binding	Exp.jl	66	function	Exp.s2
+binding	Exp.jl	81	function	Exp.in_if
+binding	Exp.jl	91	function	Exp.stateful_f
+binding	Exp.jl	96	function	Exp.sidefx
+binding	shared.jl	2	function	Exp.A2.shared_f
+binding	shared.jl	2	function	Exp.B2.shared_f
+form	Exp.jl	101	Exp	Exp.@qgen	-
+form	Exp.jl	106	Exp	Exp.@mkeval	-
+form	Exp.jl	13	Exp	for	-
+form	Exp.jl	16	Exp	for	-
+form	Exp.jl	19	Exp	for	-
+form	Exp.jl	24	Exp	for	-
+form	Exp.jl	34	Exp	Exp.@counted	-
+form	Exp.jl	43	Exp	Exp.@twice	-
+form	Exp.jl	46	Exp	Base.@deprecate	-
+form	Exp.jl	47	Exp	Base.Enums.@enum	-
+form	Exp.jl	48	Exp	Base.@kwdef	changed
+form	Exp.jl	53	Exp	Base.@inline	changed
+form	Exp.jl	56	Exp	Core.@doc	doc
+form	Exp.jl	58	Exp	for	-
+form	Exp.jl	66	Exp	Base.@static	-
+form	Exp.jl	76	Exp	for	-
+form	Exp.jl	81	Exp	if	-
+form	Exp.jl	91	Exp	Exp.@stateful	-
+form	Exp.jl	93	Exp	Exp.@stateful	-
+form	Exp.jl	96	Exp	Base.@eval	-
+form	shared.jl	2	Exp.A2	if	-
+form	shared.jl	2	Exp.B2	if	-
+method	Exp.jl	101	Exp.qgen_f	Exp.jl:99
+method	Exp.jl	106	Exp.five	Exp.jl:104
+method	Exp.jl	13	Base.cos	Exp.jl:14
+method	Exp.jl	13	Base.sin	Exp.jl:14
+method	Exp.jl	16	Exp.half	Exp.jl:17
+method	Exp.jl	16	Exp.half	Exp.jl:17
+method	Exp.jl	19	Exp.arity	Exp.jl:20
+method	Exp.jl	19	Exp.arity	Exp.jl:20
+method	Exp.jl	24	Exp.applyg	Exp.jl:25
+method	Exp.jl	34	Exp.c1	Exp.jl:32
+method	Exp.jl	43	Exp.tw	Exp.jl:39
+method	Exp.jl	43	Exp.tw_neg	Exp.jl:40
+method	Exp.jl	46	Exp.older	Exp.jl:46
+method	Exp.jl	47	Base.Enums._enum_hash	Exp.jl:47
+method	Exp.jl	47	Base.Enums.namemap	Exp.jl:47
+method	Exp.jl	47	Base.instances	Exp.jl:47
+method	Exp.jl	47	Base.typemax	Exp.jl:47
+method	Exp.jl	47	Base.typemin	Exp.jl:47
+method	Exp.jl	47	Exp.Fruit	Exp.jl:47
+method	Exp.jl	48	Exp.Opts	Exp.jl:48
+method	Exp.jl	48	Exp.Opts	Exp.jl:49
+method	Exp.jl	48	Exp.Opts	Exp.jl:49
+method	Exp.jl	53	Exp.inl	Exp.jl:53
+method	Exp.jl	56	Exp.docd	Exp.jl:57
+method	Exp.jl	58	Exp.d1	Exp.jl:61
+method	Exp.jl	58	Exp.d2	Exp.jl:61
+method	Exp.jl	66	Exp.s1	Exp.jl:70
+method	Exp.jl	66	Exp.s2	Exp.jl:70
+method	Exp.jl	76	Exp.Inner.i1	Exp.jl:77
+method	Exp.jl	81	Exp.in_if	Exp.jl:82
+method	Exp.jl	91	Exp.stateful_f	Exp.jl:89
+method	Exp.jl	93	Exp.stateful_f	Exp.jl:89
+method	Exp.jl	96	Exp.sidefx	Exp.jl:96
+method	shared.jl	2	Exp.A2.shared_f	shared.jl:3
+method	shared.jl	2	Exp.B2.shared_f	shared.jl:3

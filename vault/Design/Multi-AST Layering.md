@@ -76,6 +76,14 @@ $$ M' ⊨_(Sigma') sigma(phi) quad ⟺ quad sigma(M') ⊨_Sigma phi $$
 3. **Frontends must be functorial and must be tested for it.** A property test — "elaborate(f ∘ g) = elaborate(f) ∘ elaborate(g) for random f, g" — is a cheap, strong check on a frontend, and is worth building before anything else.
 4. **Naturality is a checkable obligation on asserted equivalence sets**, not a philosophical aside. Given a set of `EQUIV` edges and a set of composition operators, the naturality squares are enumerable and testable.
 
+## On real data: E-6 (2026-11-19)
+
+[[Semantic Boundary Experiments]] §E-6 stored one derivative at two layers of the abstraction axis: Zygote's program at Julia IR and Enzyme's module at LLVM IR, for the same f and argument type. Three lessons:
+
+- **Layer is a property of a record:** `julia-ir` and `llvm-ir` records share one store and one hash space, as point 2 below asks; no layer-specific subsystem was needed.
+- **Not every pair of layers is a lowering.** The two programs are derived from f by different tools, and neither is the other lowered. Their relation is an equivalence claim (an annotation with `tested` evidence), the `EQUIV` edge of this note, not `LOWERS_TO`. Naturality was not tested: each function was compared alone, not as a composite of its callees' derivatives.
+- **A layer's text is not its identity until normalised:** LLVM IR printed by Julia embeds object addresses and session-numbered names ([[layer_programs]]).
+
 ## Related
 
 - [Curry–Howard–Lambek correspondence](https://mathstruct.org/CategoryTheory-ML-Wiki/Curry-Howard-Lambek-Correspondence)

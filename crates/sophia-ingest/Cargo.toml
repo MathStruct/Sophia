@@ -14,6 +14,8 @@ path = "src/sophia_ingest.rs"
 sophia-hash.workspace = true
 sophia-store = { path = "../sophia-store", default-features = false }
 thiserror.workspace = true
+# E-6: the oracle names texts by SHA-256 (Julia's SHA stdlib); checked on import.
+sha2 = "0.11"
 # Moonkale's WP-66 normal form, shared so a definition has one id in both
 # (SR-116). Only tree-sitter grammars and blake3.
 moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "06fd112c75927d1b59ca4a1e883444dbfcc5b238" }
@@ -22,4 +24,7 @@ moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev 
 moonkale-content-id = { git = "https://github.com/MathStruct/Moonkale.git", rev = "06fd112c75927d1b59ca4a1e883444dbfcc5b238" }
 sophia-store = { path = "../sophia-store", features = ["lmdb", "duckdb"] }
 tempfile.workspace = true
+# lean_statements (E-10): statement hashes and declaration lines.
+blake3.workspace = true
+serde_json.workspace = true
 sophia-query.workspace = true

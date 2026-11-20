@@ -1,0 +1,89 @@
+julia	1.13.1
+record	Exp.jl	13	1	eval	Core.@eval	Exp	yes	ok	3456	58545258	49	:sin\t:sin	Base.:($f)(w::Wrap) = begin\n        Wrap(($f)(w.x))\n    end	function Base.sin(w::Wrap)\n    Wrap(sin(w.x))\nend
+method	Exp.jl	13	1	Base.sin	(Main.Exp.Wrap)
+record	Exp.jl	13	2	eval	Core.@eval	Exp	yes	ok	5630	309449	49	:cos\t:cos	Base.:($f)(w::Wrap) = begin\n        Wrap(($f)(w.x))\n    end	function Base.cos(w::Wrap)\n    Wrap(cos(w.x))\nend
+method	Exp.jl	13	2	Base.cos	(Main.Exp.Wrap)
+record	Exp.jl	16	1	eval	Core.@eval	Exp	yes	ok	2712620	1701373	37	Int64	half(x::$T) = begin\n        x / 2\n    end	function half(x::Int64)\n    x / 2\nend
+method	Exp.jl	16	1	Exp.half	(Int64)
+binding	Exp.jl	16	1	function	Exp.half
+record	Exp.jl	16	2	eval	Core.@eval	Exp	yes	ok	2572607	271290	39	Float64	half(x::$T) = begin\n        x / 2\n    end	function half(x::Float64)\n    x / 2\nend
+method	Exp.jl	16	2	Exp.half	(Float64)
+record	Exp.jl	19	1	eval	Core.@eval	Exp	yes	ok	1633	266922	30	(:a, :b)\t2	arity($(args...)) = begin\n        $(length(args))\n    end	function arity(a, b)\n    2\nend
+method	Exp.jl	19	1	Exp.arity	(Any, Any)
+binding	Exp.jl	19	1	function	Exp.arity
+record	Exp.jl	19	2	eval	Core.@eval	Exp	yes	ok	872	253288	33	(:a, :b, :c)\t3	arity($(args...)) = begin\n        $(length(args))\n    end	function arity(a, b, c)\n    3\nend
+method	Exp.jl	19	2	Exp.arity	(Any, Any, Any)
+record	Exp.jl	24	1	eval	Core.@eval	Exp	no	ok	2543344	295464	52	Main.Exp.var"#2#3"()	applyg(x) = begin\n        ($g)(x)\n    end	function applyg(x)\n    (Main.Exp.var"#2#3"())(x)\nend
+method	Exp.jl	24	1	Exp.applyg	(Any)
+binding	Exp.jl	24	1	function	Exp.applyg
+record	Exp.jl	34	1	macro	Exp.@counted	Exp	no	ok	5971024	220939	23			function c1()\n    1\nend
+method	Exp.jl	34	1	Exp.c1	()
+binding	Exp.jl	34	1	function	Exp.c1
+record	Exp.jl	43	1	macro	Exp.@twice	Exp	yes	ok	3732161	425138	60			function tw(x)\n    2x\nend\nfunction tw_neg(x_2)\n    -2x_2\nend
+method	Exp.jl	43	1	Exp.tw	(Any)
+method	Exp.jl	43	1	Exp.tw_neg	(Any)
+binding	Exp.jl	43	1	function	Exp.tw
+binding	Exp.jl	43	1	function	Exp.tw_neg
+record	Exp.jl	46	1	macro	Base.@deprecate	Exp	yes	ok	31435916	12277814	188			export older\nfunction older(x)\n    $(Expr(:meta, :noinline))\n    Base.depwarn("`older(x)` is deprecated, use `newer(x)` instead.", (Core.Typeof(older)).name.singletonname)\n    newer(x)\nend
+method	Exp.jl	46	1	Exp.older	(Any)
+binding	Exp.jl	46	1	function	Exp.older
+record	Exp.jl	47	1	macro	Base.Enums.@enum	Exp	yes	ok	107676663	22790244	743			Base.@__doc__ primitive type Fruit <: Enum{Int32} 32 end\nfunction Fruit(x::Integer)\n    0 <= x <= 1 || Base.Enums.enum_argument_error(:Fruit, x)\n    return Base.Enums.bitcast(Fruit, convert(Int32, x))\nend\nfunction (Base.Enums.Enums).namemap(::Type{Fruit})\n    Dict{Int32, Symbol}(1 => :banana, 0 => :apple)\nend\nfunction Base.typemin(x::Type{Fruit})\n    Fruit(0)\nend\nfunction Base.typemax(x::Type{Fruit})\n    Fruit(1)\nend\nlet type_hash = hash(Fruit)\n    function (Base.Enums.Enums)._enum_hash(x::Fruit, h::UInt)\n        hash(type_hash, hash(Integer(x), h))\n    end\nend\nlet insts = (Any[Fruit(v) for v = Int32[0, 1]]...,)\n    function Base.instances(::Type{Fruit})\n        insts\n    end\nend\nconst banana = Fruit(1)\nconst apple = Fruit(0)\nnothing
+method	Exp.jl	47	1	Base.Enums._enum_hash	(Main.Exp.Fruit, UInt64)
+method	Exp.jl	47	1	Base.Enums.namemap	(Type{Main.Exp.Fruit})
+method	Exp.jl	47	1	Base.instances	(Type{Main.Exp.Fruit})
+method	Exp.jl	47	1	Base.typemax	(Type{Main.Exp.Fruit})
+method	Exp.jl	47	1	Base.typemin	(Type{Main.Exp.Fruit})
+method	Exp.jl	47	1	Exp.Fruit	(Integer)
+binding	Exp.jl	47	1	type	Exp.Fruit
+binding	Exp.jl	47	1	value	Exp.apple
+binding	Exp.jl	47	1	value	Exp.banana
+record	Exp.jl	48	1	macro	Base.@kwdef	Exp	yes	ok	48499982	2677546	89			(Base).@__doc__ struct Opts\n        n::Int\n    end\nfunction Opts(; n = 3)\n    Opts(n)\nend
+method	Exp.jl	48	1	Exp.Opts	()
+method	Exp.jl	48	1	Exp.Opts	(Any)
+method	Exp.jl	48	1	Exp.Opts	(Int64)
+binding	Exp.jl	48	1	type	Exp.Opts
+record	Exp.jl	53	1	macro	Base.@inline	Exp	yes	ok	2143261	301485	57			function inl(x)\n    $(Expr(:meta, :inline))\n    x + 1\nend
+method	Exp.jl	53	1	Exp.inl	(Any)
+binding	Exp.jl	53	1	function	Exp.inl
+record	Exp.jl	56	1	macro	Base.@inline	Exp	yes	ok	13965	283392	54			function docd(x)\n    $(Expr(:meta, :inline))\n    x\nend
+method	Exp.jl	56	1	Exp.docd	(Any)
+binding	Exp.jl	56	1	function	Exp.docd
+record	Exp.jl	58	1	eval	Core.@eval	Exp	yes	ok	2234	5398020	59	:d1	begin\n    Core.@doc "Made by a loop." ($n)() = begin\n                0\n            end\nend	Core.@doc "Made by a loop." function d1()\n        0\n    end
+method	Exp.jl	58	1	Exp.d1	()
+binding	Exp.jl	58	1	function	Exp.d1
+record	Exp.jl	58	2	eval	Core.@eval	Exp	yes	ok	2504	417835	59	:d2	begin\n    Core.@doc "Made by a loop." ($n)() = begin\n                0\n            end\nend	Core.@doc "Made by a loop." function d2()\n        0\n    end
+method	Exp.jl	58	2	Exp.d2	()
+binding	Exp.jl	58	2	function	Exp.d2
+record	Exp.jl	66	1	eval	Core.@eval	Exp	yes	ok	1392	185925	23	:s1	($n)() = begin\n        1\n    end	function s1()\n    1\nend
+method	Exp.jl	66	1	Exp.s1	()
+binding	Exp.jl	66	1	function	Exp.s1
+record	Exp.jl	66	2	eval	Core.@eval	Exp	yes	ok	1132	168464	23	:s2	($n)() = begin\n        1\n    end	function s2()\n    1\nend
+method	Exp.jl	66	2	Exp.s2	()
+binding	Exp.jl	66	2	function	Exp.s2
+record	Exp.jl	76	1	eval	Core.@eval	Exp.Inner	yes	ok	1072	182128	24	:i1	($n)(x) = begin\n        x\n    end	function i1(x)\n    x\nend
+method	Exp.jl	76	1	Exp.Inner.i1	(Any)
+binding	Exp.jl	76	1	function	Exp.Inner.i1
+record	Exp.jl	91	1	macro	Exp.@stateful	Exp	yes	ok	3097655	199621	31			function stateful_f()\n    1\nend
+method	Exp.jl	91	1	Exp.stateful_f	()
+binding	Exp.jl	91	1	function	Exp.stateful_f
+record	Exp.jl	93	1	macro	Exp.@stateful	Exp	yes	ok	5891	701176	31			function stateful_f()\n    2\nend
+method	Exp.jl	93	1	Exp.stateful_f	()
+record	Exp.jl	96	1	eval	Core.@eval	Exp	yes	ok	2154	215830	27	1	sidefx() = begin\n        $(SIDE[] += 1)\n    end	function sidefx()\n    1\nend
+method	Exp.jl	96	1	Exp.sidefx	()
+binding	Exp.jl	96	1	function	Exp.sidefx
+record	Exp.jl	101	1	macro	Exp.@qgen	Exp	yes	ok	3118934	201665	28			function qgen_f()\n    :x\nend
+method	Exp.jl	101	1	Exp.qgen_f	()
+binding	Exp.jl	101	1	function	Exp.qgen_f
+record	Exp.jl	106	1	macro	Exp.@mkeval	Exp	yes	ok	2625672	450123	0			
+record	Exp.jl	106	2	eval	Core.@eval	Exp	yes	ok	4108	185816	25		function five()\n    5\nend	function five()\n    5\nend
+method	Exp.jl	106	2	Exp.five	()
+binding	Exp.jl	106	2	function	Exp.five
+record	Exp.jl	81	0	rest	-	Exp	-	-	0	0	0			
+method	Exp.jl	81	0	Exp.in_if	(Any)
+binding	Exp.jl	81	0	function	Exp.in_if
+record	shared.jl	2	0	rest	-	Exp.A2	-	-	0	0	0			
+method	shared.jl	2	0	Exp.A2.shared_f	(Any)
+binding	shared.jl	2	0	function	Exp.A2.shared_f
+record	shared.jl	2	0	rest	-	Exp.B2	-	-	0	0	0			
+method	shared.jl	2	0	Exp.B2.shared_f	(Any)
+binding	shared.jl	2	0	function	Exp.B2.shared_f

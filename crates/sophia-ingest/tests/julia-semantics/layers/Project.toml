@@ -1,0 +1,7 @@
+[deps]
+ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+IRTools = "7869d1d1-7146-5819-86e3-90919afe41df"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"

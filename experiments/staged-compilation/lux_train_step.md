@@ -1,0 +1,19 @@
+#experiment #julia
+
+> E-7 (B-028): compiles one training step of a small Lux model with Reactant, and measures where the compile time goes against the step time, how large the compiled artifact is, and which of its layers are bit-identical across processes and session histories. A saved executable is restored in a fresh process and trains the model again. Source: `lux_train_step.jl`, with `executable_objects.py` ([[executable_objects]]) for the executable's bytes. Results: `results.txt`, [[Semantic Boundary Experiments]] §E-7, [[AD as a Materialization Case]].
+>
+> Sources: Reactant.jl source (`compiler/Compiler.jl`: `compile_xla`, `serializable`; `xla/PJRT/LoadedExecutable.jl`), Lux.jl's Reactant training examples. code: `lux_train_step.jl`, `../ad-materialization/reactant_persist.jl` ([[reactant_persist]], whose restore this reuses)
+
+**Environment.** Its own project in this folder (Lux 1.31.6, Reactant 0.2.295, Enzyme 0.13.216, Optimisers 0.4.11; Julia 1.12, run with `julia112`), resolved offline from the depot on 2026-11-19. `LocalPreferences.toml` selects Reactant's CPU build; it only applies because `Reactant_jll` is a direct dependency (without it Reactant picked the ROCm build and failed to load).
+
+**The step.** `train_step(model, ps, st, opt_state, x, y)`: the mean squared error of a three-layer MLP (4 → 32 → 32 → 1, `tanh`, 1 249 `Float32` parameters) on a fixed batch of 64, its gradient by `Enzyme.autodiff(ReverseWithPrimal, …)` inside Reactant's trace, and one `Optimisers.update` with `Adam(0.01)`. Data and initial parameters come from fixed seeds, so every process starts from the same state.
+
+**Modes.**
+- `run DIR [perturb]` times Reactant's start-up, the first and a warm derivation of the StableHLO module (`@code_hlo`), `@compile serializable=true`, a second `@compile` in the same process, a compile for batch 128, the first execution and 200 steps. It saves `stablehlo.mlir` (the module handed to XLA), `hlo.txt` (XLA's optimised HLO, read back from the executable), `executable.bin` and `executable-again.bin` (the PJRT serialisation of both compiles), `thunk.jls` (glue, argument types, versions) and `trajectory.jls` (the 200 losses and the final parameters). `perturb` first compiles another model's step, so the session history differs.
+- `load DIR` restores `executable.bin` and the glue in a fresh process (as E-AD-1 did), trains 200 steps from the same start, and compares losses and final parameters with the saving process as bytes (`==` would accept `-0.0` for `0.0`). It refuses an artifact made with another Julia, Reactant or Reactant_jll.
+- `plain` runs the same step on Julia arrays, with Enzyme on Julia's own code and no Reactant: the baseline for compile and step time. It is timed from the top level, because calling it makes Julia infer the step, and with it Enzyme's derivative, before its first line runs.
+- `compare DIR…` (at least two distinct directories) prints a digest per layer and of the trajectory.
+
+Times are wall-clock intervals around single calls. "Median" is the 100th of 200 sorted samples. Reactant's step times include reading the loss back to the host, and the plain step returns it on the host. The `XLA compile ≈` line subtracts the warm trace from the *first* `@compile`, so it includes Julia compiling Reactant's compile path. The second `@compile` minus the warm trace is the better bound on what follows the trace.
+
+**What it does not do.** One host, one CPU, one version set. No GPU. It does not compile a saved StableHLO module in a new process (that needs Reactant's compile options by hand). Only the executable's own bytes are canonicalised by `executable_objects.py`, and that tool reads the protobuf without its schema. Lux's `Training.single_train_step!` is not used, so that the compiled thunk is in hand. Its Reactant path compiles the same kind of thunk internally.

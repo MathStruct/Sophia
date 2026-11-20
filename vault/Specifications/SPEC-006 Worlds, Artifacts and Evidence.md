@@ -145,6 +145,7 @@ Transformation {
 | §4 parameter artifacts | specified; needed when Lenticulum's models enter (with M4 execution) |
 | §5 proof trust | first checker recorded (2026-11-19, B-021, E-0): metamath.exe's verdict per Metamath proof as annotations with checker, version, kernel, status and inputs ([[trust]]); certificates and assumptions not recorded; checker policy not visible to queries (B-081, proposal) |
 | §6 migration | specified; the first real migration will be the first normaliser change |
+| §6a transformations | not built as a record type; used through existing objects by E-6 (2026-11-19, B-027): a derivation is a fact about its input (subject f, inputs f's closure, value: tool, versions, mode, output id), its evidence a `tested` equivalence annotation between two outputs ([[layers]]); transformation records proper are proposal B-088 |
 
 ## Related
 

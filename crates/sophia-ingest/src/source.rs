@@ -28,7 +28,7 @@ pub const MANIFEST_NORMALISER: &str = "sophia-ingest-manifest@0";
 pub const JULIA_MODULE_FRONTEND: &str = "sophia-ingest/julia-module@0";
 pub const METAMATH_FRONTEND: &str = "sophia-ingest/metamath@0";
 
-fn single(lang: &str, normaliser: &str, kind: &str, bytes: Vec<u8>, display: Vec<u8>, refs: Vec<Digest>) -> Record {
+pub(crate) fn single(lang: &str, normaliser: &str, kind: &str, bytes: Vec<u8>, display: Vec<u8>, refs: Vec<Digest>) -> Record {
     let component = component_digest(lang, normaliser, &bytes);
     Record {
         id: member_digest(&component, 0),

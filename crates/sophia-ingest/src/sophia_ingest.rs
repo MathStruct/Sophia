@@ -3,6 +3,10 @@
 
 pub mod code;
 pub mod conformance;
+pub mod derivative;
+pub mod expansion;
+pub mod invalidation;
+pub mod layers;
 pub mod metamath;
 pub mod module;
 pub mod source;

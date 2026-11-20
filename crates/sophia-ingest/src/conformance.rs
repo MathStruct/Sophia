@@ -571,15 +571,15 @@ struct JuliaForm {
 /// A module-level form of Sophia's parse: its span; for a macro call whose
 /// last argument is a definition, the span of the macro call before the
 /// definition (`@m args… `) and the definition's span.
-struct SophiaForm {
-    start: usize,
-    end: usize,
+pub(crate) struct SophiaForm {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
     wraps: Option<((usize, usize), (usize, usize))>,
 }
 
 /// The module-level forms of a file, inside `module … end` too; a string
 /// followed by another form is that form's docstring.
-fn module_forms(root: moonkale_content_id::Syntax) -> Vec<SophiaForm> {
+pub(crate) fn module_forms(root: moonkale_content_id::Syntax) -> Vec<SophiaForm> {
     let mut out = Vec::new();
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
@@ -617,7 +617,7 @@ fn module_forms(root: moonkale_content_id::Syntax) -> Vec<SophiaForm> {
 }
 
 /// The node with exactly this span (the outermost one).
-fn node_at(tree: &moonkale_content_id::Tree, start: usize, end: usize) -> Option<moonkale_content_id::Syntax<'_>> {
+pub(crate) fn node_at(tree: &moonkale_content_id::Tree, start: usize, end: usize) -> Option<moonkale_content_id::Syntax<'_>> {
     let mut n = tree.root_node().descendant_for_byte_range(start, end)?;
     while n.start_byte() != start || n.end_byte() != end {
         n = n.parent()?;
@@ -631,7 +631,7 @@ fn node_at(tree: &moonkale_content_id::Tree, start: usize, end: usize) -> Option
 /// Whether the definition node with this span is a template: it holds a
 /// `$` splice outside a quote of its own (`@eval f(x::$T) = …`), not one
 /// inside a string (`"…$x…"`, a string interpolation).
-fn template_at(tree: &moonkale_content_id::Tree, start: usize, end: usize) -> bool {
+pub(crate) fn template_at(tree: &moonkale_content_id::Tree, start: usize, end: usize) -> bool {
     let Some(n) = node_at(tree, start, end) else { return false };
     let mut stack = vec![n];
     while let Some(x) = stack.pop() {

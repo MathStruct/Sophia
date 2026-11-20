@@ -28,8 +28,8 @@ Content ids are meant to cover only the first: a caller's id includes "calls g",
 | "f calls the generic function g" | L3 | yes (generic uses, `nominal_refs`); on LinearAlgebra 1 758 uses agree with Julia, 5 are spliced loop variables ([[Julia Conformance]] part 3) |
 | "m is a method of g" | L3 | yes, 94.5 % agreement with Julia ([[Julia Conformance]]) |
 | "in world w, g has these methods" | L3 | yes, via world snapshots, for the methods Sophia ingested |
-| "a call g(x::T) in world w reaches m" | L5-adjacent | **no**; would come from Julia itself (below) |
-| "f's compiled code is valid in world w′" | — | no; Julia's backedges know, Sophia does not |
+| "a call g(x::T) in world w reaches m" | L5-adjacent | measured, not stored: recorded from Julia per compiled call by E-3's oracle ([[Dispatch Invalidation]]); storing it is proposal B-087 |
+| "f's compiled code is valid in world w′" | — | no; Julia's backedges know, Sophia does not. From dispatch facts Sophia over-approximates it: LinearAlgebra, 13 instances marked where Julia invalidated 0 ([[Dispatch Invalidation]]) |
 
 ## The way forward: ask Julia, record the answer
 

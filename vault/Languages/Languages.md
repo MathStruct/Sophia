@@ -31,8 +31,9 @@ Two rules:
 | **Rust** | [[Rust Overview]] | yes | partly (WP-66): definitions without `for`, `match` or closures; matrixmultiply: 0 of 18 functions with a loop ([[Cross-Language Gemm Structure]]) | same-file names only | no | no | no |
 | **Python** | [[Python Overview]] | yes | yes (WP-66) | same-file names only | no | no | no |
 | **Metamath** | [[Metamath Overview]] | yes (full format, except file inclusion) | yes (`sophia-metamath@2`) | yes (labels are global) | stored as statements and proofs | no (proofs are not checked by Sophia) | **dependency analysis checked against metamath.exe** |
+| **LLVM IR** | [[LLVM IR]] | no: stored as text (Enzyme's modules, E-6) | no: the text with Julia's addresses and session numbers replaced (`sophia-e6/llvm-module@0`) is reproducible, but it is not a canonical form | no | is a lowered layer; nothing lowers into it | no | no |
 | **Lisp** | [[Lisp Overview]] | planned (S-ADR-0008) | — | — | — | — | — |
-| **Lean 4** | [[Lean Overview]] | planned (rung 5) | — | — | — | — | — |
+| **Lean 4** | [[Lean Overview]] | measured, not read into the store (lean4export files analysed by examples; rung 5) | — | — | — | — | Mathlib re-checked here by Lean's kernel (`leanchecker`, E-10); not by Sophia |
 
 ## What each language page contains
 

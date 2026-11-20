@@ -18,4 +18,6 @@ If a caller of `+` referred to "`+` with its current methods" by hash, then addi
 
 **World snapshots** (SPEC-006 §2, implemented 2026-10-20) give every result a fixed world to be reproduced in. Minimal invalidation by signature overlap is still open (SR-85).
 
+**Measured (2026-11-19, E-3, [[Dispatch Invalidation]]):** on a fixture and on LinearAlgebra, with dispatch facts recorded from Julia, the overlap rule never missed a changed call or an instance Julia invalidated. Overlap alone is coarse for a method less specific than the existing ones (`abs(x) = x`: 16 false calls, 135 instances); with a specificity check (a method the call already reaches covers it and beats the new one) it was exact on calls. For compiled code Julia invalidates less than any rule over dispatch facts can: a call on `Any` whose reachable methods change has no backedge if inference never used its result (LinearAlgebra: 0 invalidations, 13 instances relying on changed calls). Ambiguity detection was not measured.
+
 **Why it might fail** (SR-73): if the overlap check is too coarse, every new method on a popular generic function still invalidates most facts. Measure it with B-09 (invalidation precision) once a Julia corpus is ingested.
