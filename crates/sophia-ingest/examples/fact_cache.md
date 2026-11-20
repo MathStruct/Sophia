@@ -27,7 +27,7 @@ The cache is `all-content-only` without eviction: every id ever computed.
 
 **Output in OUTDIR:**
 - `commits.tsv`: one row per commit;
-- `summary.tsv`: totals per folder, the number of distinct ids, the refused files and definitions, the frontend's time per definition, and the cache stores.
+- `summary.tsv`: totals per folder, the number of distinct ids, the refused files and definitions (in total and per language), the frontend's time per definition, and the cache stores.
 
 A definition the normal form refuses gets no id, so it gets no fact and is not counted. A file refused whole, by a parse error or by the frontend's deadline, counts as having no definitions. A count of refused files above zero may mean that the counts depended on load: check it against an idle run.
 

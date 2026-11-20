@@ -44,6 +44,8 @@ struct Ids {
     refused_defs: usize,
     /// Files the frontend refused whole (a parse error or its deadline).
     refused_files: usize,
+    /// Per language: (texts, definitions with an id, definitions refused).
+    per_lang: std::collections::BTreeMap<String, (usize, usize, usize)>,
 }
 
 impl Ids {
@@ -55,6 +57,7 @@ impl Ids {
             let ids = match code::file(lang, text) {
                 Ok(f) => {
                     self.refused_defs += f.refused.len();
+                    self.per_lang.entry(lang.to_string()).or_default().2 += f.refused.len();
                     f.records.iter().map(|r| r.id).collect()
                 }
                 Err(_) => {
@@ -64,6 +67,9 @@ impl Ids {
             };
             self.frontend += t.elapsed();
             self.defs += ids.len();
+            let e = self.per_lang.entry(lang.to_string()).or_default();
+            e.0 += 1;
+            e.1 += ids.len();
             self.by_key.insert(key.clone(), ids);
         }
         key
@@ -416,6 +422,10 @@ fn main() -> R<()> {
         ids.defs,
         ids.frontend.as_secs_f64() * 1e6 / ids.defs.max(1) as f64
     ));
+
+    for (lang, (texts, defs, refused)) in &ids.per_lang {
+        summary.push(format!("{lang}: {texts} distinct texts, {defs} definitions with an id, {refused} refused"));
+    }
 
     // The cache store at that size: SQLite and redb, three value sizes.
     let mut all: Vec<Digest> = cache.seen.keys().copied().collect();

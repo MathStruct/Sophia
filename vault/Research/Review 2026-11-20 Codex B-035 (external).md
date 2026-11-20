@@ -5,7 +5,7 @@
 > - Three corrected readings in the notes (3 to 5).
 > - Six were defects in the program (6 to 11). Each is fixed by reading the code; none was reproduced with a failing input, since this is a measurement program without tests.
 >
-> **The results have not been re-run yet.** A Julia benchmark of Daniel's was running, so the tables in [[Fact Cache Experiment]] are from the program before the fixes and say so.
+> **Re-run after the fixes on an idle machine (2026-11-20, 23:54).** The counts moved slightly, because Lenticulum.jl and Sophia had a new commit and the review copies had changed. The hit and miss times are now reported apart. The new count of refused definitions showed that 40 % of Rust definitions get no id. [[Fact Cache Experiment]] has the new tables.
 >
 > Sources: `codex exec -s read-only -c model_reasoning_effort=high`, with a brief naming the requirement and the files and no reasoning sent (`meta/scratchpad/review-brief-B-035.md`); its answer is in `meta/scratchpad/REVIEW-from-codex-B-035.md`. code: `crates/sophia-ingest/examples/fact_cache.rs`, [[fact_cache]].
 
