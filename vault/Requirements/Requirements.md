@@ -211,6 +211,7 @@ From the review of `85189737` ([[Review 2026-10-20 Real Code 2 (external)]], "R5
 | SR-157 | `sophia-mcp` gets the edit tools `edit(path, text, version)`, `add(namespace, name, text)`, `save_query(namespace, name, text)` and `run(name, params)`. The server stays read-only unless started with `--allow-edits`. | D 2026-11-18 | M3b | done (B-063, [[sophia_mcp]]) |
 | SR-159 | `sophia-mcp` serves every backend. On redb and DuckDB, which lock their file while it is open for writing, the server is read-only: the write flags are refused at startup rather than closing the store around each query or handing the worker a copy. | D 2026-11-18 | M3b | done (B-064, [[sophia_mcp]], [[backends]]) |
 | SR-158 | All the tools, `rename` and `delete` included, with a flag for each of the more critical groups, as a general measure: every tool has a permission class, reading is always allowed, and each riskier class is served only with its own startup flag. | D 2026-11-18 | M3b | done (B-063: classes `Read`, `Write` (`--allow-edits`), `Remove` (`--allow-removals`), [[sophia_mcp]]) |
+| SR-160 | The fact cache's default policy is `facts/cache-policy = threshold(1 ms)`: only facts that cost 1 ms or more to compute enter the per-user cache ([[Fact Cache Experiment]]). | D 2026-11-21 | later | specified (SPEC-001 §8a); cache not built |
 | SR-149 | A store-truth folder is shared through a text export of its store, committed beside the generated files, from which the store is rebuilt (SPEC-010 Q5, option b), "fine for now". Later perhaps a file type that only says which information to request from the store, a pointer like a git-lfs pointer file, instead of the full text. | D 2026-10-26 (relayed by the Moonkale agent) | next | specified as a draft: [[SPEC-011 Sharing a Store-Truth Folder]] (2026-11-18, B-004), five questions for Daniel; not built |
 
 ## From Moonkale
@@ -247,6 +248,7 @@ Each row cites the Moonkale page or section it comes from. Moonkale will cite th
 
 ## Changes
 
+- 2026-11-21: SR-160 added: the fact cache's default policy `threshold(1 ms)` (Daniel accepted B-095's proposal).
 - 2026-11-18: SR-155 added: an accept of a proposed sophialang file removes the dropped names (Daniel, option 1 of B-060).
 - 2026-11-18: SR-156 added: `sophia-mcp` uses `rmcp` (Daniel).
 - 2026-11-18: SR-157 added: the edit tools of `sophia-mcp`, behind `--allow-edits` (Daniel).

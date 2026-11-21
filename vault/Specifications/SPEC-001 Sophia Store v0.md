@@ -244,7 +244,7 @@ This is where Daniel's two kinds meet. The same statement starts as a computatio
 - **Local cache only at first.** Point 4's `trust` flag is still specified now, so that a shared cache later changes no format.
 - **One cache per user at first.**
 
-**The experiment (run 2026-11-20 and 2026-11-21, B-035: [[Fact Cache Experiment]]).** Along a history the cache adds almost nothing; it serves 86 to 89 % of a fresh full worktree; it stays under 100 MB per fact kind for three projects; a miss costs microseconds. Lean elaboration, the expensive stand-in, costs 1 ms or more on 99 % of declarations. **Proposed default (for Daniel, B-095): `threshold(1 ms)`.** It answered three questions:
+**The experiment (run 2026-11-20 and 2026-11-21, B-035: [[Fact Cache Experiment]]).** Along a history the cache adds almost nothing; it serves 86 to 89 % of a fresh full worktree; it stays under 100 MB per fact kind for three projects; a miss costs microseconds. Lean elaboration, the expensive stand-in, costs 1 ms or more on 99 % of declarations. **Default: `threshold(1 ms)`, accepted by Daniel on 2026-11-21 (SR-160).** It answered three questions:
 - **Size:** how large the cache grows under each policy.
 - **Hit rate:** how many tool runs a cache hit saves across folders.
 - **Lookup:** what a lookup costs per tool run.

@@ -1,15 +1,15 @@
-#measurement #storage #proposal
+#measurement #storage
 
 > B-035, part 1 (2026-11-20): the cheap-fact workload of the fact cache experiment ([[SPEC-001 Sophia Store v0]] §8a, SR-152). It replays the full first-parent histories of Lenticulum.jl, Moonkale and Sophia as folder stores, then ten helper worktrees and review copies as fresh folders.
 > - **Along a history, the cache adds almost nothing.** The folder store already holds 71 to 85 % of the definitions in changed files. The cache adds 0.17 % overall, and at most 1.8 % in one history.
 > - **A fresh full worktree, or a rebuilt derived store, gets 86 to 89 % from the cache**, and leaves 0 to 2 % to compute. Small partial review copies get only 4 to 23 %.
 > - **Size and lookup are small.** Everything ever seen comes to 16 741 distinct ids: 5 to 81 MB per fact kind in SQLite, depending on the value's size. A lookup takes 0.7 to 14 µs (p50).
 >
-> Two caveats. Julia ids were computed per file, while Moonkale resolves them module-wide. 40 % of Rust definitions got no id from the normal form, so they are not counted.
+> One caveat: 40 % of Rust definitions got no id from the normal form, so they are not counted. Julia ids were computed per file at first; **part 1b (B-094, 2026-11-21) re-measured with Moonkale's module-wide ids** (checked equal to a Moonkale folder store's): the hit rates move by at most 1.2 points, and no conclusion changes.
 >
 > **Part 2 (2026-11-21): the expensive tool.** Lean elaborated 60 sampled Mathlib files, command by command. **99 % of declarations cost 1 ms or more** (median 8 ms, p99 219 ms, the largest 674 ms); 44 % cost 10 ms or more and hold 88 % of the time. Reviewed by Codex ([[Review 2026-11-21 Codex B-035 part 2 (external)]]) and re-run after the fixes. A cache write costs 9 to 46 µs and a miss 0.7 to 3.6 µs, so one hit on a declaration of 1 ms repays its write 20 to 100 times.
 >
-> **Proposed default: `threshold(1 ms)`** (for Daniel). Nothing was built; the cache file waits for Daniel (SR-126).
+> **Default: `threshold(1 ms)`**, accepted by Daniel on 2026-11-21 (SR-160). Nothing was built; the cache file waits for Daniel (SR-126).
 >
 > Sources: [[SPEC-001 Sophia Store v0]] §8a; [[SPEC-009 Moonkale Folder Store]] (facts follow their files); [[Review 2026-11-20 Codex B-035 (external)]]; [[Lean Overview]] (export sizes); code: `crates/sophia-ingest/examples/fact_cache.rs` ([[fact_cache]]), `crates/sophia-ingest/examples/lean_elab_costs.rs` ([[lean_elab_costs]]), `experiments/lean-elab-costs/elab_costs.lean` ([[elab_costs]]).
 
@@ -50,7 +50,7 @@ The heads are each checkout's files on 2026-11-20 at 23:54, uncommitted changes 
 
 Two consequences:
 - **Moonkale's and Sophia's counts cover about 60 % of their Rust definitions.** Refusals are not random: the review gives a function with a `for` loop as an example. So the uncounted definitions may change more or less often than the counted ones.
-- **Julia ids are per file.** Moonkale resolves references module-wide (`cid::julia::module`), so when one file changes, ids in another can change too. The Julia counts approximate what Moonkale's folder store would see; a module-wide mode is B-035 part 1b.
+- **Julia ids are per file here.** Moonkale resolves references module-wide (`cid::julia::module`), so when one file changes, ids in another can change too. Part 1b below repeats the run with Moonkale's ids.
 
 ## Results: hits
 
@@ -83,6 +83,46 @@ The first commit of each history is a fresh build and is left out of its totals.
 - **The cache pays for fresh full folders.** These are a new helper worktree, and a derived store deleted and rebuilt (SPEC-009). The cache serves 86 to 89 % of the work. Nearly all of the rest is duplicate ids within the tree, which the folder store dedups itself. In Daniel's setup, helper worktrees are made and thrown away every few days, so this is a common case.
 - **Partial review copies gain less.** They hold a few files, often the ones being changed, so 25 to 57 % of their definitions are new.
 - **These rates hold only for content-only facts.** Facts with an `Input::Relation`, such as dispatch resolutions, stay in their store (§8a, point 3) and are recomputed in a fresh folder.
+
+## Part 1b: Julia ids as Moonkale computes them (B-094)
+
+**What changed.** `fact_cache --julia-module` computes Julia ids as Moonkale's folder store does: when any Julia file of a folder changes, all of its Julia files are resolved together by `cid::julia::module` ([[fact_cache]]). Rust and Python are unchanged.
+
+```sh
+O=$SOPHIA_CORPORA/b094; F="<the same --history and --head list as above>"
+systemd-run --user --wait --collect -p MemoryMax=8G -- sh -c \
+  "fact_cache $O/per-file $F; fact_cache $O/module --julia-module $F"
+```
+
+Both modes ran back to back on 2026-11-21, on the same inputs: first at 02:43, then again at 02:52 after Codex's review ([[Review 2026-11-21 Codex B-094 (external)]]). The tables are from the second run (the first is kept in `$O/run1/`). Its counts equal the first's, except in Lenticulum.jl-mistral, whose working tree changed between the runs (38 definitions more per file, 18 module-wide). Sophia's HEAD had moved to `de60c1418a` (136 commits); the other HEADs were as in part 1. The machine was not idle (load average 2.2 to 2.9). Times in this section are therefore rough; counts do not depend on load. Outputs: `$O/per-file/summary.tsv`, `$O/module/summary.tsv`. Both runs: 0 Julia sets refused, 249 distinct Julia file sets.
+
+**Check against Moonkale.** The ids were compared with a real Moonkale folder store. That store was built by Moonkale's `examples/folder_store.rs` at `d0e784c7`, whose content-id crate differs from Sophia's pin only by a clippy fix. It ran on `git archive HEAD` of Lenticulum.jl (`3ff93526df`) and of Sophia (`de60c1418a`). The set of Julia ids in `t_definition` (`select lower(hex(id)) from t_definition where lang='julia'`) equals module mode's `--dump` exactly, before and after the review fixes: 4 216 of 4 216 for Lenticulum.jl, 451 of 451 for Sophia. Per-file ids share only 3 021 of 4 664 (65 %) and 343 of 509 (67 %) with Moonkale's. So part 1's Julia rows were counted on ids that are a third different.
+
+**Hits, per-file and module mode** (same table as part 1; `defs` in module mode counts every Julia definition of the folder in each event that changes any Julia file, as Moonkale reparses them):
+
+| folder | event | per file: cache (other folder) | per file: runs left | module: cache (same + other) | module: runs left |
+|---|---|---|---|---|---|
+| Lenticulum.jl | 339 commits | 3 | 6 934 | 17 | 6 905 |
+| Moonkale | 293 commits | 10 | 7 678 | 7 | 7 668 |
+| Sophia | 135 commits | 123 | 1 857 | 107 | 1 820 |
+| Lenticulum.jl-codex | fresh | 4 654 of 5 461 (85.2 %) | 61 | 4 203 of 4 867 (86.4 %) | 44 |
+| Lenticulum.jl-mistral | fresh | 4 715 of 5 461 (86.3 %) | 0 | 4 247 of 4 867 (87.3 %) | 0 |
+| Lenticulum.jl-Review-2026-11-09 | partial copy | 1 of 24 | 6 | 1 of 24 | 6 |
+| Lenticulum.jl-Review-2026-11-15 | partial copy | 6 of 28 | 16 | 5 of 21 | 13 |
+| Lenticulum.jl-Review-2026-11-20 | partial copy | 56 of 240 (23.3 %) | 99 | 57 of 234 (24.4 %) | 105 |
+| Moonkale-dev-claude | fresh | 5 501 of 6 352 (86.6 %) | 106 | 5 488 of 6 338 (86.6 %) | 106 |
+| Moonkale-codex | fresh | 5 520 of 6 250 (88.3 %) | 0 | 5 507 of 6 236 (88.3 %) | 0 |
+| Moonkale-dev-mistral | fresh | 5 546 of 6 301 (88.0 %) | 13 | 5 533 of 6 287 (88.0 %) | 13 |
+| Sophia-codex | fresh | 970 of 1 089 (89.1 %) | 0 | 957 of 1 071 (89.4 %) | 0 |
+| Sophia-mistral | fresh | 1 005 of 1 134 (88.6 %) | 0 | 992 of 1 116 (88.9 %) | 0 |
+
+(The per-file columns are this run's, not part 1's: Lenticulum.jl-codex's working tree and Sophia's HEAD had changed.)
+
+**The difference, stated:**
+- **The hit rates hardly move.** Fresh full worktrees get 86 to 89 % from the cache in both modes, at most 1.2 points apart. Along the histories, the cache saves 136 runs per file and 131 module-wide, out of about 16 400 runs left in either mode. Part 1's reading stands.
+- **Module-wide ids are fewer.** At Lenticulum.jl's HEAD, 4 216 distinct Julia ids against 4 664 per file (10 % fewer), and 16 702 distinct ids against 16 793 in the whole cache. Moonkale's store reports 316 refused Julia definitions at that HEAD. Why per-file mode yields more distinct ids was not traced.
+- **One Julia edit re-identifies the folder.** Along Lenticulum.jl's history, module mode puts 613 528 Julia definitions through the resolver (per file: 45 379 in changed files). 98.9 % of them are already live in the folder store, so the tool runs left are about the same. What grows is the frontend: 150.7 s in the resolver for 249 distinct Julia file sets (about 0.6 s per set, on a loaded machine). That is Moonkale's ingest cost, not the cache's. A cache hit does not save it.
+- **Unchanged files can change ids.** That is the case part 1 could not see. In these histories it is rare enough to leave the counts as they were: Lenticulum.jl's runs left fall from 6 934 to 6 905.
 
 ## Results: size and lookup
 
@@ -158,7 +198,7 @@ By kind, the median declaration costs 8.7 ms (926 theorems), 9.9 ms (372 `lemma`
 - **What it costs in space.** Not measured per declaration here. As an order of magnitude, `lean4export` writes 5.9 GB for Mathlib and its dependencies' 717 000 declarations ([[Lean Overview]]), about 8 KB each with the shared term graph. A cache holding all of Mathlib's elaborated terms would be some GB. For three projects' cheap facts, part 1 gave tens of MB.
 - **Not covered.** No declaration in the sample reached 1 s. Mathlib has some that take much longer (those that raise `maxHeartbeats`), and a sample of 60 files is unlikely to contain one. A larger or a targeted sample would show the tail; it does not change the threshold, only the share of time above 100 ms.
 
-## Proposal: the default (for Daniel)
+## The default (accepted 2026-11-21, SR-160)
 
 **`facts/cache-policy = threshold(1 ms)`.**
 - **It separates what is cheap from what is not.** The facts Sophia makes today (spans, call edges, imports) come out of its frontend, which spends 343 µs per definition on all of them together (part 1), so they fall below it. Almost every elaborated declaration (99 %) is above it.
