@@ -2,13 +2,13 @@
 
 > Julia in Sophia: the language that matters most, because Moonkale was built as Lenticulum.jl's editor (SR-114). Status by level ([[Languages]]), with the tests behind each claim. 2026-10-20.
 >
-> Sources: [[SPEC-008 Module-Level Julia Resolution]]; [[Real Code Corpora]] §5; Moonkale's `moonkale-content-id` (rev `dacef2e6`, normaliser v7); `crates/sophia-ingest`.
+> Sources: [[SPEC-008 Module-Level Julia Resolution]]; [[Real Code Corpora]] §5; Moonkale's `moonkale-content-id` (rev `06fd112c`, normaliser 8; rev `dacef2e6`, v7, until 2026-11-08); `crates/sophia-ingest`.
 
 ## Pages
 
 | Page | Topic |
 |---|---|
-| [[Julia Parsing and Normalization]] | tree-sitter, WP-66 v7, what is refused |
+| [[Julia Parsing and Normalization]] | tree-sitter, WP-66 (v8 since 2026-11-08), what is refused |
 | [[Julia Name Resolution]] | module scope, includes, imports, generic functions as (module, name) |
 | [[Julia Multiple Dispatch and World Age]] | generic identity vs method table vs dispatch result |
 | [[Julia Macros and Generated Functions]] | what Sophia sees of code that writes code |

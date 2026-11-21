@@ -39,7 +39,7 @@ crates/
   sophialang-syntax/ rendering profiles: printer and parser (Julia- and Rust-flavoured)
   sophia-interface/ what Moonkale wraps: nodes, edges, text, edits, profiles, the `query` dialect
   sophia-query/     Sophia's own query language: Datalog IR, Julia-flavoured syntax, content ids, executors
-  sophia-ingest/    real code into Sophia: Metamath first (set.mm, iset.mm)
+  sophia-ingest/    real code into Sophia: Metamath, and Julia, Rust and Python through Moonkale's normaliser
   sophia-bench/     the benchmark suite (criterion + a report binary)
   sophia-cli/       the `sophia` command
 attic/              comment-only crates from the first design, kept as ideas
@@ -67,6 +67,30 @@ cargo run -p sophia-cli -- query 'select k, count(d) where def(d, k)'   # Sophia
 cargo run --release -p sophia-bench --bin sophia-bench-report -- --sizes 1000,10000,100000
 cargo run --release -p sophia-bench --bin sophia-mm-check -- --exe "$(command -v metamath)" "$SOPHIA_CORPORA/set.mm/set.mm" --sample 300
 ```
+
+## Languages
+
+Support for a language is stated by level, per feature, never as a share of definitions that get
+an id. The levels are L1 parsed, L2 normalised (a canonical form and content id), L3 resolved
+(names mean what the language means), L4 lowered (into a shared IR), L5 executable and L6 verified
+([vault/Languages/Languages.md](vault/Languages/Languages.md)). `sophia ingest-code LANG PKG DIR`
+reads Julia, Rust and Python through Moonkale's `moonkale-content-id` (pinned in
+`crates/sophia-ingest/Cargo.toml`), so a definition has the same id in both tools.
+
+| | L1 parsed | L2 normalised | L3 resolved | L4 to L6 |
+| --- | --- | --- | --- | --- |
+| **Julia** | yes (tree-sitter) | yes, Moonkale's ids; macros are hashed as written, not expanded | module-level names across `include`d files, and the generic function a method belongs to; `using` and re-exports are not followed, dispatch is not attempted | no |
+| **Rust** | yes (tree-sitter) | partly: a definition using `for`, `match`, a closure, `while let` or `let`-`else` is refused and gets no id | names within one file, by spelling | no |
+| **Python** | yes (tree-sitter) | yes, Moonkale's ids; methods inside classes are definitions | names within one file, by spelling | no |
+
+The evidence: `crates/sophia-ingest/tests/code.rs` and `tests/module.rs` reproduce Moonkale's
+golden ids and references for all three languages (L2, and L3 as Moonkale resolves);
+`refusals_name_the_refused_rust_construct` pins the Rust refusals; Julia's generic-function
+ownership is checked against Julia's own method table by `examples/julia_conformance.rs`, where
+every disagreement on LinearAlgebra is a re-exported binding (`Base.Array` is `Core.Array`).
+Metamath is ingested on its own path and its dependency analysis is checked against metamath.exe
+(`sophia-mm-check`). The full matrix, with sophialang, the query language, Metamath and Lean, is in
+the Languages note.
 
 ## Website
 

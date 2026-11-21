@@ -21,14 +21,14 @@ Two rules:
 - **A level is claimed per feature, not per language.** Julia is L3 for module-level names and generic-function ownership, L2 for macros (they are hashed as written, not expanded), and L0 for generated functions.
 - **Unresolved is a valid answer.** A frontend that says "this I do not know" (a refusal, an approximation flag, a `dynamic` include) is correct. One that guesses silently is not.
 
-## The matrix (2026-10-20)
+## The matrix (2026-10-20, normaliser versions and Rust refusals updated 2026-11-21)
 
 | Language | Folder | L1 Parsed | L2 Normalised | L3 Resolved | L4 Lowered | L5 Executable | L6 Verified |
 |---|---|---|---|---|---|---|---|
 | **sophialang** | [[SophiaLang Overview]] | yes (Julia and Rust profiles round-trip) | yes (`sophialang-core@0`) | yes (elaboration against the store) | it *is* the core | no | no |
 | **Sophia query** | [[Sophia Query Overview]] | yes | yes (exact canonical form) | yes (checked, stratified) | yes (IR; SQL translation) | **yes** (native and SQL, four backends) | differential tests only |
-| **Julia** | [[Julia Overview]] | yes (tree-sitter) | yes (WP-66 v7, shared with Moonkale) | partly: module scope, imports, generic ownership 95.1 % agreement with Julia | no | no | no |
-| **Rust** | [[Rust Overview]] | yes | partly (WP-66): definitions without `for`, `match` or closures; matrixmultiply: 0 of 18 functions with a loop ([[Cross-Language Gemm Structure]]) | same-file names only | no | no | no |
+| **Julia** | [[Julia Overview]] | yes (tree-sitter) | yes (WP-66 v8, shared with Moonkale) | partly: module scope, imports, generic ownership 95.1 % agreement with Julia | no | no | no |
+| **Rust** | [[Rust Overview]] | yes | partly (WP-66 v8): definitions without `for`, `match`, closures, `while let` or `let`-`else`; matrixmultiply: 0 of 18 functions with a loop ([[Cross-Language Gemm Structure]]) | same-file names only | no | no | no |
 | **Python** | [[Python Overview]] | yes | yes (WP-66) | same-file names only | no | no | no |
 | **Metamath** | [[Metamath Overview]] | yes (full format, except file inclusion) | yes (`sophia-metamath@2`) | yes (labels are global) | stored as statements and proofs | no (proofs are not checked by Sophia) | **dependency analysis checked against metamath.exe** |
 | **LLVM IR** | [[LLVM IR]] | no: stored as text (Enzyme's modules, E-6) | no: the text with Julia's addresses and session numbers replaced (`sophia-e6/llvm-module@0`) is reproducible, but it is not a canonical form | no | is a lowered layer; nothing lowers into it | no | no |
