@@ -7,9 +7,11 @@
 >
 > Two caveats. Julia ids were computed per file, while Moonkale resolves them module-wide. 40 % of Rust definitions got no id from the normal form, so they are not counted.
 >
-> **Part 2 is open:** the cost of an expensive tool (Lean elaboration). The threshold, and so the default, depend on it. Nothing was built; the cache file waits for Daniel (SR-126).
+> **Part 2 (2026-11-21): the expensive tool.** Lean elaborated 60 sampled Mathlib files, command by command. **99 % of declarations cost 1 ms or more** (median 8 ms, p99 219 ms, the largest 674 ms); 44 % cost 10 ms or more and hold 88 % of the time. Reviewed by Codex ([[Review 2026-11-21 Codex B-035 part 2 (external)]]) and re-run after the fixes. A cache write costs 9 to 46 µs and a miss 0.7 to 3.6 µs, so one hit on a declaration of 1 ms repays its write 20 to 100 times.
 >
-> Sources: [[SPEC-001 Sophia Store v0]] §8a; [[SPEC-009 Moonkale Folder Store]] (facts follow their files); [[Review 2026-11-20 Codex B-035 (external)]]; code: `crates/sophia-ingest/examples/fact_cache.rs` ([[fact_cache]]).
+> **Proposed default: `threshold(1 ms)`** (for Daniel). Nothing was built; the cache file waits for Daniel (SR-126).
+>
+> Sources: [[SPEC-001 Sophia Store v0]] §8a; [[SPEC-009 Moonkale Folder Store]] (facts follow their files); [[Review 2026-11-20 Codex B-035 (external)]]; [[Lean Overview]] (export sizes); code: `crates/sophia-ingest/examples/fact_cache.rs` ([[fact_cache]]), `crates/sophia-ingest/examples/lean_elab_costs.rs` ([[lean_elab_costs]]), `experiments/lean-elab-costs/elab_costs.lean` ([[elab_costs]]).
 
 ## How it was measured
 
@@ -111,23 +113,57 @@ Lookups are 50 000 hits (drawn with replacement) and 50 000 misses, interleaved,
 - **SQLite and large values.** With 1 KiB values, each SQLite fact takes 4.8 KB, and a hit is 9× slower than in redb. The fact table is `WITHOUT ROWID`, which SQLite advises against for rows this large. A certificate-sized value (§8a, point 1) belongs in a rowid table or a blob outside the row. This is a detail of the cache file, for later.
 - **redb's file grows in regions.** At this small size, its bytes per fact say little.
 
-## Open: part 2, expensive facts
+## Part 2: the cost of an expensive tool (Lean elaboration)
 
-The threshold policy needs the cost distribution of a tool that is really expensive. Sophia has none (§8a). The planned candidate is Lean elaboration of Mathlib declarations:
-- Mathlib `98a293fac8`, Lean v4.36.0-rc1;
-- `lake env lean -Dtrace.profiler=true -Dtrace.profiler.threshold=0 FILE` prints an `[Elab.command] [seconds]` line per command;
-- a first try on `Mathlib/Data/Nat/Factorial/Basic.lean` (573 lines) took 22 s and printed 187 731 lines, on a busy machine.
+The threshold policy needs the costs of a tool that is really expensive. Sophia has none yet (§8a), so Lean's elaborator stands in: the fact would be a declaration's elaborated term, and its cost the time Lean spends on the declaration.
 
-Then:
-- profile a sample of files;
-- take the per-declaration elaboration times;
-- set the threshold against the lookup and write costs above.
+```sh
+cargo build --release -p sophia-ingest --example lean_elab_costs
+O=$SOPHIA_CORPORA/b035-lean/run2
+systemd-run --user -P --wait --collect -p MemoryMax=8G --setenv=PATH=$HOME/.elan/bin:/usr/bin:/bin --working-directory=$PWD -- \
+  ./target/release/examples/lean_elab_costs $O ~/Code/CategoryTheory/mathlib4 experiments/lean-elab-costs/elab_costs.lean --sample 60
+```
 
-## Proposal (expectation, until part 2 is measured)
+**Inputs.** Mathlib `98a293fac8`, Lean v4.36.0-rc1 (its prebuilt cache). 60 of Mathlib's 8 650 files, drawn by a seeded hash of the path (seed 35; [[lean_elab_costs]]): 15 189 lines, from 11 directories of `Algebra` to 2 of `Probability`.
 
-The default would be **`threshold(t)` with `t` small (of the order of 1 ms)**, not 1 s.
-- **A threshold against the frontend.** A miss costs microseconds. A fact that costs more than about 1 ms to compute, beyond the frontend, is worth a lookup many times over.
-- **The fresh-folder case** is where the cache pays. A 1 s threshold would cache nothing from today's tools.
-- **`all-content-only`** is just as defensible at these sizes. The difference between the two policies only matters once a tool emits many facts that cost microseconds. Part 2 decides.
+**Method.** The driver [[elab_costs]] runs Lean's own frontend over each file, one source command at a time, synchronously (`Elab.async = false`, so a proof is charged to its theorem). It records each command's wall time and heartbeats. **The unit is the source command**, as a cache entry would be keyed by one source definition: a command that a macro turns into several declarations (one in `DomAct/Basic.lean` makes instances for 24 classes) counts once, with all its time. Lean's trace profiler was tried first and dropped: it prints each macro expansion of a command beside the command itself, so its lines count the work twice (145 lines for 68 commands in `Mathlib/Data/WSeq/Relation.lean`), and at `threshold=0` it inflated times by about 14 %.
+
+**Conditions and checks.**
+- **Two runs.** Run 1 (`$SOPHIA_CORPORA/b035-lean/run1`) was on an idle machine: load average 0.14, 4 min 3 s, peak 3.8 GB. Codex's review found defects in the driver and the runner; run 2 (`run2`) is after the fixes, same sample. During run 2, two Julia jobs not started by this session used 2 of the 8 cores (load average 2.1 at the start); Lean is single-threaded here. Run 2 took 5 min 31 s, peak 4.0 GB. The tables below are run 2's.
+- **The runs agree.** Per file, run 2's command time divided by run 1's has a median of 0.999. The commands that moved most were early commands of small files, which dropped from about 25 ms to 5 to 15 ms. Run 2 imports with `leakEnv` as `lean` does, the most likely cause of that one-time cost (review, point 3); it was not isolated. In total, 41.6 s against 41.0 s.
+- Every file elaborated without an error, in `lean` (its exit status) and in the driver (per command).
+- **The driver against `lean`.** Per file, the driver's import time plus its command times, divided by the wall time of `lean -DElab.async=false FILE` (run warm, after the driver), is 1.00 to 1.18, median 1.07. Summed: 52.9 s of imports and 41.6 s of commands, against 89.4 s of `lean`. **The driver's times are thus about 7 % above what `lean` spends, process start included.** The cause is not known; the driver process also holds Lean's own environment for interpreting itself (peak 4 GB against about 1.6 GB). It is far below the factor of 10 between thresholds.
+- Time and heartbeats agree: the correlation of their logarithms over the declarations is 0.995.
+
+**Results.** 2 918 commands, of which 1 846 are declarations: Lean's `declaration` command (theorem, def, instance, `example`, ...), or any command that added a constant (Mathlib's `lemma`, `alias`, and some `notation`, `attribute` and `deriving` commands). Times are in ms.
+
+| set | count | total | p10 | p50 | p90 | p99 | max |
+|---|---|---|---|---|---|---|---|
+| declarations | 1 846 | 40.7 s | 2.2 | 8.1 | 50 | 219 | 674 |
+| all commands | 2 918 | 41.6 s | 0.42 | 3.8 | 33 | 179 | 674 |
+
+| threshold | declarations at or above it | their share of declaration time | their share of all command time |
+|---|---|---|---|
+| 0.1 ms | 1 846 (100 %) | 100 % | 97.8 % |
+| 1 ms | 1 832 (99.2 %) | 100 % | 97.7 % |
+| 10 ms | 820 (44.4 %) | 88.2 % | 86.2 % |
+| 100 ms | 76 (4.1 %) | 35.9 % | 35.1 % |
+| 1 s | 0 | 0 | 0 |
+
+By kind, the median declaration costs 8.7 ms (926 theorems), 9.9 ms (372 `lemma`s), 12.0 ms (224 definitions) and 6.3 ms (226 instances). The 1 072 bookkeeping commands (`variable`, `section`, `end`, `open`, docs) cost 0.9 s in all. The imports cost 0.5 to 1.2 s per file, once per file, not per declaration.
+
+**Reading:**
+- **Two clusters, far apart.** Sophia's frontend spends 343 µs per definition, and the facts it yields (spans, call edges) come out of that run for free. Lean's elaborator spends 1 ms or more on 99 % of declarations, and 8 ms on the median one. A threshold of 1 ms falls between them.
+- **What a hit is worth.** A cache write costs 9 to 46 µs and a miss 0.7 to 3.6 µs (part 1). One hit on a declaration of 1 ms repays its write 20 to 100 times; on the median declaration, 180 to 900 times.
+- **What it costs in space.** Not measured per declaration here. As an order of magnitude, `lean4export` writes 5.9 GB for Mathlib and its dependencies' 717 000 declarations ([[Lean Overview]]), about 8 KB each with the shared term graph. A cache holding all of Mathlib's elaborated terms would be some GB. For three projects' cheap facts, part 1 gave tens of MB.
+- **Not covered.** No declaration in the sample reached 1 s. Mathlib has some that take much longer (those that raise `maxHeartbeats`), and a sample of 60 files is unlikely to contain one. A larger or a targeted sample would show the tail; it does not change the threshold, only the share of time above 100 ms.
+
+## Proposal: the default (for Daniel)
+
+**`facts/cache-policy = threshold(1 ms)`.**
+- **It separates what is cheap from what is not.** The facts Sophia makes today (spans, call edges, imports) come out of its frontend, which spends 343 µs per definition on all of them together (part 1), so they fall below it. Almost every elaborated declaration (99 %) is above it.
+- **Above 1 ms, caching always pays.** A hit on a 1 ms declaration saves 300 to 1 400 times what a miss costs, and a write is repaid on the first hit.
+- **`all-content-only` adds only cheap facts.** They would fill the cache with values a fresh folder recomputes in well under a millisecond (part 1: the cache serves 86 to 89 % of a fresh worktree, but each hit saves only the tool's cost beyond the frontend). The difference is small at today's sizes; the threshold keeps the cache to what is worth it.
+- **A size cap is a separate question.** If the cache must be bounded (Mathlib's elaborated terms alone are some GB), a higher threshold is the cheap way: 10 ms keeps 44 % of the declarations and 88 % of the time. Eviction by cost per byte, as `all-content-only` has, would serve the same end. Not proposed until a cache is near a bound.
 
 The cache store itself is a new storage file, which needs Daniel's agreement (SR-126). Nothing was added.

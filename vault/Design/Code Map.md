@@ -60,6 +60,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | | `examples/lean_statements.rs` | [[lean_statements]] | E-10: repeated Lean statements by level of equality and cause; statement vs proof dependencies; axioms behind theorems |
 | | `examples/lean_layout.rs` | [[lean_layout]] | M-1, M-2: lean copies of a SQLite store, verified by rebuilding from their sources; rebuild costs per file and definition |
 | | `examples/fact_cache.rs` | [[fact_cache]] | B-035: fact cache hit rates over git histories and fresh checkouts; cache store size and lookup time |
+| | `examples/lean_elab_costs.rs` | [[lean_elab_costs]] | B-035 part 2: Lean elaboration cost per command and declaration on a Mathlib sample, through [[elab_costs]] |
 | | `examples/gemm_structure.rs`, `examples/gemm_structure.tsv` (role labels) | [[gemm_structure]] | E-2: name-free loop predicates on Rust and Julia gemm code, on the source and in the store, against role labels ([[Cross-Language Gemm Structure]]) |
 | | `examples/julia_conformance.rs`, `tests/julia-semantics/methods.jl` | [[julia_conformance]], [[methods]] | Sophia's generic-function grouping against Julia's own method table ([[Julia Conformance]]) |
 | | `src/conformance.rs`, `examples/julia_dispatch.rs`, `tests/dispatch.rs`, `tests/julia-semantics/calls.jl`, `tests/julia-semantics/dispatch/` | [[conformance]], [[julia_dispatch]], [[calls]] | part 3 of the conformance suite: what Sophia says a name in a body refers to, against Julia's lowered code ([[Julia Conformance]]) |
@@ -89,6 +90,7 @@ Every source file in the repository has a markdown sibling of the same name desc
 | `experiments/staged-compilation` | `lux_train_step.jl` | [[lux_train_step]] | E-7: a Lux training step compiled by Reactant: compile vs step time, sizes, reproducibility, restore |
 | | `executable_objects.py` | [[executable_objects]] | E-7: compares XLA CPU executables after sorting their object files |
 | `experiments/lean-recheck` | `recheck.sh` | [[recheck]] | E-10: re-checks every Mathlib module with Lean's kernel (`leanchecker`), per module |
+| `experiments/lean-elab-costs` | `elab_costs.lean` | [[elab_costs]] | B-035 part 2: times each source command of one Lean file through Lean's frontend, synchronously |
 | `sophia-cli` | `main.rs` | [[main]] | the `sophia` command |
 
 The comment-only crates of the first vault (`sophia-core`, `sophia-equiv`, `sophia-emit`, `sophia-frontend-metamath`) are kept as ideas in `attic/`: [[sophia_core]], [[elaborate]], [[effects]], [[sophia_equiv]], [[egraph]], [[witness]], [[sophia_emit]], [[metamath]].

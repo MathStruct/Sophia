@@ -22,7 +22,7 @@ The order below is a proposal (2026-11-17, B-001), following SR-125 (Moonkale fi
 | [[Backlog Fable Review]] | Open findings of Fable's review | 5 |
 | [[Backlog Query Engine]] | Query engine and agents | 8 |
 | [[Backlog Semantic Experiments]] | Semantic boundary experiments ([[Semantic Boundary Experiments]], SR-124, SR-139) | 12 |
-| [[Backlog Storage]] | Storage (measure first, layout changes need Daniel, SR-126) | 3 |
+| [[Backlog Storage]] | Storage (measure first, layout changes need Daniel, SR-126) | 4 |
 | [[Backlog Sophialang]] | Language: sophialang (M4 to M6, SR-154) | 16 |
 | [[Backlog Store Semantics]] | Store semantics, later | 5 |
 | [[Backlog Vault]] | Vault and documentation | 3 |
